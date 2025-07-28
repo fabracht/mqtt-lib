@@ -1,55 +1,29 @@
+mod common;
+
+use common::{create_test_client, test_client_id, EventCounter};
 use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS, SubscribeOptions};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use ulid::Ulid;
-
-/// Generate a lexicographically sortable client ID using ULID
-fn test_client_id(test_name: &str) -> String {
-    format!("test-{}-{}", test_name, Ulid::new())
-}
 
 #[tokio::test]
 async fn test_complete_mqtt_flow() {
-    // Create client with unique ID
-    let client = MqttClient::new(test_client_id("complete-flow"));
-
-    // Connect to broker using simple connect method
-    println!("Attempting to connect to mqtt://127.0.0.1:1883");
-    match client.connect("mqtt://127.0.0.1:1883").await {
-        Ok(()) => println!("Connected successfully"),
-        Err(e) => {
-            eprintln!("Connection failed: {e:?}");
-            // Try one more time after a delay
-            println!("Retrying connection after 1 second...");
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            match client.connect("mqtt://127.0.0.1:1883").await {
-                Ok(()) => println!("Connected successfully on retry"),
-                Err(e2) => panic!("Failed to connect after retry: {e2:?}"),
-            }
-        }
-    }
-
+    // Create and connect client
+    let client = create_test_client("complete-flow").await;
     assert!(client.is_connected().await);
 
-    // Test single subscription and publish
-    let received = Arc::new(AtomicU32::new(0));
-    let received_clone = Arc::clone(&received);
-
+    // Test single subscription and publish using EventCounter
+    let counter = EventCounter::new();
+    
     let sub_opts = SubscribeOptions {
         qos: QoS::AtLeastOnce,
         ..Default::default()
     };
 
     client
-        .subscribe_with_options("test/topic", sub_opts, move |msg| {
-            assert_eq!(msg.topic, "test/topic");
-            assert_eq!(msg.payload, b"Hello MQTT");
-            assert_eq!(msg.qos, QoS::AtLeastOnce);
-            received_clone.fetch_add(1, Ordering::SeqCst);
-        })
+        .subscribe_with_options("test/topic", sub_opts, counter.callback())
         .await
         .expect("Failed to subscribe");
 
@@ -65,16 +39,11 @@ async fn test_complete_mqtt_flow() {
     }
 
     // Wait for message to be received
-    println!("Waiting for message to be received...");
-    for i in 0..10 {
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        let count = received.load(Ordering::SeqCst);
-        println!("After {}ms: received count = {}", (i + 1) * 100, count);
-        if count > 0 {
-            break;
-        }
-    }
-    assert_eq!(received.load(Ordering::SeqCst), 1);
+    assert!(
+        counter.wait_for(1, Duration::from_secs(1)).await,
+        "Timeout waiting for message"
+    );
+    assert_eq!(counter.get(), 1);
 
     // Test unsubscribe
     client
@@ -89,7 +58,7 @@ async fn test_complete_mqtt_flow() {
         .expect("Failed to publish");
 
     tokio::time::sleep(Duration::from_millis(100)).await;
-    assert_eq!(received.load(Ordering::SeqCst), 1); // Still 1
+    assert_eq!(counter.get(), 1); // Still 1
 
     // Disconnect cleanly
     client.disconnect().await.expect("Failed to disconnect");
