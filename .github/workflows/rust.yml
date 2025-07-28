@@ -155,14 +155,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mosquitto mosquitto-clients
           
-          # Start mosquitto with our config
+          # Stop any existing mosquitto service
+          sudo systemctl stop mosquitto || true
+          
+          # Create a simple config if it doesn't exist
+          if [ ! -f mosquitto.conf ]; then
+            echo "Creating mosquitto.conf"
+            cat > mosquitto.conf << EOF
+          listener 1883
+          allow_anonymous true
+          EOF
+          fi
+          
+          # Start mosquitto in background
           mosquitto -c mosquitto.conf -d
           
-          # Wait for it to start
+          # Wait for it to start and verify
           sleep 2
-          
-          # Test connection
-          mosquitto_sub -t '$$SYS/#' -C 1 || true
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
       
       - name: Run integration tests
         run: |
