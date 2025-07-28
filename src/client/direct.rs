@@ -506,7 +506,8 @@ impl DirectClientInner {
                 let qos = match rc {
                     SubAckReasonCode::GrantedQoS1 => QoS::AtLeastOnce,
                     SubAckReasonCode::GrantedQoS2 => QoS::ExactlyOnce,
-                    SubAckReasonCode::GrantedQoS0 | _ => QoS::AtMostOnce, // for failed subscriptions
+                    SubAckReasonCode::GrantedQoS0 => QoS::AtMostOnce,
+                    _ => QoS::AtMostOnce, // for failed subscriptions
                 };
                 (packet_id, qos)
             })
@@ -877,7 +878,7 @@ async fn handle_publish_with_ack(
                 let puback = crate::packet::puback::PubAckPacket {
                     packet_id,
                     reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-                    properties: Default::default(),
+                    properties: Properties::default(),
                 };
                 writer
                     .write()
@@ -899,7 +900,7 @@ async fn handle_publish_with_ack(
                 let pubrec = crate::packet::pubrec::PubRecPacket {
                     packet_id,
                     reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-                    properties: Default::default(),
+                    properties: Properties::default(),
                 };
                 writer
                     .write()
@@ -935,7 +936,7 @@ async fn handle_pubrec_outgoing(
     let pub_rel = crate::packet::pubrel::PubRelPacket {
         packet_id: pubrec.packet_id,
         reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-        properties: Default::default(),
+        properties: Properties::default(),
     };
 
     writer
@@ -982,7 +983,7 @@ async fn handle_pubrel(
         let pubcomp = crate::packet::pubcomp::PubCompPacket {
             packet_id: pubrel.packet_id,
             reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         writer
@@ -996,7 +997,7 @@ async fn handle_pubrel(
         let pubcomp = crate::packet::pubcomp::PubCompPacket {
             packet_id: pubrel.packet_id,
             reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         writer

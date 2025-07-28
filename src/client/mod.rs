@@ -155,22 +155,24 @@ impl MqttClient {
         let result = self.connect_internal(address).await;
 
         // Handle reconnection if enabled and initial connection fails
-        if result.is_err() && options.reconnect_config.enabled {
-            // Trigger initial disconnection event
-            self.trigger_connection_event(ConnectionEvent::Disconnected {
-                reason: DisconnectReason::NetworkError(result.as_ref().err().unwrap().to_string()),
-            })
-            .await;
+        if let Err(ref error) = result {
+            if options.reconnect_config.enabled {
+                // Trigger initial disconnection event
+                self.trigger_connection_event(ConnectionEvent::Disconnected {
+                    reason: DisconnectReason::NetworkError(error.to_string()),
+                })
+                .await;
 
-            // Start reconnection attempts in background
-            let client = self.clone();
-            let address_clone = address.to_string();
-            let config = options.reconnect_config.clone();
-            tokio::spawn(async move {
-                if let Err(e) = client.attempt_reconnection(&address_clone, &config).await {
-                    tracing::error!("All reconnection attempts failed: {}", e);
-                }
-            });
+                // Start reconnection attempts in background
+                let client = self.clone();
+                let address_clone = address.to_string();
+                let config = options.reconnect_config.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = client.attempt_reconnection(&address_clone, &config).await {
+                        tracing::error!("All reconnection attempts failed: {}", e);
+                    }
+                });
+            }
         } else if result.is_ok() && options.reconnect_config.enabled {
             // Start monitoring for future disconnections
             let client = self.clone();
