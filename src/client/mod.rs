@@ -52,7 +52,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// use mqtt_v5::MqttClient;
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// async fn main() -> `Result`<(), Box<dyn std::error::Error>> {
 ///     // Create a client with a unique ID
 ///     let client = MqttClient::new("my-client-id");
 ///     
@@ -78,11 +78,11 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// ## Advanced usage with options
 ///
 /// ```no_run
-/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS};
+/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, `QoS`};
 /// use std::time::Duration;
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// async fn main() -> `Result`<(), Box<dyn std::error::Error>> {
 ///     // Create client with custom options
 ///     let options = ConnectOptions::new("my-client")
 ///         .with_clean_start(true)
@@ -94,9 +94,9 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///     // Connect with TLS
 ///     client.connect("mqtts://broker.example.com:8883").await?;
 ///     
-///     // Publish with QoS 2 and retain flag
+///     // Publish with `QoS` 2 and retain flag
 ///     let mut pub_options = PublishOptions::default();
-///     pub_options.qos = QoS::ExactlyOnce;
+///     pub_options.qos = `QoS`::ExactlyOnce;
 ///     pub_options.retain = true;
 ///     
 ///     client.publish_with_options(
@@ -186,13 +186,13 @@ impl MqttClient {
     /// ```no_run
     /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
     ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     ///
     /// client.on_connection_event(|event| {
     ///     match event {
-    ///         ConnectionEvent::Connected { session_present } => {
-    ///             println!("Connected! Session present: {}", session_present);
+    ///         ConnectionEvent::Connected { `session_present` } => {
+    ///             println!("Connected! Session present: {}", `session_present`);
     ///         }
     ///         ConnectionEvent::Disconnected { reason } => {
     ///             println!("Disconnected: {:?}", reason);
@@ -208,6 +208,10 @@ impl MqttClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn on_connection_event<F>(&self, callback: F) -> Result<()>
     where
         F: Fn(ConnectionEvent) + Send + Sync + 'static,
@@ -226,6 +230,10 @@ impl MqttClient {
     }
 
     /// Sets an error callback
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn on_error<F>(&self, callback: F) -> Result<()>
     where
         F: Fn(&MqttError) + Send + Sync + 'static,
@@ -241,7 +249,7 @@ impl MqttClient {
     ///
     /// ```no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     ///
     /// // Connect via TCP
@@ -255,6 +263,10 @@ impl MqttClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn connect(&self, address: &str) -> Result<()> {
         let options = self.inner.read().await.options.clone();
         self.connect_with_options(address, options)
@@ -266,6 +278,10 @@ impl MqttClient {
     ///
     /// This is a DIRECT async method - no event loops!
     /// Returns `session_present` flag from CONNACK
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn connect_with_options(
         &self,
         address: &str,
@@ -318,6 +334,10 @@ impl MqttClient {
     }
 
     /// Internal connection method that does the actual connection work
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn connect_internal(&self, address: &str) -> Result<ConnectResult> {
         // Parse address to determine transport type
         let (client_transport_type, host, port) = Self::parse_address(address)?;
@@ -409,6 +429,10 @@ impl MqttClient {
     /// Disconnects from the MQTT broker
     ///
     /// This is a DIRECT async method - no event loops!
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn disconnect(&self) -> Result<()> {
         let mut inner = self.inner.write().await;
         inner.disconnect().await?;
@@ -428,7 +452,7 @@ impl MqttClient {
     ///
     /// ```no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
     ///
@@ -445,6 +469,10 @@ impl MqttClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish(
         &self,
         topic: impl Into<String>,
@@ -455,6 +483,10 @@ impl MqttClient {
     }
 
     /// Publishes a message to a topic with specific `QoS` (compatibility method)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_qos(
         &self,
         topic: impl Into<String>,
@@ -468,6 +500,10 @@ impl MqttClient {
     /// Publishes a message with custom options
     ///
     /// This is a DIRECT async method - no event loops!
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_with_options(
         &self,
         topic: impl Into<String>,
@@ -490,7 +526,7 @@ impl MqttClient {
     ///
     /// ```no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
     ///
@@ -513,6 +549,10 @@ impl MqttClient {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn subscribe<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -527,6 +567,10 @@ impl MqttClient {
     }
 
     /// Subscribes to a topic with custom options and a callback (using Message type)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn subscribe_with_options<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -546,6 +590,10 @@ impl MqttClient {
     }
 
     /// Internal method that accepts `PublishPacket` callbacks
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn subscribe_with_options_raw<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -621,6 +669,10 @@ impl MqttClient {
     /// Unsubscribes from a topic
     ///
     /// This is a DIRECT async method - no event loops!
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn unsubscribe(&self, topic_filter: impl Into<String>) -> Result<()> {
         let topic_filter = topic_filter.into();
 
@@ -640,6 +692,10 @@ impl MqttClient {
     }
 
     /// Subscribe to multiple topics at once
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn subscribe_many<F>(
         &self,
         topics: Vec<(&str, QoS)>,
@@ -663,6 +719,10 @@ impl MqttClient {
     ///
     /// Returns a vector of results, one for each topic. Each result contains the topic
     /// and whether the unsubscribe operation succeeded for that topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn unsubscribe_many(&self, topics: Vec<&str>) -> Result<Vec<(String, Result<()>)>> {
         let mut results = Vec::with_capacity(topics.len());
 
@@ -676,6 +736,10 @@ impl MqttClient {
     }
 
     /// Publish a retained message
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_retain(
         &self,
         topic: impl Into<String>,
@@ -686,6 +750,10 @@ impl MqttClient {
     }
 
     /// Publish with `QoS` 0 (convenience method)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_qos0(
         &self,
         topic: impl Into<String>,
@@ -695,6 +763,10 @@ impl MqttClient {
     }
 
     /// Publish with `QoS` 1 (convenience method)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_qos1(
         &self,
         topic: impl Into<String>,
@@ -704,6 +776,10 @@ impl MqttClient {
     }
 
     /// Publish with `QoS` 2 (convenience method)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish_qos2(
         &self,
         topic: impl Into<String>,
@@ -900,12 +976,20 @@ impl MqttClient {
     /// Simulate abnormal disconnection (for testing will messages)
     /// This method closes the connection without sending a DISCONNECT packet,
     /// which causes the broker to send the will message.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn disconnect_abnormally(&self) -> Result<()> {
         let mut inner = self.inner.write().await;
         inner.disconnect_with_packet(false).await
     }
 
     /// Parses an address string to determine transport type and components
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn parse_address(address: &str) -> Result<(ClientTransportType, &str, u16)> {
         if let Some(rest) = address.strip_prefix("mqtt://") {
             let (host, port) = Self::split_host_port(rest, 1883)?;
@@ -927,13 +1011,17 @@ impl MqttClient {
     }
 
     /// Splits a host:port string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn split_host_port(address: &str, default_port: u16) -> Result<(&str, u16)> {
         if let Some(colon_pos) = address.rfind(':') {
             let host = &address[..colon_pos];
             let port_str = &address[colon_pos + 1..];
             let port = port_str
                 .parse::<u16>()
-                .map_err(|_| MqttError::ConnectionError(format!("Invalid port: {}", port_str)))?;
+                .map_err(|_| MqttError::ConnectionError(format!("Invalid port: {port_str}")))?;
             Ok((host, port))
         } else {
             Ok((address, default_port))
@@ -969,6 +1057,10 @@ impl MqttClient {
     }
 
     /// Attempt reconnection with exponential backoff
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn attempt_reconnection(
         &self,
         address: &str,
@@ -1054,6 +1146,10 @@ impl MqttClient {
     }
 
     /// Internal method to resubscribe with stored options and callback
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn resubscribe_internal(
         &self,
         topic: &str,
@@ -1082,6 +1178,10 @@ impl MqttClient {
     }
 
     /// Internal method to publish a packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn publish_packet(&self, packet: PublishPacket) -> Result<()> {
         let mut inner = self.inner.write().await;
         inner

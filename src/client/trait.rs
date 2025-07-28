@@ -16,6 +16,10 @@ use std::future::Future;
 /// for different MQTT client implementations.
 pub trait MqttClientTrait: Send + Sync {
     /// Checks if the client is connected to the broker
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn is_connected(&self) -> impl Future<Output = bool> + Send + '_;
 
     /// Gets the client ID
