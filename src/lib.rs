@@ -30,8 +30,8 @@
 //!     
 //!     // Direct async subscribe with callback
 //!     client.subscribe("sensors/+/data", |msg| {
-//!         println!("Received {} on {}", 
-//!                  String::from_utf8_lossy(&msg.payload), 
+//!         println!("Received {} on {}",
+//!                  String::from_utf8_lossy(&msg.payload),
 //!                  msg.topic);
 //!     }).await?;
 //!     

@@ -144,27 +144,28 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:latest
-        ports:
-          - 1883:1883
-          - 8883:8883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        volumes:
-          - ${{ github.workspace }}/mosquitto.conf:/mosquitto/config/mosquitto.conf
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      
+      - name: Start Mosquitto
+        run: |
+          # Install mosquitto
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          
+          # Start mosquitto with our config
+          mosquitto -c mosquitto.conf -d
+          
+          # Wait for it to start
+          sleep 2
+          
+          # Test connection
+          mosquitto_sub -t '$$SYS/#' -C 1 || true
+      
       - name: Run integration tests
         run: |
-          # Wait for Mosquitto to be ready
-          sleep 5
           # Run integration tests
           cargo test --test '*' -- --test-threads=1
         env:

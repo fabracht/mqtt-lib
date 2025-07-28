@@ -232,7 +232,12 @@ impl DirectClientInner {
     }
 
     /// Queue a publish message when disconnected
-    async fn queue_publish_message(&self, topic: String, payload: Vec<u8>, options: &PublishOptions) -> Result<PublishResult> {
+    async fn queue_publish_message(
+        &self,
+        topic: String,
+        payload: Vec<u8>,
+        options: &PublishOptions,
+    ) -> Result<PublishResult> {
         let packet_id = self.packet_id_generator.next();
         let publish = PublishPacket {
             topic_name: topic,
@@ -249,7 +254,11 @@ impl DirectClientInner {
     }
 
     /// Set up acknowledgment channel for `QoS` > 0
-    async fn setup_publish_acknowledgment(&self, qos: QoS, packet_id: Option<u16>) -> Option<oneshot::Receiver<()>> {
+    async fn setup_publish_acknowledgment(
+        &self,
+        qos: QoS,
+        packet_id: Option<u16>,
+    ) -> Option<oneshot::Receiver<()>> {
         match qos {
             QoS::AtMostOnce => None,
             QoS::AtLeastOnce => {
@@ -270,11 +279,18 @@ impl DirectClientInner {
     }
 
     /// Wait for acknowledgment with timeout
-    async fn wait_for_acknowledgment(&self, rx: oneshot::Receiver<()>, qos: QoS, packet_id: Option<u16>) -> Result<()> {
+    async fn wait_for_acknowledgment(
+        &self,
+        rx: oneshot::Receiver<()>,
+        qos: QoS,
+        packet_id: Option<u16>,
+    ) -> Result<()> {
         let timeout = Duration::from_secs(10);
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(_)) => Err(MqttError::ProtocolError("Acknowledgment channel closed".to_string())),
+            Ok(Err(_)) => Err(MqttError::ProtocolError(
+                "Acknowledgment channel closed".to_string(),
+            )),
             Err(_) => {
                 // Timeout - remove from pending in a separate task to avoid blocking
                 if let Some(pid) = packet_id {
@@ -360,7 +376,9 @@ impl DirectClientInner {
         }
 
         // For QoS > 0, set up acknowledgment waiting
-        let rx = self.setup_publish_acknowledgment(options.qos, packet_id).await;
+        let rx = self
+            .setup_publish_acknowledgment(options.qos, packet_id)
+            .await;
 
         // Send PUBLISH directly - no event loop
         if publish.payload.len() > 10000 {
@@ -380,7 +398,8 @@ impl DirectClientInner {
 
         // Wait for acknowledgment if QoS > 0
         if let Some(rx) = rx {
-            self.wait_for_acknowledgment(rx, options.qos, packet_id).await?;
+            self.wait_for_acknowledgment(rx, options.qos, packet_id)
+                .await?;
         }
 
         Ok(match packet_id {
@@ -390,7 +409,10 @@ impl DirectClientInner {
     }
 
     /// Create a subscription from filter and reason code
-    fn create_subscription_from_filter(filter: &TopicFilter, reason_code: SubAckReasonCode) -> Option<Subscription> {
+    fn create_subscription_from_filter(
+        filter: &TopicFilter,
+        reason_code: SubAckReasonCode,
+    ) -> Option<Subscription> {
         match &reason_code {
             SubAckReasonCode::GrantedQoS0 => Some(Subscription {
                 topic_filter: filter.filter.clone(),
@@ -424,11 +446,17 @@ impl DirectClientInner {
     }
 
     /// Wait for SUBACK with timeout
-    async fn wait_for_suback(&self, rx: oneshot::Receiver<SubAckPacket>, packet_id: u16) -> Result<SubAckPacket> {
+    async fn wait_for_suback(
+        &self,
+        rx: oneshot::Receiver<SubAckPacket>,
+        packet_id: u16,
+    ) -> Result<SubAckPacket> {
         let timeout = Duration::from_secs(10);
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(suback)) => Ok(suback),
-            Ok(Err(_)) => Err(MqttError::ProtocolError("SUBACK channel closed".to_string())),
+            Ok(Err(_)) => Err(MqttError::ProtocolError(
+                "SUBACK channel closed".to_string(),
+            )),
             Err(_) => {
                 // Timeout - remove from pending in a separate task to avoid blocking
                 let pending = self.pending_subacks.clone();
@@ -482,7 +510,8 @@ impl DirectClientInner {
 
         // Update session
         for (filter, reason_code) in packet.filters.iter().zip(suback.reason_codes.iter()) {
-            if let Some(subscription) = Self::create_subscription_from_filter(filter, *reason_code) {
+            if let Some(subscription) = Self::create_subscription_from_filter(filter, *reason_code)
+            {
                 self.session
                     .write()
                     .await
@@ -732,10 +761,7 @@ struct PacketReaderContext {
 }
 
 /// Packet reader task that handles response channels
-async fn packet_reader_task_with_responses(
-    mut reader: OwnedReadHalf,
-    ctx: PacketReaderContext,
-) {
+async fn packet_reader_task_with_responses(mut reader: OwnedReadHalf, ctx: PacketReaderContext) {
     loop {
         // Read packet directly from reader - no mutex needed!
         let packet = reader.read_packet().await;
@@ -745,26 +771,33 @@ async fn packet_reader_task_with_responses(
                 // Check if this is a response we're waiting for
                 match &packet {
                     Packet::SubAck(suback) => {
-                        if let Some(tx) = ctx.suback_channels.lock().await.remove(&suback.packet_id) {
+                        if let Some(tx) = ctx.suback_channels.lock().await.remove(&suback.packet_id)
+                        {
                             let _ = tx.send(suback.clone());
                             continue;
                         }
                     }
                     Packet::UnsubAck(unsuback) => {
-                        if let Some(tx) = ctx.unsuback_channels.lock().await.remove(&unsuback.packet_id)
+                        if let Some(tx) = ctx
+                            .unsuback_channels
+                            .lock()
+                            .await
+                            .remove(&unsuback.packet_id)
                         {
                             let _ = tx.send(unsuback.clone());
                             continue;
                         }
                     }
                     Packet::PubAck(puback) => {
-                        if let Some(tx) = ctx.puback_channels.lock().await.remove(&puback.packet_id) {
+                        if let Some(tx) = ctx.puback_channels.lock().await.remove(&puback.packet_id)
+                        {
                             let _ = tx.send(());
                             continue;
                         }
                     }
                     Packet::PubRec(pubrec) => {
-                        if let Some(tx) = ctx.pubrec_channels.lock().await.remove(&pubrec.packet_id) {
+                        if let Some(tx) = ctx.pubrec_channels.lock().await.remove(&pubrec.packet_id)
+                        {
                             let _ = tx.send(());
                             // Note: The PUBREL handling is done in handle_incoming_packet
                             // We just need to notify the publish() call that PUBREC was received
@@ -775,9 +808,13 @@ async fn packet_reader_task_with_responses(
                 }
 
                 // Handle other packets normally
-                if let Err(e) =
-                    handle_incoming_packet_with_writer(packet, &ctx.writer, &ctx.session, &ctx.callback_manager)
-                        .await
+                if let Err(e) = handle_incoming_packet_with_writer(
+                    packet,
+                    &ctx.writer,
+                    &ctx.session,
+                    &ctx.callback_manager,
+                )
+                .await
                 {
                     tracing::error!("Error handling packet: {e}");
                     ctx.connected.store(false, Ordering::SeqCst);

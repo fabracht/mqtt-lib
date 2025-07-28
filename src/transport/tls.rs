@@ -208,11 +208,9 @@ impl TlsConfig {
                 "No private keys found in file".to_string(),
             ));
         }
-        self.client_key = Some(
-            keys.into_iter()
-                .next()
-                .ok_or_else(|| MqttError::ProtocolError("Keys vector unexpectedly empty".to_string()))?,
-        );
+        self.client_key = Some(keys.into_iter().next().ok_or_else(|| {
+            MqttError::ProtocolError("Keys vector unexpectedly empty".to_string())
+        })?);
         Ok(())
     }
 
@@ -287,7 +285,10 @@ impl TlsTransport {
         };
 
         // Configure client authentication if provided
-        let mut config = if let (Some(cert), Some(key)) = (self.config.client_cert.take(), self.config.client_key.take()) {
+        let mut config = if let (Some(cert), Some(key)) = (
+            self.config.client_cert.take(),
+            self.config.client_key.take(),
+        ) {
             config_builder
                 .with_client_auth_cert(cert, key)
                 .map_err(|e| {

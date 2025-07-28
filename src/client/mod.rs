@@ -50,7 +50,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///
 /// ```no_run
 /// use mqtt_v5::MqttClient;
-/// 
+///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Create a client with a unique ID
@@ -61,8 +61,8 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///     
 ///     // Subscribe to a topic
 ///     client.subscribe("temperature/room1", |msg| {
-///         println!("Received: {} on topic {}", 
-///                  String::from_utf8_lossy(&msg.payload), 
+///         println!("Received: {} on topic {}",
+///                  String::from_utf8_lossy(&msg.payload),
 ///                  msg.topic);
 ///     }).await?;
 ///     
@@ -80,7 +80,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// ```no_run
 /// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS};
 /// use std::time::Duration;
-/// 
+///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Create client with custom options
@@ -184,10 +184,10 @@ impl MqttClient {
     ///
     /// ```no_run
     /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
-    /// 
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
-    /// 
+    ///
     /// client.on_connection_event(|event| {
     ///     match event {
     ///         ConnectionEvent::Connected { session_present } => {
@@ -242,13 +242,13 @@ impl MqttClient {
     /// # use mqtt_v5::MqttClient;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
-    /// 
+    ///
     /// // Connect via TCP
     /// client.connect("mqtt://broker.example.com:1883").await?;
-    /// 
+    ///
     /// // Or connect via TLS
     /// // client.connect("mqtts://secure.broker.com:8883").await?;
-    /// 
+    ///
     /// // Or use just host:port (defaults to TCP)
     /// // client.connect("localhost:1883").await?;
     /// # Ok(())
@@ -430,14 +430,14 @@ impl MqttClient {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
-    /// 
+    ///
     /// // Publish a simple string message
     /// client.publish("sensors/temperature", "23.5°C").await?;
-    /// 
+    ///
     /// // Publish binary data
     /// let data = vec![0x01, 0x02, 0x03, 0x04];
     /// client.publish("sensors/binary", data).await?;
-    /// 
+    ///
     /// // Publish JSON
     /// let json = r#"{"temperature": 23.5, "humidity": 45}"#;
     /// client.publish("sensors/json", json).await?;
@@ -493,18 +493,18 @@ impl MqttClient {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
-    /// 
+    ///
     /// // Subscribe to a specific topic
     /// client.subscribe("sensors/temperature", |msg| {
     ///     println!("Temperature: {}", String::from_utf8_lossy(&msg.payload));
     /// }).await?;
-    /// 
+    ///
     /// // Subscribe with wildcards
     /// client.subscribe("sensors/+/status", |msg| {
-    ///     println!("Status update on {}: {}", msg.topic, 
+    ///     println!("Status update on {}: {}", msg.topic,
     ///              String::from_utf8_lossy(&msg.payload));
     /// }).await?;
-    /// 
+    ///
     /// // Subscribe to all topics under sensors/
     /// client.subscribe("sensors/#", |msg| {
     ///     println!("Sensor data: {} = {}", msg.topic,
