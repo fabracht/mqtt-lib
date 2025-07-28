@@ -56,7 +56,7 @@ impl SubAckReasonCode {
         }
     }
 
-    /// Converts a u8 to a SubAckReasonCode
+    /// Converts a u8 to a `SubAckReasonCode`
     #[must_use]
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
@@ -104,7 +104,7 @@ impl SubAckPacket {
         Self {
             packet_id,
             reason_codes: Vec::new(),
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -187,10 +187,7 @@ impl MqttPacket for SubAckPacket {
         while buf.has_remaining() {
             let code_byte = buf.get_u8();
             let code = SubAckReasonCode::from_u8(code_byte).ok_or_else(|| {
-                MqttError::MalformedPacket(format!(
-                    "Invalid SUBACK reason code: 0x{:02X}",
-                    code_byte
-                ))
+                MqttError::MalformedPacket(format!("Invalid SUBACK reason code: 0x{code_byte:02X}"))
             })?;
             reason_codes.push(code);
         }

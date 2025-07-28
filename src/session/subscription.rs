@@ -20,6 +20,7 @@ pub struct SubscriptionManager {
 
 impl SubscriptionManager {
     /// Creates a new subscription manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             subscriptions: HashMap::new(),
@@ -53,6 +54,7 @@ impl SubscriptionManager {
         Ok(self.subscriptions.remove(topic_filter).is_some())
     }
 
+    #[must_use]
     /// Gets subscriptions matching a topic name
     pub fn matching_subscriptions(&self, topic: &str) -> Vec<(String, Subscription)> {
         self.subscriptions
@@ -62,16 +64,19 @@ impl SubscriptionManager {
             .collect()
     }
 
+    #[must_use]
     /// Gets a specific subscription
     pub fn get(&self, topic_filter: &str) -> Option<&Subscription> {
         self.subscriptions.get(topic_filter)
     }
 
+    #[must_use]
     /// Gets all subscriptions
     pub fn all(&self) -> HashMap<String, Subscription> {
         self.subscriptions.clone()
     }
 
+    #[must_use]
     /// Gets the number of subscriptions
     pub fn count(&self) -> usize {
         self.subscriptions.len()
@@ -82,6 +87,7 @@ impl SubscriptionManager {
         self.subscriptions.clear();
     }
 
+    #[must_use]
     /// Checks if a topic filter exists
     pub fn contains(&self, topic_filter: &str) -> bool {
         self.subscriptions.contains_key(topic_filter)
@@ -94,6 +100,7 @@ impl Default for SubscriptionManager {
     }
 }
 
+#[must_use]
 /// Checks if a topic matches a topic filter with wildcards
 pub fn topic_matches(topic: &str, filter: &str) -> bool {
     let topic_parts: Vec<&str> = topic.split('/').collect();
@@ -138,6 +145,7 @@ fn topic_matches_recursive(
     false
 }
 
+#[must_use]
 /// Validates a topic filter
 pub fn is_valid_topic_filter(filter: &str) -> bool {
     // Empty filter is invalid
@@ -167,6 +175,7 @@ pub fn is_valid_topic_filter(filter: &str) -> bool {
     true
 }
 
+#[must_use]
 /// Validates a topic name (no wildcards allowed)
 pub fn is_valid_topic_name(topic: &str) -> bool {
     // Empty topic is invalid

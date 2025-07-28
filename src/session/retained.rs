@@ -26,6 +26,7 @@ pub struct RetainedMessage {
 
 impl RetainedMessageStore {
     /// Creates a new retained message store
+    #[must_use]
     pub fn new() -> Self {
         Self {
             messages: Arc::new(RwLock::new(HashMap::new())),

@@ -108,9 +108,11 @@ async fn test_publish_with_options() {
     match client.connect("mqtt://127.0.0.1:1883").await {
         Ok(()) => {
             // Test publish with custom options
-            let mut options = PublishOptions::default();
-            options.qos = QoS::AtLeastOnce;
-            options.retain = true;
+            let mut options = PublishOptions {
+                qos: QoS::AtLeastOnce,
+                retain: true,
+                ..Default::default()
+            };
             options.properties.content_type = Some("text/plain".to_string());
             options
                 .properties

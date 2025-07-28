@@ -8,6 +8,7 @@ use crate::callback::CallbackManager;
 use crate::error::{MqttError, Result};
 use crate::packet::publish::PublishPacket;
 use crate::packet::Packet;
+use crate::protocol::v5::properties::Properties;
 use crate::session::SessionState;
 use crate::transport::PacketIo;
 use std::sync::Arc;
@@ -123,7 +124,7 @@ async fn handle_publish(
                 let puback = crate::packet::puback::PubAckPacket {
                     packet_id,
                     reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-                    properties: Default::default(),
+                    properties: Properties::default(),
                 };
                 transport
                     .lock()
@@ -138,7 +139,7 @@ async fn handle_publish(
                 let pubrec = crate::packet::pubrec::PubRecPacket {
                     packet_id,
                     reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-                    properties: Default::default(),
+                    properties: Properties::default(),
                 };
                 transport
                     .lock()
@@ -179,7 +180,7 @@ async fn handle_pubrec(
     let pubrel = crate::packet::pubrel::PubRelPacket {
         packet_id,
         reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-        properties: Default::default(),
+        properties: Properties::default(),
     };
     transport
         .lock()
@@ -202,7 +203,7 @@ async fn handle_pubrel(
     let pubcomp = crate::packet::pubcomp::PubCompPacket {
         packet_id,
         reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-        properties: Default::default(),
+        properties: Properties::default(),
     };
     transport
         .lock()
@@ -307,7 +308,7 @@ mod tests {
             retain: false,
             dup: false,
             packet_id: None,
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
 
         // For QoS 0, no ack should be sent
@@ -329,7 +330,7 @@ mod tests {
             retain: false,
             dup: false,
             packet_id: Some(123),
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
 
         // Test would verify PUBACK is sent
@@ -346,7 +347,7 @@ mod tests {
             retain: false,
             dup: false,
             packet_id: Some(456),
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
 
         // Test would verify PUBREC is sent and state is stored
@@ -365,7 +366,7 @@ mod tests {
             retain: false,
             dup: false,
             packet_id: Some(100),
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
         session
             .write()
@@ -395,7 +396,7 @@ mod tests {
 
         let disconnect = Packet::Disconnect(DisconnectPacket {
             reason_code: ReasonCode::UnspecifiedError,
-            properties: Properties::new(),
+            properties: Properties::default(),
         });
 
         let result =
@@ -456,7 +457,7 @@ mod tests {
             retain: false,
             dup: false,
             packet_id: None,
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
 
         // Route the message

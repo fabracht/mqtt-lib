@@ -259,7 +259,7 @@ pub struct WillProperties {
 
 impl From<WillProperties> for crate::protocol::v5::properties::Properties {
     fn from(will_props: WillProperties) -> Self {
-        let mut properties = crate::protocol::v5::properties::Properties::new();
+        let mut properties = crate::protocol::v5::properties::Properties::default();
 
         if let Some(delay) = will_props.will_delay_interval {
             // Property type is guaranteed correct by the type system
@@ -356,17 +356,17 @@ impl From<WillProperties> for crate::protocol::v5::properties::Properties {
 ///
 /// # Examples
 ///
-/// ``
-/// use mqtt_v5::{PublishOptions, `QoS`};
+/// ```
+/// use mqtt_v5::{PublishOptions, QoS};
 /// use std::time::Duration;
 ///
-/// // Basic publish with `QoS` 1
+/// // Basic publish with QoS 1
 /// let mut options = PublishOptions::default();
-/// options.qos = `QoS`::AtLeastOnce;
+/// options.qos = QoS::AtLeastOnce;
 ///
-/// // Retained message with `QoS` 2
+/// // Retained message with QoS 2
 /// let mut options = PublishOptions::default();
-/// options.qos = `QoS`::ExactlyOnce;
+/// options.qos = QoS::ExactlyOnce;
 /// options.retain = true;
 ///
 /// // With message expiry
@@ -377,7 +377,7 @@ impl From<WillProperties> for crate::protocol::v5::properties::Properties {
 /// let mut options = PublishOptions::default();
 /// options.properties.response_topic = Some("response/client123".to_string());
 /// options.properties.correlation_data = Some(b"req-001".to_vec());
-/// ``
+/// ```
 #[derive(Debug, Clone)]
 pub struct PublishOptions {
     pub qos: QoS,
@@ -411,7 +411,7 @@ impl From<PublishProperties> for crate::protocol::v5::properties::Properties {
     fn from(props: PublishProperties) -> Self {
         use crate::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
 
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         if let Some(val) = props.payload_format_indicator {
             if properties
@@ -537,14 +537,14 @@ pub enum RetainHandling {
 ///
 /// # Examples
 ///
-/// ``
-/// use mqtt_v5::{Message, `QoS`};
+/// ```
+/// use mqtt_v5::{Message, QoS};
 ///
 /// // Handle different types of messages
 /// fn handle_message(msg: Message) {
 ///     // Access message fields
 ///     println!("Topic: {}", msg.topic);
-///     println!("`QoS`: {:?}", msg.qos);
+///     println!("QoS: {:?}", msg.qos);
 ///     println!("Retained: {}", msg.retain);
 ///     
 ///     // Handle payload as string

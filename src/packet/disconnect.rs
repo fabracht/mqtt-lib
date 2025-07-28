@@ -20,7 +20,7 @@ impl DisconnectPacket {
     pub fn new(reason_code: ReasonCode) -> Self {
         Self {
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -127,13 +127,12 @@ impl MqttPacket for DisconnectPacket {
         // Read reason code
         let reason_byte = buf.get_u8();
         let reason_code = ReasonCode::from_u8(reason_byte).ok_or_else(|| {
-            MqttError::MalformedPacket(format!("Invalid DISCONNECT reason code: {}", reason_byte))
+            MqttError::MalformedPacket(format!("Invalid DISCONNECT reason code: {reason_byte}"))
         })?;
 
         if !Self::is_valid_disconnect_reason_code(reason_code) {
             return Err(MqttError::MalformedPacket(format!(
-                "Invalid DISCONNECT reason code: {:?}",
-                reason_code
+                "Invalid DISCONNECT reason code: {reason_code:?}"
             )));
         }
 
@@ -141,7 +140,7 @@ impl MqttPacket for DisconnectPacket {
         let properties = if buf.has_remaining() {
             Properties::decode(buf)?
         } else {
-            Properties::new()
+            Properties::default()
         };
 
         Ok(Self {

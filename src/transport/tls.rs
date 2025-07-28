@@ -286,7 +286,7 @@ impl TlsTransport {
         if let Some(ref root_certs) = self.config.root_certs {
             for cert in root_certs {
                 root_store.add(cert.clone()).map_err(|e| {
-                    MqttError::ProtocolError(format!("Failed to add root cert: {}", e))
+                    MqttError::ProtocolError(format!("Failed to add root cert: {e}"))
                 })?;
             }
         }
@@ -308,7 +308,7 @@ impl TlsTransport {
             config_builder
                 .with_client_auth_cert(cert, key)
                 .map_err(|e| {
-                    MqttError::ProtocolError(format!("Failed to configure client auth: {}", e))
+                    MqttError::ProtocolError(format!("Failed to configure client auth: {e}"))
                 })?
         } else {
             config_builder.with_no_client_auth()
@@ -354,7 +354,7 @@ impl Transport for TlsTransport {
         )
         .await
         .map_err(|_| MqttError::Timeout)?
-        .map_err(|e| MqttError::ConnectionError(format!("TLS handshake failed: {}", e)))?;
+        .map_err(|e| MqttError::ConnectionError(format!("TLS handshake failed: {e}")))?;
 
         self.stream = Some(tls_stream);
         Ok(())

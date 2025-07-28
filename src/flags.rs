@@ -1,4 +1,4 @@
-//! MQTT packet flag definitions using BeBytes v2.1.0 flag decomposition
+//! MQTT packet flag definitions using `BeBytes` v2.1.0 flag decomposition
 
 use bebytes::BeBytes;
 
@@ -26,10 +26,12 @@ pub enum ConnectFlags {
 
 impl ConnectFlags {
     /// Extract Will `QoS` value from flags
+    #[must_use]
     pub fn extract_will_qos(flags: u8) -> u8 {
         (flags >> 3) & 0x03
     }
 
+    #[must_use]
     /// Create flags byte with Will `QoS` value
     pub fn with_will_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits
@@ -56,10 +58,12 @@ pub enum PublishFlags {
 
 impl PublishFlags {
     /// Extract `QoS` value from flags
+    #[must_use]
     pub fn extract_qos(flags: u8) -> u8 {
         (flags >> 1) & 0x03
     }
 
+    #[must_use]
     /// Create flags byte with `QoS` value
     pub fn with_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits

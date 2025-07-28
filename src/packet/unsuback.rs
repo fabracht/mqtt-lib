@@ -35,7 +35,7 @@ pub enum UnsubAckReasonCode {
 }
 
 impl UnsubAckReasonCode {
-    /// Converts a u8 to an UnsubAckReasonCode
+    /// Converts a u8 to an `UnsubAckReasonCode`
     #[must_use]
     pub fn from_u8(value: u8) -> Option<Self> {
         match value {
@@ -64,7 +64,7 @@ impl UnsubAckPacket {
         Self {
             packet_id,
             reason_codes: Vec::new(),
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -148,8 +148,7 @@ impl MqttPacket for UnsubAckPacket {
             let code_byte = buf.get_u8();
             let code = UnsubAckReasonCode::from_u8(code_byte).ok_or_else(|| {
                 MqttError::MalformedPacket(format!(
-                    "Invalid UNSUBACK reason code: 0x{:02X}",
-                    code_byte
+                    "Invalid UNSUBACK reason code: 0x{code_byte:02X}"
                 ))
             })?;
             reason_codes.push(code);

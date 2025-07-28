@@ -25,7 +25,7 @@ impl ConnAckPacket {
         Self {
             session_present,
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
             protocol_version: 5,
         }
     }
@@ -36,7 +36,7 @@ impl ConnAckPacket {
         Self {
             session_present,
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
             protocol_version: 4,
         }
     }
@@ -162,6 +162,7 @@ impl ConnAckPacket {
         self
     }
 
+    #[must_use]
     /// Gets the topic alias maximum from properties
     pub fn topic_alias_maximum(&self) -> Option<u16> {
         self.properties
@@ -175,6 +176,7 @@ impl ConnAckPacket {
             })
     }
 
+    #[must_use]
     /// Gets the receive maximum from properties
     pub fn receive_maximum(&self) -> Option<u16> {
         self.properties
@@ -188,6 +190,7 @@ impl ConnAckPacket {
             })
     }
 
+    #[must_use]
     /// Gets the maximum packet size from properties
     pub fn maximum_packet_size(&self) -> Option<u32> {
         self.properties
@@ -310,13 +313,12 @@ impl MqttPacket for ConnAckPacket {
         } else {
             // v5.0 - decode reason code
             let code = ReasonCode::from_u8(reason_byte).ok_or_else(|| {
-                MqttError::MalformedPacket(format!("Invalid reason code: {}", reason_byte))
+                MqttError::MalformedPacket(format!("Invalid reason code: {reason_byte}"))
             })?;
 
             if !Self::is_valid_connack_reason_code(code) {
                 return Err(MqttError::MalformedPacket(format!(
-                    "Invalid CONNACK reason code: {:?}",
-                    code
+                    "Invalid CONNACK reason code: {code:?}"
                 )));
             }
 
@@ -327,7 +329,7 @@ impl MqttPacket for ConnAckPacket {
         let properties = if protocol_version == 5 && buf.has_remaining() {
             Properties::decode(buf)?
         } else {
-            Properties::new()
+            Properties::default()
         };
 
         Ok(Self {

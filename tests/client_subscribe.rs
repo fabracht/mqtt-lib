@@ -60,11 +60,12 @@ async fn test_subscribe_with_options() {
 
     match client.connect("mqtt://127.0.0.1:1883").await {
         Ok(()) => {
-            let mut options = SubscribeOptions::default();
-            options.qos = QoS::AtLeastOnce;
-            options.no_local = true;
-            options.retain_as_published = true;
-            options.retain_handling = RetainHandling::SendIfNew;
+            let options = SubscribeOptions {
+                qos: QoS::AtLeastOnce,
+                no_local: true,
+                retain_as_published: true,
+                retain_handling: RetainHandling::SendIfNew,
+            };
 
             let result = client
                 .subscribe_with_options("test/options", options, |msg| {

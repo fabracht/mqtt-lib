@@ -9,8 +9,10 @@ async fn test_message_queuing_when_disconnected() {
     assert!(client.is_queue_on_disconnect().await);
 
     // Try to publish while disconnected - should queue the message
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     let result = client
         .publish_with_options("test/topic", "queued message", options)

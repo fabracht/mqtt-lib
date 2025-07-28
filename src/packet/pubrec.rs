@@ -22,7 +22,7 @@ impl PubRecPacket {
         Self {
             packet_id,
             reason_code: ReasonCode::Success,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -32,7 +32,7 @@ impl PubRecPacket {
         Self {
             packet_id,
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -100,13 +100,12 @@ impl MqttPacket for PubRecPacket {
             // Read reason code
             let reason_byte = buf.get_u8();
             let code = ReasonCode::from_u8(reason_byte).ok_or_else(|| {
-                MqttError::MalformedPacket(format!("Invalid PUBREC reason code: {}", reason_byte))
+                MqttError::MalformedPacket(format!("Invalid PUBREC reason code: {reason_byte}"))
             })?;
 
             if !Self::is_valid_pubrec_reason_code(code) {
                 return Err(MqttError::MalformedPacket(format!(
-                    "Invalid PUBREC reason code: {:?}",
-                    code
+                    "Invalid PUBREC reason code: {code:?}"
                 )));
             }
 
@@ -114,13 +113,13 @@ impl MqttPacket for PubRecPacket {
             let props = if buf.has_remaining() {
                 Properties::decode(buf)?
             } else {
-                Properties::new()
+                Properties::default()
             };
 
             (code, props)
         } else {
             // v3.1.1 style - no reason code or properties means success
-            (ReasonCode::Success, Properties::new())
+            (ReasonCode::Success, Properties::default())
         };
 
         Ok(Self {

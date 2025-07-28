@@ -10,12 +10,14 @@ pub struct PacketIdGenerator {
 
 impl PacketIdGenerator {
     /// Creates a new packet ID generator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             next_id: AtomicU16::new(1),
         }
     }
 
+    #[must_use]
     /// Gets the next available packet ID
     ///
     /// Packet IDs are in the range 1..=65535 (0 is invalid)

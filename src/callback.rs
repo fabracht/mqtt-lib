@@ -282,6 +282,7 @@ impl Default for CallbackManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Properties;
     use crate::QoS;
     use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -307,7 +308,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         manager.dispatch(&message).await.unwrap();
@@ -346,7 +347,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         manager.dispatch(&message1).await.unwrap();
@@ -404,7 +405,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         manager.dispatch(&message).await.unwrap();
@@ -435,7 +436,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         manager.dispatch(&message).await.unwrap();

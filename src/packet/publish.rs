@@ -29,10 +29,10 @@ impl PublishPacket {
     /// Creates a new PUBLISH packet
     #[must_use]
     pub fn new(topic_name: impl Into<String>, payload: impl Into<Vec<u8>>, qos: QoS) -> Self {
-        let packet_id = if qos != QoS::AtMostOnce {
-            Some(0) // Will be assigned by the client
-        } else {
+        let packet_id = if qos == QoS::AtMostOnce {
             None
+        } else {
+            Some(0) // Will be assigned by the client
         };
 
         Self {
@@ -42,7 +42,7 @@ impl PublishPacket {
             qos,
             retain: false,
             dup: false,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -125,6 +125,7 @@ impl PublishPacket {
         self
     }
 
+    #[must_use]
     /// Gets the topic alias from properties
     pub fn topic_alias(&self) -> Option<u16> {
         self.properties
@@ -138,6 +139,7 @@ impl PublishPacket {
             })
     }
 
+    #[must_use]
     /// Gets the message expiry interval from properties
     pub fn message_expiry_interval(&self) -> Option<u32> {
         self.properties
@@ -215,15 +217,15 @@ impl MqttPacket for PublishPacket {
         let topic_name = decode_string(buf)?;
 
         // Packet identifier (only for QoS > 0)
-        let packet_id = if qos != QoS::AtMostOnce {
+        let packet_id = if qos == QoS::AtMostOnce {
+            None
+        } else {
             if buf.remaining() < 2 {
                 return Err(MqttError::MalformedPacket(
                     "Missing packet identifier".to_string(),
                 ));
             }
             Some(buf.get_u16())
-        } else {
-            None
         };
 
         // Properties (v5.0)
@@ -241,7 +243,7 @@ impl MqttPacket for PublishPacket {
             }
         } else {
             // No properties means empty properties in v5.0
-            Properties::new()
+            Properties::default()
         };
 
         // Payload - all remaining bytes

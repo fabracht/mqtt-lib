@@ -74,6 +74,7 @@ pub struct SessionState {
 
 impl SessionState {
     /// Creates a new session state
+    #[must_use]
     pub fn new(client_id: String, config: SessionConfig, clean_start: bool) -> Self {
         let now = Instant::now();
         Self {
@@ -99,11 +100,13 @@ impl SessionState {
         }
     }
 
+    #[must_use]
     /// Gets the client ID
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
 
+    #[must_use]
     /// Checks if this is a clean session
     pub fn is_clean(&self) -> bool {
         self.clean_start
@@ -182,7 +185,7 @@ impl SessionState {
     ) -> Result<crate::session::queue::QueueResult> {
         self.touch().await;
         let limits = self.limits.read().await;
-        let expiring_message = message.to_expiring(&*limits);
+        let expiring_message = message.to_expiring(&limits);
         drop(limits);
         self.message_queue.write().await.enqueue(expiring_message)
     }
@@ -335,16 +338,19 @@ impl SessionState {
         self.flow_control.write().await.acknowledge(packet_id).await
     }
 
+    #[must_use]
     /// Gets the flow control manager
     pub fn flow_control(&self) -> &Arc<RwLock<FlowControlManager>> {
         &self.flow_control
     }
 
+    #[must_use]
     /// Gets the outgoing topic alias manager
     pub fn topic_alias_out(&self) -> &Arc<RwLock<TopicAliasManager>> {
         &self.topic_alias_out
     }
 
+    #[must_use]
     /// Gets the limits manager
     pub fn limits(&self) -> &Arc<RwLock<LimitsManager>> {
         &self.limits
@@ -356,7 +362,7 @@ impl SessionState {
         limits.set_server_maximum_packet_size(size);
     }
 
-    /// Sets the client's maximum packet size from ConnectOptions
+    /// Sets the client's maximum packet size from `ConnectOptions`
     pub async fn set_client_maximum_packet_size(&self, size: u32) {
         let mut limits = self.limits.write().await;
         limits.set_client_maximum_packet_size(size);
@@ -429,6 +435,7 @@ impl SessionState {
         self.retained_messages.get_matching(topic_filter).await
     }
 
+    #[must_use]
     /// Gets the retained message store
     pub fn retained_messages(&self) -> &Arc<RetainedMessageStore> {
         &self.retained_messages

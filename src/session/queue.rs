@@ -34,6 +34,7 @@ pub struct QueuedMessage {
 
 impl QueuedMessage {
     /// Converts to an expiring message
+    #[must_use]
     pub fn to_expiring(self, limits: &LimitsManager) -> ExpiringMessage {
         ExpiringMessage::new(
             self.topic,
@@ -73,6 +74,7 @@ pub struct MessageQueue {
 
 impl MessageQueue {
     /// Creates a new message queue
+    #[must_use]
     pub fn new(max_messages: usize, max_size: usize) -> Self {
         Self {
             queue: VecDeque::new(),
@@ -82,6 +84,7 @@ impl MessageQueue {
         }
     }
 
+    #[must_use]
     /// Enqueues a message with expiry tracking
     ///
     /// Returns information about the queue operation including whether the message
@@ -137,6 +140,7 @@ impl MessageQueue {
         })
     }
 
+    #[must_use]
     /// Dequeues a single non-expired message
     pub fn dequeue(&mut self) -> Option<ExpiringMessage> {
         // Remove expired messages from front
@@ -159,6 +163,7 @@ impl MessageQueue {
         }
     }
 
+    #[must_use]
     /// Dequeues up to `limit` non-expired messages
     pub fn dequeue_batch(&mut self, limit: usize) -> Vec<ExpiringMessage> {
         let mut messages = Vec::with_capacity(limit.min(self.queue.len()));
@@ -174,16 +179,19 @@ impl MessageQueue {
         messages
     }
 
+    #[must_use]
     /// Gets the number of queued messages
     pub fn len(&self) -> usize {
         self.queue.len()
     }
 
+    #[must_use]
     /// Checks if the queue is empty
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
 
+    #[must_use]
     /// Gets the current size in bytes
     pub fn size(&self) -> usize {
         self.current_size
@@ -210,6 +218,7 @@ impl MessageQueue {
         });
     }
 
+    #[must_use]
     /// Gets statistics about the queue
     pub fn stats(&self) -> QueueStats {
         let oldest_message_age = self.queue.front().map(|m| m.queued_at.elapsed());

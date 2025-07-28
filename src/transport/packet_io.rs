@@ -164,57 +164,56 @@ pub trait PacketIo: Transport {
             // Encode packet
             match packet {
                 Packet::Connect(p) => {
-                    encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::ConnAck(p) => {
-                    encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::Publish(p) => {
                     let flags = p.flags();
                     encode_packet(&mut buf, PacketType::Publish, flags, |buf| {
                         p.encode_body(buf)
-                    })?
+                    })?;
                 }
                 Packet::PubAck(p) => {
-                    encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::PubRec(p) => {
-                    encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::PubRel(p) => {
-                    encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?;
                 }
                 Packet::PubComp(p) => {
-                    encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::Subscribe(p) => {
                     encode_packet(&mut buf, PacketType::Subscribe, 0x02, |buf| {
                         p.encode_body(buf)
-                    })?
+                    })?;
                 }
                 Packet::SubAck(p) => {
-                    encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::Unsubscribe(p) => {
                     encode_packet(&mut buf, PacketType::Unsubscribe, 0x02, |buf| {
                         p.encode_body(buf)
-                    })?
+                    })?;
                 }
                 Packet::UnsubAck(p) => {
-                    encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
                 }
                 Packet::PingReq => encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(()))?,
                 Packet::PingResp => encode_packet(&mut buf, PacketType::PingResp, 0, |_| Ok(()))?,
                 Packet::Disconnect(p) => {
                     encode_packet(&mut buf, PacketType::Disconnect, 0, |buf| {
                         p.encode_body(buf)
-                    })?
+                    })?;
                 }
                 Packet::Auth(p) => {
-                    encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?
+                    encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
                 }
-            };
-
+            }
             // Write to transport
             self.write(&buf).await?;
             Ok(())
@@ -272,126 +271,124 @@ pub trait PacketWriter {
 
 /// Implementation for TCP read half
 impl PacketReader for OwnedReadHalf {
-    fn read_packet(&mut self) -> impl Future<Output = Result<Packet>> + Send + '_ {
-        async move {
-            // Read fixed header bytes
-            let mut header_buf = BytesMut::with_capacity(5);
+    async fn read_packet(&mut self) -> Result<Packet> {
+        // Read fixed header bytes
+        let mut header_buf = BytesMut::with_capacity(5);
 
-            // Read first byte (packet type and flags)
-            let mut byte = [0u8; 1];
+        // Read first byte (packet type and flags)
+        let mut byte = [0u8; 1];
+        let n = self.read(&mut byte).await?;
+        if n == 0 {
+            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+        }
+        header_buf.put_u8(byte[0]);
+
+        // Read remaining length (variable length encoding)
+        loop {
             let n = self.read(&mut byte).await?;
             if n == 0 {
                 return Err(MqttError::ConnectionError("Connection closed".to_string()));
             }
             header_buf.put_u8(byte[0]);
 
-            // Read remaining length (variable length encoding)
-            loop {
-                let n = self.read(&mut byte).await?;
-                if n == 0 {
-                    return Err(MqttError::ConnectionError("Connection closed".to_string()));
-                }
-                header_buf.put_u8(byte[0]);
-
-                if (byte[0] & 0x80) == 0 {
-                    break;
-                }
-
-                if header_buf.len() > 4 {
-                    return Err(MqttError::MalformedPacket(
-                        "Invalid remaining length encoding".to_string(),
-                    ));
-                }
+            if (byte[0] & 0x80) == 0 {
+                break;
             }
 
-            // Parse the complete fixed header
-            let mut header_buf = header_buf.freeze();
-            let fixed_header = FixedHeader::decode(&mut header_buf)?;
-
-            // Read remaining bytes
-            let mut payload = vec![0u8; fixed_header.remaining_length as usize];
-            let mut bytes_read = 0;
-            while bytes_read < payload.len() {
-                let n = self.read(&mut payload[bytes_read..]).await?;
-                if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed while reading packet".to_string(),
-                    ));
-                }
-                bytes_read += n;
+            if header_buf.len() > 4 {
+                return Err(MqttError::MalformedPacket(
+                    "Invalid remaining length encoding".to_string(),
+                ));
             }
+        }
 
-            // Parse packet based on type
-            let mut payload_buf = BytesMut::from(&payload[..]);
+        // Parse the complete fixed header
+        let mut header_buf = header_buf.freeze();
+        let fixed_header = FixedHeader::decode(&mut header_buf)?;
 
-            match fixed_header.packet_type {
-                PacketType::Connect => {
-                    use crate::packet::connect::ConnectPacket;
-                    let packet = ConnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Connect(Box::new(packet)))
-                }
-                PacketType::ConnAck => {
-                    use crate::packet::connack::ConnAckPacket;
-                    let packet = ConnAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::ConnAck(packet))
-                }
-                PacketType::Publish => {
-                    use crate::packet::publish::PublishPacket;
-                    let packet = PublishPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Publish(packet))
-                }
-                PacketType::PubAck => {
-                    use crate::packet::puback::PubAckPacket;
-                    let packet = PubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubAck(packet))
-                }
-                PacketType::PubRec => {
-                    use crate::packet::pubrec::PubRecPacket;
-                    let packet = PubRecPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubRec(packet))
-                }
-                PacketType::PubRel => {
-                    use crate::packet::pubrel::PubRelPacket;
-                    let packet = PubRelPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubRel(packet))
-                }
-                PacketType::PubComp => {
-                    use crate::packet::pubcomp::PubCompPacket;
-                    let packet = PubCompPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubComp(packet))
-                }
-                PacketType::Subscribe => {
-                    use crate::packet::subscribe::SubscribePacket;
-                    let packet = SubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Subscribe(packet))
-                }
-                PacketType::SubAck => {
-                    use crate::packet::suback::SubAckPacket;
-                    let packet = SubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::SubAck(packet))
-                }
-                PacketType::Unsubscribe => {
-                    use crate::packet::unsubscribe::UnsubscribePacket;
-                    let packet = UnsubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Unsubscribe(packet))
-                }
-                PacketType::UnsubAck => {
-                    use crate::packet::unsuback::UnsubAckPacket;
-                    let packet = UnsubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::UnsubAck(packet))
-                }
-                PacketType::PingReq => Ok(Packet::PingReq),
-                PacketType::PingResp => Ok(Packet::PingResp),
-                PacketType::Disconnect => {
-                    use crate::packet::disconnect::DisconnectPacket;
-                    let packet = DisconnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Disconnect(packet))
-                }
-                PacketType::Auth => {
-                    use crate::packet::auth::AuthPacket;
-                    let packet = AuthPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Auth(packet))
-                }
+        // Read remaining bytes
+        let mut payload = vec![0u8; fixed_header.remaining_length as usize];
+        let mut bytes_read = 0;
+        while bytes_read < payload.len() {
+            let n = self.read(&mut payload[bytes_read..]).await?;
+            if n == 0 {
+                return Err(MqttError::ConnectionError(
+                    "Connection closed while reading packet".to_string(),
+                ));
+            }
+            bytes_read += n;
+        }
+
+        // Parse packet based on type
+        let mut payload_buf = BytesMut::from(&payload[..]);
+
+        match fixed_header.packet_type {
+            PacketType::Connect => {
+                use crate::packet::connect::ConnectPacket;
+                let packet = ConnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Connect(Box::new(packet)))
+            }
+            PacketType::ConnAck => {
+                use crate::packet::connack::ConnAckPacket;
+                let packet = ConnAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::ConnAck(packet))
+            }
+            PacketType::Publish => {
+                use crate::packet::publish::PublishPacket;
+                let packet = PublishPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Publish(packet))
+            }
+            PacketType::PubAck => {
+                use crate::packet::puback::PubAckPacket;
+                let packet = PubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::PubAck(packet))
+            }
+            PacketType::PubRec => {
+                use crate::packet::pubrec::PubRecPacket;
+                let packet = PubRecPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::PubRec(packet))
+            }
+            PacketType::PubRel => {
+                use crate::packet::pubrel::PubRelPacket;
+                let packet = PubRelPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::PubRel(packet))
+            }
+            PacketType::PubComp => {
+                use crate::packet::pubcomp::PubCompPacket;
+                let packet = PubCompPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::PubComp(packet))
+            }
+            PacketType::Subscribe => {
+                use crate::packet::subscribe::SubscribePacket;
+                let packet = SubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Subscribe(packet))
+            }
+            PacketType::SubAck => {
+                use crate::packet::suback::SubAckPacket;
+                let packet = SubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::SubAck(packet))
+            }
+            PacketType::Unsubscribe => {
+                use crate::packet::unsubscribe::UnsubscribePacket;
+                let packet = UnsubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Unsubscribe(packet))
+            }
+            PacketType::UnsubAck => {
+                use crate::packet::unsuback::UnsubAckPacket;
+                let packet = UnsubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::UnsubAck(packet))
+            }
+            PacketType::PingReq => Ok(Packet::PingReq),
+            PacketType::PingResp => Ok(Packet::PingResp),
+            PacketType::Disconnect => {
+                use crate::packet::disconnect::DisconnectPacket;
+                let packet = DisconnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Disconnect(packet))
+            }
+            PacketType::Auth => {
+                use crate::packet::auth::AuthPacket;
+                let packet = AuthPacket::decode_body(&mut payload_buf, &fixed_header)?;
+                Ok(Packet::Auth(packet))
             }
         }
     }
@@ -399,69 +396,66 @@ impl PacketReader for OwnedReadHalf {
 
 /// Implementation for TCP write half
 impl PacketWriter for OwnedWriteHalf {
-    fn write_packet(&mut self, packet: Packet) -> impl Future<Output = Result<()>> + Send + '_ {
-        async move {
-            let mut buf = BytesMut::with_capacity(1024);
+    async fn write_packet(&mut self, packet: Packet) -> Result<()> {
+        let mut buf = BytesMut::with_capacity(1024);
 
-            // Encode packet
-            match packet {
-                Packet::Connect(p) => {
-                    encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::ConnAck(p) => {
-                    encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::Publish(p) => {
-                    let flags = p.flags();
-                    encode_packet(&mut buf, PacketType::Publish, flags, |buf| {
-                        p.encode_body(buf)
-                    })?
-                }
-                Packet::PubAck(p) => {
-                    encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::PubRec(p) => {
-                    encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::PubRel(p) => {
-                    encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?
-                }
-                Packet::PubComp(p) => {
-                    encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::Subscribe(p) => {
-                    encode_packet(&mut buf, PacketType::Subscribe, 0x02, |buf| {
-                        p.encode_body(buf)
-                    })?
-                }
-                Packet::SubAck(p) => {
-                    encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::Unsubscribe(p) => {
-                    encode_packet(&mut buf, PacketType::Unsubscribe, 0x02, |buf| {
-                        p.encode_body(buf)
-                    })?
-                }
-                Packet::UnsubAck(p) => {
-                    encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?
-                }
-                Packet::PingReq => encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(()))?,
-                Packet::PingResp => encode_packet(&mut buf, PacketType::PingResp, 0, |_| Ok(()))?,
-                Packet::Disconnect(p) => {
-                    encode_packet(&mut buf, PacketType::Disconnect, 0, |buf| {
-                        p.encode_body(buf)
-                    })?
-                }
-                Packet::Auth(p) => {
-                    encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?
-                }
-            };
-
-            // Write to transport
-            self.write_all(&buf).await?;
-            self.flush().await?;
-            Ok(())
+        // Encode packet
+        match packet {
+            Packet::Connect(p) => {
+                encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::ConnAck(p) => {
+                encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::Publish(p) => {
+                let flags = p.flags();
+                encode_packet(&mut buf, PacketType::Publish, flags, |buf| {
+                    p.encode_body(buf)
+                })?;
+            }
+            Packet::PubAck(p) => {
+                encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::PubRec(p) => {
+                encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::PubRel(p) => {
+                encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?;
+            }
+            Packet::PubComp(p) => {
+                encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::Subscribe(p) => {
+                encode_packet(&mut buf, PacketType::Subscribe, 0x02, |buf| {
+                    p.encode_body(buf)
+                })?;
+            }
+            Packet::SubAck(p) => {
+                encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::Unsubscribe(p) => {
+                encode_packet(&mut buf, PacketType::Unsubscribe, 0x02, |buf| {
+                    p.encode_body(buf)
+                })?;
+            }
+            Packet::UnsubAck(p) => {
+                encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
+            }
+            Packet::PingReq => encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(()))?,
+            Packet::PingResp => encode_packet(&mut buf, PacketType::PingResp, 0, |_| Ok(()))?,
+            Packet::Disconnect(p) => {
+                encode_packet(&mut buf, PacketType::Disconnect, 0, |buf| {
+                    p.encode_body(buf)
+                })?;
+            }
+            Packet::Auth(p) => {
+                encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
+            }
         }
+        // Write to transport
+        self.write_all(&buf).await?;
+        self.flush().await?;
+        Ok(())
     }
 }
 
@@ -535,12 +529,15 @@ mod tests {
         let payload = b"Hello MQTT";
 
         let mut data = vec![
-            0x30,                                        // PUBLISH with QoS 0
-            (2 + topic.len() + 1 + payload.len()) as u8, // Remaining length (topic_len + topic + props + payload)
+            0x30,                                                             // PUBLISH with QoS 0
+            u8::try_from(2 + topic.len() + 1 + payload.len()).unwrap_or(255), // Remaining length (topic_len + topic + props + payload)
         ];
 
         // Topic length and name
-        data.extend_from_slice(&[(topic.len() >> 8) as u8, topic.len() as u8]);
+        data.extend_from_slice(&[
+            ((topic.len() >> 8) & 0xFF) as u8,
+            (topic.len() & 0xFF) as u8,
+        ]);
         data.extend_from_slice(topic.as_bytes());
 
         // Properties length (0 for no properties)
@@ -580,7 +577,7 @@ mod tests {
         if let Err(e) = result {
             match e {
                 MqttError::MalformedPacket(_) => {}
-                _ => panic!("Expected MalformedPacket error, got: {:?}", e),
+                _ => panic!("Expected MalformedPacket error, got: {e:?}"),
             }
         }
     }

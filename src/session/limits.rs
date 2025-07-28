@@ -33,10 +33,12 @@ pub struct LimitsManager {
 
 impl LimitsManager {
     /// Creates a new limits manager
+    #[must_use]
     pub fn new(config: LimitsConfig) -> Self {
         Self { config }
     }
 
+    #[must_use]
     /// Creates a new limits manager with default configuration
     pub fn default() -> Self {
         Self::new(LimitsConfig::default())
@@ -47,11 +49,12 @@ impl LimitsManager {
         self.config.server_maximum_packet_size = Some(size);
     }
 
-    /// Sets the client's maximum packet size from ConnectOptions
+    /// Sets the client's maximum packet size from `ConnectOptions`
     pub fn set_client_maximum_packet_size(&mut self, size: u32) {
         self.config.client_maximum_packet_size = size;
     }
 
+    #[must_use]
     /// Gets the effective maximum packet size (minimum of client and server limits)
     pub fn effective_maximum_packet_size(&self) -> u32 {
         match self.config.server_maximum_packet_size {
@@ -80,6 +83,7 @@ impl LimitsManager {
         }
     }
 
+    #[must_use]
     /// Calculates the expiry time for a message
     pub fn calculate_message_expiry(&self, expiry_interval: Option<u32>) -> Option<Instant> {
         let interval = match expiry_interval {
@@ -96,6 +100,7 @@ impl LimitsManager {
         Some(Instant::now() + final_interval)
     }
 
+    #[must_use]
     /// Checks if a message has expired
     pub fn is_message_expired(&self, expiry_time: Option<Instant>) -> bool {
         match expiry_time {
@@ -104,6 +109,7 @@ impl LimitsManager {
         }
     }
 
+    #[must_use]
     /// Gets the remaining expiry interval for a message in seconds
     pub fn get_remaining_expiry(&self, expiry_time: Option<Instant>) -> Option<u32> {
         match expiry_time {
@@ -111,7 +117,7 @@ impl LimitsManager {
                 let now = Instant::now();
                 if now < expiry {
                     let remaining = expiry.duration_since(now);
-                    Some(remaining.as_secs().min(u32::MAX as u64) as u32)
+                    Some(remaining.as_secs().min(u64::from(u32::MAX)) as u32)
                 } else {
                     Some(0) // Expired
                 }
@@ -120,11 +126,13 @@ impl LimitsManager {
         }
     }
 
+    #[must_use]
     /// Gets the client's maximum packet size
     pub fn client_maximum_packet_size(&self) -> u32 {
         self.config.client_maximum_packet_size
     }
 
+    #[must_use]
     /// Gets the server's maximum packet size if known
     pub fn server_maximum_packet_size(&self) -> Option<u32> {
         self.config.server_maximum_packet_size
@@ -148,6 +156,7 @@ pub struct ExpiringMessage {
 
 impl ExpiringMessage {
     /// Creates a new expiring message
+    #[must_use]
     pub fn new(
         topic: String,
         payload: Vec<u8>,
@@ -170,6 +179,7 @@ impl ExpiringMessage {
         }
     }
 
+    #[must_use]
     /// Checks if the message has expired
     pub fn is_expired(&self) -> bool {
         match self.expiry_time {
@@ -178,6 +188,7 @@ impl ExpiringMessage {
         }
     }
 
+    #[must_use]
     /// Gets the remaining expiry interval for retransmission
     pub fn remaining_expiry_interval(&self) -> Option<u32> {
         match self.expiry_time {
@@ -185,7 +196,7 @@ impl ExpiringMessage {
                 let now = Instant::now();
                 if now < expiry {
                     let remaining = expiry.duration_since(now);
-                    Some(remaining.as_secs().min(u32::MAX as u64) as u32)
+                    Some(remaining.as_secs().min(u64::from(u32::MAX)) as u32)
                 } else {
                     Some(0)
                 }

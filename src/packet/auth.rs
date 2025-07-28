@@ -15,13 +15,15 @@ pub struct AuthPacket {
 
 impl AuthPacket {
     /// Creates a new AUTH packet
+    #[must_use]
     pub fn new(reason_code: ReasonCode) -> Self {
         Self {
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
+    #[must_use]
     /// Creates a new AUTH packet with properties
     pub fn with_properties(reason_code: ReasonCode, properties: Properties) -> Self {
         Self {
@@ -39,7 +41,7 @@ impl AuthPacket {
         auth_method: String,
         auth_data: Option<Vec<u8>>,
     ) -> Result<Self> {
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         // Authentication method is required
         properties.add(
@@ -67,7 +69,7 @@ impl AuthPacket {
     ///
     /// Returns an error if the operation fails
     pub fn re_authenticate(auth_method: String, auth_data: Option<Vec<u8>>) -> Result<Self> {
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         // Authentication method is required
         properties.add(
@@ -95,7 +97,7 @@ impl AuthPacket {
     ///
     /// Returns an error if the operation fails
     pub fn success(auth_method: String) -> Result<Self> {
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         properties.add(
             crate::protocol::v5::properties::PropertyId::AuthenticationMethod,
@@ -117,7 +119,7 @@ impl AuthPacket {
             ));
         }
 
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         if let Some(reason) = reason_string {
             properties.add(
@@ -129,6 +131,7 @@ impl AuthPacket {
         Ok(Self::with_properties(reason_code, properties))
     }
 
+    #[must_use]
     /// Gets the authentication method from properties
     pub fn authentication_method(&self) -> Option<&str> {
         if let Some(crate::protocol::v5::properties::PropertyValue::Utf8String(method)) = self
@@ -141,6 +144,7 @@ impl AuthPacket {
         }
     }
 
+    #[must_use]
     /// Gets the authentication data from properties
     pub fn authentication_data(&self) -> Option<&[u8]> {
         if let Some(crate::protocol::v5::properties::PropertyValue::BinaryData(data)) = self
@@ -153,6 +157,7 @@ impl AuthPacket {
         }
     }
 
+    #[must_use]
     /// Gets the reason string from properties
     pub fn reason_string(&self) -> Option<&str> {
         if let Some(crate::protocol::v5::properties::PropertyValue::Utf8String(reason)) = self
@@ -230,7 +235,7 @@ impl MqttPacket for AuthPacket {
         let properties = if buf.has_remaining() {
             Properties::decode(buf)?
         } else {
-            Properties::new()
+            Properties::default()
         };
 
         let packet = Self {
@@ -391,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_auth_packet_property_getters() {
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
         properties
             .add(
                 PropertyId::AuthenticationMethod,

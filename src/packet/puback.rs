@@ -22,7 +22,7 @@ impl PubAckPacket {
         Self {
             packet_id,
             reason_code: ReasonCode::Success,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -32,7 +32,7 @@ impl PubAckPacket {
         Self {
             packet_id,
             reason_code,
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
@@ -112,23 +112,18 @@ impl MqttPacket for PubAckPacket {
 
         // MQTT v5.0: Reason code and properties are optional
         // If remaining length is 2 (just packet ID), reason code defaults to Success (0x00)
-        let (reason_code, properties) = if !buf.has_remaining() {
-            // No reason code or properties - Success with empty properties
-            (ReasonCode::Success, Properties::new())
-        } else {
+        let (reason_code, properties) = if buf.has_remaining() {
             // Read reason code
             let reason_byte = buf.get_u8();
             let code = ReasonCode::from_u8(reason_byte).ok_or_else(|| {
                 MqttError::MalformedPacket(format!(
-                    "Invalid PUBACK reason code: {} (0x{:02X})",
-                    reason_byte, reason_byte
+                    "Invalid PUBACK reason code: {reason_byte} (0x{reason_byte:02X})"
                 ))
             })?;
 
             if !Self::is_valid_puback_reason_code(code) {
                 return Err(MqttError::MalformedPacket(format!(
-                    "Invalid PUBACK reason code: {:?}",
-                    code
+                    "Invalid PUBACK reason code: {code:?}"
                 )));
             }
 
@@ -136,10 +131,13 @@ impl MqttPacket for PubAckPacket {
             let props = if buf.has_remaining() {
                 Properties::decode(buf)?
             } else {
-                Properties::new()
+                Properties::default()
             };
 
             (code, props)
+        } else {
+            // No reason code or properties - Success with empty properties
+            (ReasonCode::Success, Properties::default())
         };
 
         Ok(Self {

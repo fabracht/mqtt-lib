@@ -58,10 +58,12 @@ pub struct PendingPublish {
 
 impl FlowControlManager {
     /// Creates a new flow control manager
+    #[must_use]
     pub fn new(receive_maximum: u16) -> Self {
         Self::with_config(receive_maximum, FlowControlConfig::default())
     }
 
+    #[must_use]
     /// Creates a new flow control manager with custom configuration
     pub fn with_config(receive_maximum: u16, config: FlowControlConfig) -> Self {
         let permits = if receive_maximum == 0 {
@@ -188,6 +190,7 @@ impl FlowControlManager {
         self.in_flight.read().await.len()
     }
 
+    #[must_use]
     /// Gets the receive maximum value
     pub fn receive_maximum(&self) -> u16 {
         self.receive_maximum
@@ -300,11 +303,13 @@ impl FlowControlManager {
         expired
     }
 
+    #[must_use]
     /// Gets the flow control configuration
     pub fn config(&self) -> &FlowControlConfig {
         &self.config
     }
 
+    #[must_use]
     /// Gets available quota permits
     pub fn available_permits(&self) -> usize {
         self.quota_semaphore.available_permits()
@@ -341,6 +346,7 @@ pub struct TopicAliasManager {
 
 impl TopicAliasManager {
     /// Creates a new topic alias manager
+    #[must_use]
     pub fn new(topic_alias_maximum: u16) -> Self {
         Self {
             topic_alias_maximum,
@@ -350,6 +356,7 @@ impl TopicAliasManager {
         }
     }
 
+    #[must_use]
     /// Gets or creates an alias for a topic
     pub fn get_or_create_alias(&mut self, topic: &str) -> Option<u16> {
         // Check if we already have an alias for this topic
@@ -408,6 +415,7 @@ impl TopicAliasManager {
         Ok(())
     }
 
+    #[must_use]
     /// Gets the topic for an alias
     pub fn get_topic(&self, alias: u16) -> Option<&str> {
         self.alias_to_topic
@@ -415,6 +423,7 @@ impl TopicAliasManager {
             .map(std::string::String::as_str)
     }
 
+    #[must_use]
     /// Gets the alias for a topic
     pub fn get_alias(&self, topic: &str) -> Option<u16> {
         self.topic_to_alias.get(topic).copied()
@@ -427,6 +436,7 @@ impl TopicAliasManager {
         self.next_alias = 1;
     }
 
+    #[must_use]
     /// Gets the topic alias maximum
     pub fn topic_alias_maximum(&self) -> u16 {
         self.topic_alias_maximum

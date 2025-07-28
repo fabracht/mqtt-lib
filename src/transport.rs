@@ -49,39 +49,31 @@ pub enum TransportType {
 }
 
 impl Transport for TransportType {
-    fn connect(&mut self) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            match self {
-                Self::Tcp(t) => t.connect().await,
-                Self::Tls(t) => t.connect().await,
-            }
+    async fn connect(&mut self) -> Result<()> {
+        match self {
+            Self::Tcp(t) => t.connect().await,
+            Self::Tls(t) => t.connect().await,
         }
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> impl std::future::Future<Output = Result<usize>> + Send {
-        async move {
-            match self {
-                Self::Tcp(t) => t.read(buf).await,
-                Self::Tls(t) => t.read(buf).await,
-            }
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match self {
+            Self::Tcp(t) => t.read(buf).await,
+            Self::Tls(t) => t.read(buf).await,
         }
     }
 
-    fn write(&mut self, buf: &[u8]) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            match self {
-                Self::Tcp(t) => t.write(buf).await,
-                Self::Tls(t) => t.write(buf).await,
-            }
+    async fn write(&mut self, buf: &[u8]) -> Result<()> {
+        match self {
+            Self::Tcp(t) => t.write(buf).await,
+            Self::Tls(t) => t.write(buf).await,
         }
     }
 
-    fn close(&mut self) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            match self {
-                Self::Tcp(t) => t.close().await,
-                Self::Tls(t) => t.close().await,
-            }
+    async fn close(&mut self) -> Result<()> {
+        match self {
+            Self::Tcp(t) => t.close().await,
+            Self::Tls(t) => t.close().await,
         }
     }
 }

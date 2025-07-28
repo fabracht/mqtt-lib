@@ -199,7 +199,7 @@ impl DirectClientInner {
     ///
     /// # Errors
     ///
-    /// Returns ``MqttError`::NotConnected` if the client is not connected
+    /// Returns `MqttError::NotConnected` if the client is not connected
     ///
     /// # Errors
     ///
@@ -212,7 +212,7 @@ impl DirectClientInner {
     ///
     /// # Errors
     ///
-    /// Returns ``MqttError`::NotConnected` if the client is not connected
+    /// Returns `MqttError::NotConnected` if the client is not connected
     ///
     /// # Errors
     ///
@@ -227,7 +227,7 @@ impl DirectClientInner {
             if let Some(ref writer) = self.writer {
                 let disconnect = crate::packet::disconnect::DisconnectPacket {
                     reason_code: crate::protocol::v5::reason_codes::ReasonCode::Success,
-                    properties: crate::protocol::v5::properties::Properties::new(),
+                    properties: crate::protocol::v5::properties::Properties::default(),
                 };
                 let _ = writer
                     .write()
@@ -344,11 +344,11 @@ impl DirectClientInner {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - ``MqttError`::NotConnected` - The client is not connected
-    /// - ``MqttError`::InvalidTopicName` - The topic name is invalid
-    /// - ``MqttError`::PacketIdExhausted` - No packet IDs available for `QoS` 1/2
-    /// - ``MqttError`::FlowControlExceeded` - Flow control limit reached
-    /// - ``MqttError`::Io` - Transport write error
+    /// - `MqttError::NotConnected` - The client is not connected
+    /// - `MqttError::InvalidTopicName` - The topic name is invalid
+    /// - `MqttError::PacketIdExhausted` - No packet IDs available for `QoS` 1/2
+    /// - `MqttError::FlowControlExceeded` - Flow control limit reached
+    /// - `MqttError::Io` - Transport write error
     ///
     /// # Errors
     ///
@@ -648,7 +648,7 @@ impl DirectClientInner {
         let session = self.session.read().await;
 
         // Build CONNECT properties
-        let mut properties = Properties::new();
+        let mut properties = Properties::default();
 
         if let Some(val) = self.options.properties.session_expiry_interval {
             let _ = properties.add(
@@ -677,7 +677,7 @@ impl DirectClientInner {
 
         // Build will properties if present
         let will_properties = if let Some(ref will) = self.options.will {
-            let mut props = Properties::new();
+            let mut props = Properties::default();
             if let Some(val) = will.properties.will_delay_interval {
                 let _ = props.add(
                     PropertyId::WillDelayInterval,
@@ -716,7 +716,7 @@ impl DirectClientInner {
             }
             props
         } else {
-            Properties::new()
+            Properties::default()
         };
 
         ConnectPacket {
@@ -1126,7 +1126,7 @@ mod tests {
             protocol_version: 5,
             session_present: false,
             reason_code: ReasonCode::Success,
-            properties: Properties::new(),
+            properties: Properties::default(),
         };
         let connack_bytes = encode_packet(Packet::ConnAck(connack)).unwrap();
         transport.inject_packet(connack_bytes).await;
@@ -1145,7 +1145,7 @@ mod tests {
                     protocol_version: 5,
                     session_present: false,
                     reason_code: ReasonCode::Success,
-                    properties: Properties::new(),
+                    properties: Properties::default(),
                 }))
                 .unwrap(),
             )
@@ -1184,7 +1184,7 @@ mod tests {
 
         let packet = SubscribePacket {
             packet_id: 0, // Will be set by client
-            properties: Properties::new(),
+            properties: Properties::default(),
             filters: vec![crate::packet::subscribe::TopicFilter {
                 filter: "test/+".to_string(),
                 options: SubscriptionOptions {
@@ -1206,7 +1206,7 @@ mod tests {
 
         let packet = UnsubscribePacket {
             packet_id: 0, // Will be set by client
-            properties: Properties::new(),
+            properties: Properties::default(),
             filters: vec!["test/+".to_string()],
         };
 
@@ -1247,7 +1247,7 @@ mod tests {
                 payload: b"offline".to_vec(),
                 qos: QoS::AtLeastOnce,
                 retain: true,
-                properties: Default::default(),
+                properties: crate::protocol::v5::properties::WillProperties::default(),
             }),
             ..Default::default()
         };

@@ -351,30 +351,31 @@ impl MqttClient {
             .ok_or_else(|| MqttError::ConnectionError("No valid address found".to_string()))?;
 
         // Create transport based on type
-        let transport = match client_transport_type {
-            ClientTransportType::Tcp => {
-                let config = TcpConfig::new(addr);
-                let mut tcp_transport = TcpTransport::new(config);
+        let transport =
+            match client_transport_type {
+                ClientTransportType::Tcp => {
+                    let config = TcpConfig::new(addr);
+                    let mut tcp_transport = TcpTransport::new(config);
 
-                // Connect TCP transport directly
-                tcp_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TCP connect failed: {e}"))
-                })?;
+                    // Connect TCP transport directly
+                    tcp_transport.connect().await.map_err(|e| {
+                        MqttError::ConnectionError(format!("TCP connect failed: {e}"))
+                    })?;
 
-                TransportType::Tcp(tcp_transport)
-            }
-            ClientTransportType::Tls => {
-                let config = TlsConfig::new(addr, host);
-                let mut tls_transport = TlsTransport::new(config);
+                    TransportType::Tcp(tcp_transport)
+                }
+                ClientTransportType::Tls => {
+                    let config = TlsConfig::new(addr, host);
+                    let mut tls_transport = TlsTransport::new(config);
 
-                // Connect TLS transport directly
-                tls_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TLS connect failed: {e}"))
-                })?;
+                    // Connect TLS transport directly
+                    tls_transport.connect().await.map_err(|e| {
+                        MqttError::ConnectionError(format!("TLS connect failed: {e}"))
+                    })?;
 
-                TransportType::Tls(Box::new(tls_transport))
-            }
-        };
+                    TransportType::Tls(Box::new(tls_transport))
+                }
+            };
 
         // Reset reconnect attempt counter
         {
@@ -493,7 +494,10 @@ impl MqttClient {
         payload: impl Into<Vec<u8>>,
         qos: QoS,
     ) -> Result<PublishResult> {
-        let options = PublishOptions { qos, ..Default::default() };
+        let options = PublishOptions {
+            qos,
+            ..Default::default()
+        };
         self.publish_with_options(topic, payload, options).await
     }
 
@@ -706,7 +710,10 @@ impl MqttClient {
     {
         let mut results = Vec::new();
         for (topic, qos) in topics {
-            let opts = SubscribeOptions { qos, ..Default::default() };
+            let opts = SubscribeOptions {
+                qos,
+                ..Default::default()
+            };
             let result = self
                 .subscribe_with_options(topic, opts, callback.clone())
                 .await?;
@@ -745,7 +752,10 @@ impl MqttClient {
         topic: impl Into<String>,
         payload: impl Into<Vec<u8>>,
     ) -> Result<PublishResult> {
-        let opts = PublishOptions { retain: true, ..Default::default() };
+        let opts = PublishOptions {
+            retain: true,
+            ..Default::default()
+        };
         self.publish_with_options(topic, payload, opts).await
     }
 

@@ -3,7 +3,7 @@ use crate::error::{MqttError, Result};
 use crate::flags::ConnectFlags;
 use crate::packet::{FixedHeader, MqttPacket, PacketType};
 use crate::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
-use crate::types::{ConnectOptions, WillMessage};
+use crate::types::{ConnectOptions, WillMessage, WillProperties};
 use crate::QoS;
 use bytes::{Buf, BufMut};
 
@@ -38,8 +38,8 @@ impl ConnectPacket {
     /// Creates a new CONNECT packet from options
     #[must_use]
     pub fn new(options: ConnectOptions) -> Self {
-        let mut properties = Properties::new();
-        let mut will_properties = Properties::new();
+        let mut properties = Properties::default();
+        let mut will_properties = Properties::default();
 
         // Add CONNECT properties
         if let Some(val) = options.properties.session_expiry_interval {
@@ -177,8 +177,8 @@ impl ConnectPacket {
             username: options.username,
             password: options.password,
             will: options.will,
-            properties: Properties::new(),
-            will_properties: Properties::new(),
+            properties: Properties::default(),
+            will_properties: Properties::default(),
         }
     }
 
@@ -257,8 +257,7 @@ impl MqttPacket for ConnectPacket {
         let protocol_name = decode_string(buf)?;
         if protocol_name != PROTOCOL_NAME {
             return Err(MqttError::ProtocolError(format!(
-                "Invalid protocol name: {}",
-                protocol_name
+                "Invalid protocol name: {protocol_name}"
             )));
         }
 
@@ -307,7 +306,7 @@ impl MqttPacket for ConnectPacket {
         let properties = if protocol_version == PROTOCOL_VERSION_V5 {
             Properties::decode(buf)?
         } else {
-            Properties::new()
+            Properties::default()
         };
 
         // Payload
@@ -318,7 +317,7 @@ impl MqttPacket for ConnectPacket {
             let will_properties = if protocol_version == PROTOCOL_VERSION_V5 {
                 Properties::decode(buf)?
             } else {
-                Properties::new()
+                Properties::default()
             };
 
             let topic = decode_string(buf)?;
@@ -336,12 +335,12 @@ impl MqttPacket for ConnectPacket {
                 payload: payload.to_vec(),
                 qos,
                 retain: will_retain,
-                properties: Default::default(), // Will be populated from will_properties later
+                properties: WillProperties::default(), // Will be populated from will_properties later
             };
 
             (Some(will), will_properties)
         } else {
-            (None, Properties::new())
+            (None, Properties::default())
         };
 
         // Username

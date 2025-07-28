@@ -194,6 +194,7 @@ impl Properties {
         }
     }
 
+    #[must_use]
     /// Adds a property value
     ///
     /// # Errors
@@ -255,6 +256,7 @@ impl Properties {
         self.properties.is_empty()
     }
 
+    #[must_use]
     /// Iterates over all properties and their values
     pub fn iter(&self) -> impl Iterator<Item = (PropertyId, &PropertyValue)> + '_ {
         self.properties
@@ -262,6 +264,7 @@ impl Properties {
             .flat_map(|(id, values)| values.iter().map(move |value| (*id, value)))
     }
 
+    #[must_use]
     /// Encodes all properties to the buffer
     ///
     /// # Errors
@@ -326,6 +329,7 @@ impl Properties {
         Ok(())
     }
 
+    #[must_use]
     /// Decodes properties from the buffer
     ///
     /// # Errors

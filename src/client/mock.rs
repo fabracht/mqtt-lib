@@ -12,7 +12,8 @@ use tokio::sync::{Mutex, RwLock};
 use crate::client::MqttClientTrait;
 use crate::error::{MqttError, Result};
 use crate::types::{
-    ConnectOptions, ConnectResult, Message, MessageProperties, PublishOptions, PublishResult, SubscribeOptions,
+    ConnectOptions, ConnectResult, Message, MessageProperties, PublishOptions, PublishResult,
+    SubscribeOptions,
 };
 use crate::QoS;
 
@@ -357,7 +358,10 @@ impl MqttClientTrait for MockMqttClient {
         qos: QoS,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
-            let options = PublishOptions { qos, ..Default::default() };
+            let options = PublishOptions {
+                qos,
+                ..Default::default()
+            };
             self.publish_with_options(topic, payload, options).await
         }
     }
@@ -501,7 +505,10 @@ impl MqttClientTrait for MockMqttClient {
         async move {
             let mut results = Vec::new();
             for (topic, qos) in topics {
-                let opts = SubscribeOptions { qos, ..Default::default() };
+                let opts = SubscribeOptions {
+                    qos,
+                    ..Default::default()
+                };
                 let result = self
                     .subscribe_with_options(topic, opts, callback.clone())
                     .await?;
@@ -534,7 +541,10 @@ impl MqttClientTrait for MockMqttClient {
         payload: impl Into<Vec<u8>> + Send + 'a,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
-            let opts = PublishOptions { retain: true, ..Default::default() };
+            let opts = PublishOptions {
+                retain: true,
+                ..Default::default()
+            };
             self.publish_with_options(topic, payload, opts).await
         }
     }

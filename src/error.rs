@@ -205,7 +205,7 @@ impl From<std::io::Error> for MqttError {
 
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for MqttError {
     fn from(err: tokio::sync::mpsc::error::SendError<T>) -> Self {
-        MqttError::ConnectionError(format!("Channel send error: {}", err))
+        MqttError::ConnectionError(format!("Channel send error: {err}"))
     }
 }
 

@@ -74,8 +74,10 @@ async fn test_mqtt5_properties_system() {
         .await
         .expect("Failed to subscribe");
 
-    let mut pub_opts = PublishOptions::default();
-    pub_opts.qos = QoS::AtLeastOnce;
+    let mut pub_opts = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
     pub_opts.properties.message_expiry_interval = Some(300); // 5 minutes
     pub_opts.properties.payload_format_indicator = Some(true);
     pub_opts.properties.content_type = Some("application/json".to_string());
@@ -146,10 +148,12 @@ async fn test_will_message_with_delay() {
         .expect("Failed to subscribe to will topic");
 
     // Configure Will message with delay
-    let mut will_props = WillProperties::default();
-    will_props.will_delay_interval = Some(2); // 2 seconds delay
-    will_props.message_expiry_interval = Some(60);
-    will_props.content_type = Some("text/plain".to_string());
+    let mut will_props = WillProperties {
+        will_delay_interval: Some(2), // 2 seconds delay
+        message_expiry_interval: Some(60),
+        content_type: Some("text/plain".to_string()),
+        ..Default::default()
+    };
     will_props
         .user_properties
         .push(("reason".to_string(), "test-disconnect".to_string()));

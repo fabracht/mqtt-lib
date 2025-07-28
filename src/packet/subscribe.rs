@@ -77,7 +77,6 @@ impl SubscriptionOptions {
     }
 
     /// Decodes subscription options from a byte (v5.0)
-    #[must_use]
     pub fn decode(byte: u8) -> Result<Self> {
         let qos_val = byte & 0x03;
         let qos = match qos_val {
@@ -86,8 +85,7 @@ impl SubscriptionOptions {
             2 => QoS::ExactlyOnce,
             _ => {
                 return Err(MqttError::MalformedPacket(format!(
-                    "Invalid QoS value in subscription options: {}",
-                    qos_val
+                    "Invalid QoS value in subscription options: {qos_val}"
                 )))
             }
         };
@@ -102,8 +100,7 @@ impl SubscriptionOptions {
             2 => RetainHandling::DoNotSend,
             _ => {
                 return Err(MqttError::MalformedPacket(format!(
-                    "Invalid retain handling value: {}",
-                    retain_handling_val
+                    "Invalid retain handling value: {retain_handling_val}"
                 )))
             }
         };
@@ -171,7 +168,7 @@ impl SubscribePacket {
         Self {
             packet_id,
             filters: Vec::new(),
-            properties: Properties::new(),
+            properties: Properties::default(),
         }
     }
 
