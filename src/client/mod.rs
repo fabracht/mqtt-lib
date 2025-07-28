@@ -211,7 +211,8 @@ impl MqttClient {
     ///
     /// # Errors
     ///
-    /// Returns an error if the operation fails
+    /// Returns an error if the callback storage is inaccessible
+    #[allow(clippy::missing_errors_doc)]
     pub async fn on_connection_event<F>(&self, callback: F) -> Result<()>
     where
         F: Fn(ConnectionEvent) + Send + Sync + 'static,
@@ -266,7 +267,8 @@ impl MqttClient {
     ///
     /// # Errors
     ///
-    /// Returns an error if the operation fails
+    /// Returns an error if connection fails, address is invalid, or transport cannot be established
+    #[allow(clippy::missing_errors_doc)]
     pub async fn connect(&self, address: &str) -> Result<()> {
         let options = self.inner.read().await.options.clone();
         self.connect_with_options(address, options)
@@ -556,7 +558,8 @@ impl MqttClient {
     ///
     /// # Errors
     ///
-    /// Returns an error if the operation fails
+    /// Returns an error if subscription fails, topic filter is invalid, or client is not connected
+    #[allow(clippy::missing_errors_doc)]
     pub async fn subscribe<F>(
         &self,
         topic_filter: impl Into<String>,

@@ -311,9 +311,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_packet_connack() {
-        let mut transport = MockTransport::new();
         use crate::packet::connack::ConnAckPacket;
         
+        let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
         // Create a CONNACK packet using proper encoding
