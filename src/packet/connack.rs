@@ -238,10 +238,10 @@ impl MqttPacket for ConnAckPacket {
 
     fn encode_body<B: BufMut>(&self, buf: &mut B) -> Result<()> {
         // Variable header
-        let flags = if self.session_present { 
-            ConnAckFlags::SessionPresent as u8 
-        } else { 
-            0x00 
+        let flags = if self.session_present {
+            ConnAckFlags::SessionPresent as u8
+        } else {
+            0x00
         };
         buf.put_u8(flags);
 
@@ -274,7 +274,7 @@ impl MqttPacket for ConnAckPacket {
             ));
         }
         let flags = buf.get_u8();
-        
+
         // Use BeBytes decomposition to parse flags
         let decomposed_flags = ConnAckFlags::decompose(flags);
         let session_present = decomposed_flags.contains(&ConnAckFlags::SessionPresent);

@@ -1,11 +1,11 @@
 use crate::error::{MqttError, Result};
 use crate::transport::Transport;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{
     tcp::{OwnedReadHalf, OwnedWriteHalf},
-    TcpStream,
+    TcpSocket, TcpStream,
 };
 use tokio::time::timeout;
 
@@ -19,7 +19,7 @@ pub struct TcpConfig {
     /// Socket nodelay option (disable Nagle's algorithm)
     pub nodelay: bool,
     /// Socket keepalive option
-    pub keepalive: Option<Duration>,
+    pub keepalive: bool,
 }
 
 impl TcpConfig {
@@ -30,7 +30,7 @@ impl TcpConfig {
             addr,
             connect_timeout: Duration::from_secs(30),
             nodelay: true,
-            keepalive: Some(Duration::from_secs(60)),
+            keepalive: true,
         }
     }
 
@@ -50,7 +50,7 @@ impl TcpConfig {
 
     /// Sets the TCP keepalive option
     #[must_use]
-    pub fn with_keepalive(mut self, keepalive: Option<Duration>) -> Self {
+    pub fn with_keepalive(mut self, keepalive: bool) -> Self {
         self.keepalive = keepalive;
         self
     }
@@ -106,23 +106,23 @@ impl Transport for TcpTransport {
             return Err(MqttError::AlreadyConnected);
         }
 
+        // Create socket based on address type
+        let socket = match self.config.addr.ip() {
+            IpAddr::V4(_) => TcpSocket::new_v4()?,
+            IpAddr::V6(_) => TcpSocket::new_v6()?,
+        };
+
+        // Configure socket options before connecting
+        socket.set_nodelay(self.config.nodelay)?;
+        socket.set_keepalive(self.config.keepalive)?;
+
         // Connect with timeout
         let stream = timeout(
             self.config.connect_timeout,
-            TcpStream::connect(self.config.addr),
+            socket.connect(self.config.addr),
         )
         .await
         .map_err(|_| MqttError::Timeout)??;
-
-        // Configure socket options
-        stream.set_nodelay(self.config.nodelay)?;
-
-        // Set keepalive if configured
-        if let Some(keepalive_duration) = self.config.keepalive {
-            let sock_ref = socket2::SockRef::from(&stream);
-            let keepalive = socket2::TcpKeepalive::new().with_time(keepalive_duration);
-            sock_ref.set_tcp_keepalive(&keepalive)?;
-        }
 
         self.stream = Some(stream);
         Ok(())
@@ -173,12 +173,12 @@ mod tests {
         let config = TcpConfig::new(addr)
             .with_connect_timeout(Duration::from_secs(10))
             .with_nodelay(false)
-            .with_keepalive(None);
+            .with_keepalive(false);
 
         assert_eq!(config.addr, addr);
         assert_eq!(config.connect_timeout, Duration::from_secs(10));
         assert!(!config.nodelay);
-        assert!(config.keepalive.is_none());
+        assert!(!config.keepalive);
     }
 
     #[test]
@@ -241,7 +241,7 @@ mod tests {
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
-        
+
         let connect = ConnectPacket {
             client_id: "test".to_string(),
             keep_alive: 60,
@@ -256,7 +256,11 @@ mod tests {
 
         let mut connect_bytes = Vec::new();
         let result = connect.encode(&mut connect_bytes);
-        assert!(result.is_ok(), "Failed to encode CONNECT packet: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to encode CONNECT packet: {:?}",
+            result.err()
+        );
 
         let result = transport.write(&connect_bytes).await;
         assert!(result.is_ok(), "Failed to write: {:?}", result.err());
@@ -281,10 +285,8 @@ mod tests {
 
     #[test]
     fn test_tcp_close_when_not_connected() {
-        let mut transport = TcpTransport::from_addr(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            1883,
-        ));
+        let mut transport =
+            TcpTransport::from_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 1883));
 
         // Close should succeed even when not connected
         let runtime = tokio::runtime::Runtime::new().unwrap();

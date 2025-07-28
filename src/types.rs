@@ -142,20 +142,19 @@ impl ConnectOptions {
         self.reconnect_config.enabled = enabled;
         self
     }
-    
+
     #[must_use]
     pub fn with_reconnect_delay(mut self, initial: Duration, max: Duration) -> Self {
         self.reconnect_config.initial_delay = initial;
         self.reconnect_config.max_delay = max;
         self
     }
-    
+
     #[must_use]
     pub fn with_max_reconnect_attempts(mut self, attempts: u32) -> Self {
         self.reconnect_config.max_attempts = attempts;
         self
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -234,55 +233,75 @@ impl From<WillProperties> for crate::protocol::v5::properties::Properties {
         }
 
         if let Some(format) = will_props.payload_format_indicator {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::PayloadFormatIndicator,
-                crate::protocol::v5::properties::PropertyValue::Byte(u8::from(format)),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::PayloadFormatIndicator,
+                    crate::protocol::v5::properties::PropertyValue::Byte(u8::from(format)),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add payload format indicator property");
             }
         }
 
         if let Some(expiry) = will_props.message_expiry_interval {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::MessageExpiryInterval,
-                crate::protocol::v5::properties::PropertyValue::FourByteInteger(expiry),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::MessageExpiryInterval,
+                    crate::protocol::v5::properties::PropertyValue::FourByteInteger(expiry),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add message expiry interval property");
             }
         }
 
         if let Some(content_type) = will_props.content_type {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::ContentType,
-                crate::protocol::v5::properties::PropertyValue::Utf8String(content_type),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::ContentType,
+                    crate::protocol::v5::properties::PropertyValue::Utf8String(content_type),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add content type property");
             }
         }
 
         if let Some(response_topic) = will_props.response_topic {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::ResponseTopic,
-                crate::protocol::v5::properties::PropertyValue::Utf8String(response_topic),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::ResponseTopic,
+                    crate::protocol::v5::properties::PropertyValue::Utf8String(response_topic),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add response topic property");
             }
         }
 
         if let Some(correlation_data) = will_props.correlation_data {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::CorrelationData,
-                crate::protocol::v5::properties::PropertyValue::BinaryData(correlation_data.into()),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::CorrelationData,
+                    crate::protocol::v5::properties::PropertyValue::BinaryData(
+                        correlation_data.into(),
+                    ),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add correlation data property");
             }
         }
 
         for (key, value) in will_props.user_properties {
-            if properties.add(
-                crate::protocol::v5::properties::PropertyId::UserProperty,
-                crate::protocol::v5::properties::PropertyValue::Utf8StringPair(key, value),
-            ).is_err() {
+            if properties
+                .add(
+                    crate::protocol::v5::properties::PropertyId::UserProperty,
+                    crate::protocol::v5::properties::PropertyValue::Utf8StringPair(key, value),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add user property");
             }
         }
@@ -327,57 +346,81 @@ impl From<PublishProperties> for crate::protocol::v5::properties::Properties {
         let mut properties = Properties::new();
 
         if let Some(val) = props.payload_format_indicator {
-            if properties.add(
-                PropertyId::PayloadFormatIndicator,
-                PropertyValue::Byte(u8::from(val)),
-            ).is_err() {
+            if properties
+                .add(
+                    PropertyId::PayloadFormatIndicator,
+                    PropertyValue::Byte(u8::from(val)),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add payload format indicator property");
             }
         }
         if let Some(val) = props.message_expiry_interval {
-            if properties.add(
-                PropertyId::MessageExpiryInterval,
-                PropertyValue::FourByteInteger(val),
-            ).is_err() {
+            if properties
+                .add(
+                    PropertyId::MessageExpiryInterval,
+                    PropertyValue::FourByteInteger(val),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add message expiry interval property");
             }
         }
         if let Some(val) = props.topic_alias {
-            if properties.add(PropertyId::TopicAlias, PropertyValue::TwoByteInteger(val)).is_err() {
+            if properties
+                .add(PropertyId::TopicAlias, PropertyValue::TwoByteInteger(val))
+                .is_err()
+            {
                 tracing::warn!("Failed to add topic alias property");
             }
         }
         if let Some(val) = props.response_topic {
-            if properties.add(PropertyId::ResponseTopic, PropertyValue::Utf8String(val)).is_err() {
+            if properties
+                .add(PropertyId::ResponseTopic, PropertyValue::Utf8String(val))
+                .is_err()
+            {
                 tracing::warn!("Failed to add response topic property");
             }
         }
         if let Some(val) = props.correlation_data {
-            if properties.add(
-                PropertyId::CorrelationData,
-                PropertyValue::BinaryData(val.into()),
-            ).is_err() {
+            if properties
+                .add(
+                    PropertyId::CorrelationData,
+                    PropertyValue::BinaryData(val.into()),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add correlation data property");
             }
         }
         for id in props.subscription_identifiers {
-            if properties.add(
-                PropertyId::SubscriptionIdentifier,
-                PropertyValue::VariableByteInteger(id),
-            ).is_err() {
+            if properties
+                .add(
+                    PropertyId::SubscriptionIdentifier,
+                    PropertyValue::VariableByteInteger(id),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add subscription identifier property");
             }
         }
         if let Some(val) = props.content_type {
-            if properties.add(PropertyId::ContentType, PropertyValue::Utf8String(val)).is_err() {
+            if properties
+                .add(PropertyId::ContentType, PropertyValue::Utf8String(val))
+                .is_err()
+            {
                 tracing::warn!("Failed to add content type property");
             }
         }
         for (key, value) in props.user_properties {
-            if properties.add(
-                PropertyId::UserProperty,
-                PropertyValue::Utf8StringPair(key, value),
-            ).is_err() {
+            if properties
+                .add(
+                    PropertyId::UserProperty,
+                    PropertyValue::Utf8StringPair(key, value),
+                )
+                .is_err()
+            {
                 tracing::warn!("Failed to add user property");
             }
         }

@@ -1,8 +1,8 @@
 use crate::error::Result;
 use crate::packet::publish::PublishPacket;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Type alias for publish callback functions
@@ -48,22 +48,29 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Returns an error if a callback with the same ID is already registered
-    pub async fn register_with_id(&self, topic_filter: String, callback: PublishCallback) -> Result<CallbackId> {
+    pub async fn register_with_id(
+        &self,
+        topic_filter: String,
+        callback: PublishCallback,
+    ) -> Result<CallbackId> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        
+
         // Create callback entry
         let entry = CallbackEntry {
             id,
             callback,
             topic_filter: topic_filter.clone(),
         };
-        
+
         // Store in registry
-        self.callback_registry.write().await.insert(id, entry.clone());
-        
+        self.callback_registry
+            .write()
+            .await
+            .insert(id, entry.clone());
+
         // Register using existing logic
         self.register_internal(topic_filter, entry).await?;
-        
+
         Ok(id)
     }
 
@@ -76,7 +83,7 @@ impl CallbackManager {
         self.register_with_id(topic_filter, callback).await?;
         Ok(())
     }
-    
+
     /// Internal registration logic
     async fn register_internal(&self, topic_filter: String, entry: CallbackEntry) -> Result<()> {
         // Check if it's a shared subscription
@@ -106,7 +113,7 @@ impl CallbackManager {
     async fn get_callback(&self, id: CallbackId) -> Option<CallbackEntry> {
         self.callback_registry.read().await.get(&id).cloned()
     }
-    
+
     /// Re-registers a callback using its stored ID
     ///
     /// # Errors
@@ -121,19 +128,21 @@ impl CallbackManager {
             } else {
                 topic_filter.clone()
             };
-            
+
             // Check if already registered
             let already_registered = if actual_filter.contains('+') || actual_filter.contains('#') {
                 let wildcards = self.wildcard_callbacks.read().await;
                 wildcards.iter().any(|e| e.id == id)
             } else {
                 let exact = self.exact_callbacks.read().await;
-                exact.get(&actual_filter)
+                exact
+                    .get(&actual_filter)
                     .is_some_and(|entries| entries.iter().any(|e| e.id == id))
             };
-            
+
             if !already_registered {
-                self.register_internal(entry.topic_filter.clone(), entry).await?;
+                self.register_internal(entry.topic_filter.clone(), entry)
+                    .await?;
             }
             Ok(true)
         } else {
@@ -172,7 +181,7 @@ impl CallbackManager {
             let mut exact = self.exact_callbacks.write().await;
             exact.remove(actual_filter).is_some()
         };
-        
+
         Ok(removed_from_registry || removed_from_callbacks)
     }
 

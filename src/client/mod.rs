@@ -124,7 +124,9 @@ impl MqttClient {
     /// Connects to the MQTT broker with default options
     pub async fn connect(&self, address: &str) -> Result<()> {
         let options = self.inner.read().await.options.clone();
-        self.connect_with_options(address, options).await.map(|_| ())
+        self.connect_with_options(address, options)
+            .await
+            .map(|_| ())
     }
 
     /// Connects to the MQTT broker with custom options
@@ -148,10 +150,10 @@ impl MqttClient {
             // Always store address for potential reconnection
             inner.last_address = Some(address.to_string());
         }
-        
+
         // Try to connect
         let result = self.connect_internal(address).await;
-        
+
         // Handle reconnection if enabled and initial connection fails
         if result.is_err() && options.reconnect_config.enabled {
             // Trigger initial disconnection event
@@ -159,7 +161,7 @@ impl MqttClient {
                 reason: DisconnectReason::NetworkError(result.as_ref().err().unwrap().to_string()),
             })
             .await;
-            
+
             // Start reconnection attempts in background
             let client = self.clone();
             let address_clone = address.to_string();
@@ -176,10 +178,10 @@ impl MqttClient {
                 client.monitor_connection().await;
             });
         }
-        
+
         result
     }
-    
+
     /// Internal connection method that does the actual connection work
     async fn connect_internal(&self, address: &str) -> Result<ConnectResult> {
         // Parse address to determine transport type
@@ -228,18 +230,16 @@ impl MqttClient {
         // Connect using direct async method - NO event loop!
         let mut inner = self.inner.write().await;
         let result = inner.connect(transport).await?;
-        
+
         // Get stored subscriptions before releasing the lock
         let stored_subs = inner.stored_subscriptions.read().await.clone();
         let session_present = result.session_present;
         drop(inner); // Release lock before potentially resubscribing
 
         // Trigger connected event
-        self.trigger_connection_event(ConnectionEvent::Connected {
-            session_present,
-        })
-        .await;
-        
+        self.trigger_connection_event(ConnectionEvent::Connected { session_present })
+            .await;
+
         // Restore callbacks and subscriptions
         if !stored_subs.is_empty() {
             if session_present {
@@ -253,9 +253,15 @@ impl MqttClient {
                 }
             } else {
                 // Session was not resumed - need to resubscribe and restore callbacks
-                tracing::info!("Session not resumed, restoring {} subscriptions", stored_subs.len());
+                tracing::info!(
+                    "Session not resumed, restoring {} subscriptions",
+                    stored_subs.len()
+                );
                 for (topic, options, callback_id) in stored_subs {
-                    if let Err(e) = self.resubscribe_internal(&topic, options, callback_id).await {
+                    if let Err(e) = self
+                        .resubscribe_internal(&topic, options, callback_id)
+                        .await
+                    {
                         tracing::warn!("Failed to restore subscription to {}: {}", topic, e);
                     }
                 }
@@ -323,7 +329,11 @@ impl MqttClient {
     /// Subscribes to a topic with a callback
     ///
     /// This is a DIRECT async method - no event loops!
-    pub async fn subscribe<F>(&self, topic_filter: impl Into<String>, callback: F) -> Result<(u16, QoS)>
+    pub async fn subscribe<F>(
+        &self,
+        topic_filter: impl Into<String>,
+        callback: F,
+    ) -> Result<(u16, QoS)>
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static,
     {
@@ -446,7 +456,11 @@ impl MqttClient {
     }
 
     /// Subscribe to multiple topics at once
-    pub async fn subscribe_many<F>(&self, topics: Vec<(&str, QoS)>, callback: F) -> Result<Vec<(u16, QoS)>>
+    pub async fn subscribe_many<F>(
+        &self,
+        topics: Vec<(&str, QoS)>,
+        callback: F,
+    ) -> Result<Vec<(u16, QoS)>>
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static + Clone,
     {
@@ -463,18 +477,18 @@ impl MqttClient {
     }
 
     /// Unsubscribe from multiple topics at once
-    /// 
+    ///
     /// Returns a vector of results, one for each topic. Each result contains the topic
     /// and whether the unsubscribe operation succeeded for that topic.
     pub async fn unsubscribe_many(&self, topics: Vec<&str>) -> Result<Vec<(String, Result<()>)>> {
         let mut results = Vec::with_capacity(topics.len());
-        
+
         for topic in topics {
             let topic_string = topic.to_string();
             let result = self.unsubscribe(topic).await;
             results.push((topic_string, result));
         }
-        
+
         Ok(results)
     }
 
@@ -569,7 +583,11 @@ impl MqttClientTrait for MqttClient {
         async move { self.connect(address).await }
     }
 
-    fn connect_with_options<'a>(&'a self, address: &'a str, options: ConnectOptions) -> impl Future<Output = Result<ConnectResult>> + Send + 'a {
+    fn connect_with_options<'a>(
+        &'a self,
+        address: &'a str,
+        options: ConnectOptions,
+    ) -> impl Future<Output = Result<ConnectResult>> + Send + 'a {
         async move { self.connect_with_options(address, options).await }
     }
 
@@ -577,60 +595,112 @@ impl MqttClientTrait for MqttClient {
         async move { self.disconnect().await }
     }
 
-    fn publish<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish(topic, payload).await }
     }
 
-    fn publish_qos<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a, qos: QoS) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+        qos: QoS,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos(topic, payload, qos).await }
     }
 
-    fn publish_with_options<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a, options: PublishOptions) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_with_options<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+        options: PublishOptions,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_with_options(topic, payload, options).await }
     }
 
-    fn subscribe<'a, F>(&'a self, topic_filter: impl Into<String> + Send + 'a, callback: F) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
+    fn subscribe<'a, F>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+        callback: F,
+    ) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static,
     {
         async move { self.subscribe(topic_filter, callback).await }
     }
 
-    fn subscribe_with_options<'a, F>(&'a self, topic_filter: impl Into<String> + Send + 'a, options: SubscribeOptions, callback: F) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
+    fn subscribe_with_options<'a, F>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+        options: SubscribeOptions,
+        callback: F,
+    ) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static,
     {
-        async move { self.subscribe_with_options(topic_filter, options, callback).await }
+        async move {
+            self.subscribe_with_options(topic_filter, options, callback)
+                .await
+        }
     }
 
-    fn unsubscribe<'a>(&'a self, topic_filter: impl Into<String> + Send + 'a) -> impl Future<Output = Result<()>> + Send + 'a {
+    fn unsubscribe<'a>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move { self.unsubscribe(topic_filter).await }
     }
 
-    fn subscribe_many<'a, F>(&'a self, topics: Vec<(&'a str, QoS)>, callback: F) -> impl Future<Output = Result<Vec<(u16, QoS)>>> + Send + 'a
+    fn subscribe_many<'a, F>(
+        &'a self,
+        topics: Vec<(&'a str, QoS)>,
+        callback: F,
+    ) -> impl Future<Output = Result<Vec<(u16, QoS)>>> + Send + 'a
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static + Clone,
     {
         async move { self.subscribe_many(topics, callback).await }
     }
 
-    fn unsubscribe_many<'a>(&'a self, topics: Vec<&'a str>) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a {
+    fn unsubscribe_many<'a>(
+        &'a self,
+        topics: Vec<&'a str>,
+    ) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a {
         async move { self.unsubscribe_many(topics).await }
     }
 
-    fn publish_retain<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_retain<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_retain(topic, payload).await }
     }
 
-    fn publish_qos0<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos0<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos0(topic, payload).await }
     }
 
-    fn publish_qos1<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos1<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos1(topic, payload).await }
     }
 
-    fn publish_qos2<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos2<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos2(topic, payload).await }
     }
 
@@ -692,13 +762,13 @@ impl MqttClient {
         loop {
             // Wait for disconnection
             tokio::time::sleep(Duration::from_secs(1)).await;
-            
+
             let inner = self.inner.read().await;
             if !inner.is_connected() {
                 // Get reconnection config
                 let reconnect_config = inner.options.reconnect_config.clone();
                 let last_address = inner.last_address.clone();
-                drop(inner);  // Release lock before potentially long-running operation
+                drop(inner); // Release lock before potentially long-running operation
 
                 if !reconnect_config.enabled {
                     break;
@@ -716,9 +786,13 @@ impl MqttClient {
     }
 
     /// Attempt reconnection with exponential backoff
-    async fn attempt_reconnection(&self, address: &str, config: &crate::types::ReconnectConfig) -> Result<()> {
+    async fn attempt_reconnection(
+        &self,
+        address: &str,
+        config: &crate::types::ReconnectConfig,
+    ) -> Result<()> {
         let mut delay = config.initial_delay;
-        
+
         loop {
             // Increment attempt counter
             let attempt = {
@@ -729,11 +803,14 @@ impl MqttClient {
 
             // Check max attempts
             if config.max_attempts > 0 && attempt > config.max_attempts {
-                return Err(MqttError::ConnectionError("Max reconnection attempts exceeded".to_string()));
+                return Err(MqttError::ConnectionError(
+                    "Max reconnection attempts exceeded".to_string(),
+                ));
             }
 
             // Trigger reconnecting event
-            self.trigger_connection_event(ConnectionEvent::Reconnecting { attempt }).await;
+            self.trigger_connection_event(ConnectionEvent::Reconnecting { attempt })
+                .await;
 
             // Wait before attempting
             tokio::time::sleep(delay).await;
@@ -742,30 +819,33 @@ impl MqttClient {
             match self.connect_internal(address).await {
                 Ok(_) => {
                     tracing::info!("Reconnected successfully after {} attempts", attempt);
-                    
+
                     // Restore subscriptions if session was not resumed
                     let inner = self.inner.read().await;
                     let stored_subs = inner.stored_subscriptions.read().await.clone();
                     drop(inner); // Release lock before resubscribing
-                    
+
                     for (topic, options, callback_id) in stored_subs {
-                        if let Err(e) = self.resubscribe_internal(&topic, options, callback_id).await {
+                        if let Err(e) = self
+                            .resubscribe_internal(&topic, options, callback_id)
+                            .await
+                        {
                             tracing::warn!("Failed to restore subscription to {}: {}", topic, e);
                         }
                     }
-                    
+
                     // Send queued messages
                     self.send_queued_messages().await;
-                    
+
                     return Ok(());
                 }
                 Err(e) => {
                     tracing::warn!("Reconnection attempt {} failed: {}", attempt, e);
-                    
+
                     // Calculate next delay with exponential backoff
                     delay = std::cmp::min(
                         Duration::from_secs_f32(delay.as_secs_f32() * config.backoff_multiplier),
-                        config.max_delay
+                        config.max_delay,
                     );
                 }
             }
@@ -783,7 +863,7 @@ impl MqttClient {
         for mut msg in messages {
             // Set DUP flag for replayed messages
             msg.dup = true;
-            
+
             if let Err(e) = self.publish_packet(msg).await {
                 tracing::warn!("Failed to send queued message: {}", e);
             }
@@ -791,12 +871,17 @@ impl MqttClient {
     }
 
     /// Internal method to resubscribe with stored options and callback
-    async fn resubscribe_internal(&self, topic: &str, options: crate::packet::subscribe::SubscriptionOptions, callback_id: crate::callback::CallbackId) -> Result<()> {
+    async fn resubscribe_internal(
+        &self,
+        topic: &str,
+        options: crate::packet::subscribe::SubscriptionOptions,
+        callback_id: crate::callback::CallbackId,
+    ) -> Result<()> {
         // Restore the callback first
         let inner = self.inner.read().await;
         inner.callback_manager.restore_callback(callback_id).await?;
         drop(inner);
-        
+
         // Create subscribe packet
         let packet = SubscribePacket {
             packet_id: self.inner.read().await.packet_id_generator.next(),
@@ -816,7 +901,9 @@ impl MqttClient {
     /// Internal method to publish a packet
     async fn publish_packet(&self, packet: PublishPacket) -> Result<()> {
         let mut inner = self.inner.write().await;
-        inner.send_packet(crate::packet::Packet::Publish(packet)).await
+        inner
+            .send_packet(crate::packet::Packet::Publish(packet))
+            .await
     }
 }
 

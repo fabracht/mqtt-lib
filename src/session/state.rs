@@ -139,7 +139,7 @@ impl SessionState {
     }
 
     /// Removes a subscription
-    /// 
+    ///
     /// Returns `Ok(true)` if the subscription existed and was removed,
     /// `Ok(false)` if the subscription did not exist.
     pub async fn remove_subscription(&self, topic_filter: &str) -> Result<bool> {
@@ -161,10 +161,13 @@ impl SessionState {
     }
 
     /// Queues a message for delivery
-    /// 
+    ///
     /// Returns information about the queue operation including whether the message
     /// was queued and how many messages were dropped to make room.
-    pub async fn queue_message(&self, message: QueuedMessage) -> Result<crate::session::queue::QueueResult> {
+    pub async fn queue_message(
+        &self,
+        message: QueuedMessage,
+    ) -> Result<crate::session::queue::QueueResult> {
         self.touch().await;
         let limits = self.limits.read().await;
         let expiring_message = message.to_expiring(&*limits);

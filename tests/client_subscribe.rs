@@ -199,7 +199,7 @@ async fn test_unsubscribe_many() {
             let unsubscribe_topics = vec!["test/1", "test/2", "test/3"];
             let result = client.unsubscribe_many(unsubscribe_topics).await;
             assert!(result.is_ok());
-            
+
             // Check that all unsubscribes succeeded
             let results = result.unwrap();
             assert_eq!(results.len(), 3);

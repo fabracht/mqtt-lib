@@ -77,7 +77,10 @@ pub trait MqttClientTrait: Send + Sync {
         F: Fn(Message) + Send + Sync + 'static;
 
     /// Unsubscribes from a topic
-    fn unsubscribe<'a>(&'a self, topic_filter: impl Into<String> + Send + 'a) -> impl Future<Output = Result<()>> + Send + 'a;
+    fn unsubscribe<'a>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+    ) -> impl Future<Output = Result<()>> + Send + 'a;
 
     /// Subscribe to multiple topics at once
     fn subscribe_many<'a, F>(
@@ -91,7 +94,10 @@ pub trait MqttClientTrait: Send + Sync {
     /// Unsubscribe from multiple topics at once
     ///
     /// Returns a vector of results, one for each topic
-    fn unsubscribe_many<'a>(&'a self, topics: Vec<&'a str>) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a;
+    fn unsubscribe_many<'a>(
+        &'a self,
+        topics: Vec<&'a str>,
+    ) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a;
 
     /// Publish a retained message
     fn publish_retain<'a>(

@@ -11,7 +11,9 @@ use tokio::sync::{Mutex, RwLock};
 
 use crate::client::MqttClientTrait;
 use crate::error::{MqttError, Result};
-use crate::types::{ConnectOptions, ConnectResult, Message, PublishOptions, PublishResult, SubscribeOptions};
+use crate::types::{
+    ConnectOptions, ConnectResult, Message, PublishOptions, PublishResult, SubscribeOptions,
+};
 use crate::QoS;
 
 /// Mock MQTT client for testing
@@ -41,15 +43,36 @@ struct MockState {
 /// Record of a method call made to the mock client
 #[derive(Debug, Clone)]
 pub enum MockCall {
-    Connect { address: String },
-    ConnectWithOptions { address: String, options: ConnectOptions },
+    Connect {
+        address: String,
+    },
+    ConnectWithOptions {
+        address: String,
+        options: ConnectOptions,
+    },
     Disconnect,
-    Publish { topic: String, payload: Vec<u8> },
-    PublishWithOptions { topic: String, payload: Vec<u8>, options: PublishOptions },
-    Subscribe { topic: String },
-    SubscribeWithOptions { topic: String, options: SubscribeOptions },
-    Unsubscribe { topic: String },
-    SetQueueOnDisconnect { enabled: bool },
+    Publish {
+        topic: String,
+        payload: Vec<u8>,
+    },
+    PublishWithOptions {
+        topic: String,
+        payload: Vec<u8>,
+        options: PublishOptions,
+    },
+    Subscribe {
+        topic: String,
+    },
+    SubscribeWithOptions {
+        topic: String,
+        options: SubscribeOptions,
+    },
+    Unsubscribe {
+        topic: String,
+    },
+    SetQueueOnDisconnect {
+        enabled: bool,
+    },
 }
 
 /// Configured responses for mock methods
@@ -107,7 +130,11 @@ impl MockMqttClient {
 
     /// Configures the response for connect_with_options calls
     pub async fn set_connect_with_options_response(&self, response: Result<ConnectResult>) {
-        self.state.responses.write().await.connect_with_options_response = Some(response);
+        self.state
+            .responses
+            .write()
+            .await
+            .connect_with_options_response = Some(response);
     }
 
     /// Configures the response for disconnect calls
@@ -133,7 +160,7 @@ impl MockMqttClient {
     /// Simulates receiving a message on a subscribed topic
     pub async fn simulate_message(&self, topic: &str, payload: Vec<u8>, qos: QoS) -> Result<()> {
         let subscriptions = self.state.subscriptions.read().await;
-        
+
         // Find matching subscription
         for (topic_filter, callback) in subscriptions.iter() {
             if self.topic_matches(topic_filter, topic) {
@@ -148,8 +175,11 @@ impl MockMqttClient {
                 return Ok(());
             }
         }
-        
-        Err(MqttError::ProtocolError(format!("No subscription found for topic: {}", topic)))
+
+        Err(MqttError::ProtocolError(format!(
+            "No subscription found for topic: {}",
+            topic
+        )))
     }
 
     /// Simple topic matching (supports + and # wildcards)
@@ -157,7 +187,7 @@ impl MockMqttClient {
         if filter == topic {
             return true;
         }
-        
+
         // Simple wildcard support for testing
         if filter.contains('+') || filter.contains('#') {
             // Basic implementation - could be enhanced for full MQTT topic matching
@@ -172,11 +202,11 @@ impl MockMqttClient {
                 // Simple single-level wildcard matching
                 let filter_parts: Vec<&str> = filter.split('/').collect();
                 let topic_parts: Vec<&str> = topic.split('/').collect();
-                
+
                 if filter_parts.len() != topic_parts.len() {
                     return false;
                 }
-                
+
                 for (f, t) in filter_parts.iter().zip(topic_parts.iter()) {
                     if *f != "+" && f != t {
                         return false;
@@ -185,7 +215,7 @@ impl MockMqttClient {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -213,13 +243,14 @@ impl MqttClientTrait for MockMqttClient {
         async move {
             self.record_call(MockCall::Connect {
                 address: address.to_string(),
-            }).await;
+            })
+            .await;
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.connect_response {
                 let result = response.clone();
                 drop(responses);
-                
+
                 if result.is_ok() {
                     self.set_connected(true);
                 }
@@ -232,18 +263,23 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn connect_with_options<'a>(&'a self, address: &'a str, options: ConnectOptions) -> impl Future<Output = Result<ConnectResult>> + Send + 'a {
+    fn connect_with_options<'a>(
+        &'a self,
+        address: &'a str,
+        options: ConnectOptions,
+    ) -> impl Future<Output = Result<ConnectResult>> + Send + 'a {
         async move {
             self.record_call(MockCall::ConnectWithOptions {
                 address: address.to_string(),
                 options: options.clone(),
-            }).await;
+            })
+            .await;
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.connect_with_options_response {
                 let result = response.clone();
                 drop(responses);
-                
+
                 if result.is_ok() {
                     self.set_connected(true);
                 }
@@ -266,7 +302,7 @@ impl MqttClientTrait for MockMqttClient {
             if let Some(response) = &responses.disconnect_response {
                 let result = response.clone();
                 drop(responses);
-                
+
                 if result.is_ok() {
                     self.set_connected(false);
                 }
@@ -279,15 +315,20 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn publish<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
             let topic_str = topic.into();
             let payload_vec = payload.into();
-            
+
             self.record_call(MockCall::Publish {
                 topic: topic_str,
                 payload: payload_vec,
-            }).await;
+            })
+            .await;
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.publish_response {
@@ -299,7 +340,12 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn publish_qos<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a, qos: QoS) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+        qos: QoS,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
             let mut options = PublishOptions::default();
             options.qos = qos;
@@ -307,16 +353,22 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn publish_with_options<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a, options: PublishOptions) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_with_options<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+        options: PublishOptions,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
             let topic_str = topic.into();
             let payload_vec = payload.into();
-            
+
             self.record_call(MockCall::PublishWithOptions {
                 topic: topic_str,
                 payload: payload_vec,
                 options: options.clone(),
-            }).await;
+            })
+            .await;
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.publish_response {
@@ -334,19 +386,28 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn subscribe<'a, F>(&'a self, topic_filter: impl Into<String> + Send + 'a, callback: F) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
+    fn subscribe<'a, F>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+        callback: F,
+    ) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
     where
         F: Fn(Message) + Send + Sync + 'static,
     {
         async move {
             let topic_str = topic_filter.into();
-            
+
             self.record_call(MockCall::Subscribe {
                 topic: topic_str.clone(),
-            }).await;
+            })
+            .await;
 
             // Store the callback
-            self.state.subscriptions.write().await.insert(topic_str, Box::new(callback));
+            self.state
+                .subscriptions
+                .write()
+                .await
+                .insert(topic_str, Box::new(callback));
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.subscribe_response {
@@ -359,20 +420,30 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn subscribe_with_options<'a, F>(&'a self, topic_filter: impl Into<String> + Send + 'a, options: SubscribeOptions, callback: F) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
+    fn subscribe_with_options<'a, F>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+        options: SubscribeOptions,
+        callback: F,
+    ) -> impl Future<Output = Result<(u16, QoS)>> + Send + 'a
     where
         F: Fn(Message) + Send + Sync + 'static,
     {
         async move {
             let topic_str = topic_filter.into();
-            
+
             self.record_call(MockCall::SubscribeWithOptions {
                 topic: topic_str.clone(),
                 options: options.clone(),
-            }).await;
+            })
+            .await;
 
             // Store the callback
-            self.state.subscriptions.write().await.insert(topic_str, Box::new(callback));
+            self.state
+                .subscriptions
+                .write()
+                .await
+                .insert(topic_str, Box::new(callback));
 
             let responses = self.state.responses.read().await;
             if let Some(response) = &responses.subscribe_response {
@@ -385,13 +456,17 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn unsubscribe<'a>(&'a self, topic_filter: impl Into<String> + Send + 'a) -> impl Future<Output = Result<()>> + Send + 'a {
+    fn unsubscribe<'a>(
+        &'a self,
+        topic_filter: impl Into<String> + Send + 'a,
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
             let topic_str = topic_filter.into();
-            
+
             self.record_call(MockCall::Unsubscribe {
                 topic: topic_str.clone(),
-            }).await;
+            })
+            .await;
 
             // Remove the subscription
             self.state.subscriptions.write().await.remove(&topic_str);
@@ -406,7 +481,11 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn subscribe_many<'a, F>(&'a self, topics: Vec<(&'a str, QoS)>, callback: F) -> impl Future<Output = Result<Vec<(u16, QoS)>>> + Send + 'a
+    fn subscribe_many<'a, F>(
+        &'a self,
+        topics: Vec<(&'a str, QoS)>,
+        callback: F,
+    ) -> impl Future<Output = Result<Vec<(u16, QoS)>>> + Send + 'a
     where
         F: Fn(Message) + Send + Sync + 'static + Clone,
     {
@@ -415,28 +494,37 @@ impl MqttClientTrait for MockMqttClient {
             for (topic, qos) in topics {
                 let mut opts = SubscribeOptions::default();
                 opts.qos = qos;
-                let result = self.subscribe_with_options(topic, opts, callback.clone()).await?;
+                let result = self
+                    .subscribe_with_options(topic, opts, callback.clone())
+                    .await?;
                 results.push(result);
             }
             Ok(results)
         }
     }
 
-    fn unsubscribe_many<'a>(&'a self, topics: Vec<&'a str>) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a {
+    fn unsubscribe_many<'a>(
+        &'a self,
+        topics: Vec<&'a str>,
+    ) -> impl Future<Output = Result<Vec<(String, Result<()>)>>> + Send + 'a {
         async move {
             let mut results = Vec::with_capacity(topics.len());
-            
+
             for topic in topics {
                 let topic_string = topic.to_string();
                 let result = self.unsubscribe(topic).await;
                 results.push((topic_string, result));
             }
-            
+
             Ok(results)
         }
     }
 
-    fn publish_retain<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_retain<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move {
             let mut opts = PublishOptions::default();
             opts.retain = true;
@@ -444,15 +532,27 @@ impl MqttClientTrait for MockMqttClient {
         }
     }
 
-    fn publish_qos0<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos0<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos(topic, payload, QoS::AtMostOnce).await }
     }
 
-    fn publish_qos1<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos1<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos(topic, payload, QoS::AtLeastOnce).await }
     }
 
-    fn publish_qos2<'a>(&'a self, topic: impl Into<String> + Send + 'a, payload: impl Into<Vec<u8>> + Send + 'a) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
+    fn publish_qos2<'a>(
+        &'a self,
+        topic: impl Into<String> + Send + 'a,
+        payload: impl Into<Vec<u8>> + Send + 'a,
+    ) -> impl Future<Output = Result<PublishResult>> + Send + 'a {
         async move { self.publish_qos(topic, payload, QoS::ExactlyOnce).await }
     }
 
@@ -462,8 +562,11 @@ impl MqttClientTrait for MockMqttClient {
 
     fn set_queue_on_disconnect(&self, enabled: bool) -> impl Future<Output = ()> + Send + '_ {
         async move {
-            self.record_call(MockCall::SetQueueOnDisconnect { enabled }).await;
-            self.state.queue_on_disconnect.store(enabled, Ordering::SeqCst);
+            self.record_call(MockCall::SetQueueOnDisconnect { enabled })
+                .await;
+            self.state
+                .queue_on_disconnect
+                .store(enabled, Ordering::SeqCst);
         }
     }
 }

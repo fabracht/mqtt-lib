@@ -1,8 +1,8 @@
 use crate::error::{MqttError, Result};
 use crate::transport::Transport;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
-use rustls::{ClientConfig, RootCertStore, DigitallySignedStruct, SignatureScheme};
-use rustls::client::danger::{ServerCertVerifier, ServerCertVerified, HandshakeSignatureValid};
+use rustls::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -152,14 +152,10 @@ impl TlsConfig {
     /// Sets ALPN protocols
     #[must_use]
     pub fn with_alpn_protocols(mut self, protocols: Vec<&str>) -> Self {
-        self.alpn_protocols = Some(
-            protocols.iter()
-                .map(|p| p.as_bytes().to_vec())
-                .collect()
-        );
+        self.alpn_protocols = Some(protocols.iter().map(|p| p.as_bytes().to_vec()).collect());
         self
     }
-    
+
     /// Sets ALPN protocols from raw bytes
     #[must_use]
     pub fn with_alpn_protocols_raw(mut self, protocols: Vec<Vec<u8>>) -> Self {
@@ -404,8 +400,8 @@ mod tests {
     #[test]
     fn test_tls_config_with_alpn() {
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
-        let config = TlsConfig::new(addr, "localhost")
-            .with_alpn_protocols(vec!["mqtt", "x-amzn-mqtt-ca"]);
+        let config =
+            TlsConfig::new(addr, "localhost").with_alpn_protocols(vec!["mqtt", "x-amzn-mqtt-ca"]);
 
         assert!(config.alpn_protocols.is_some());
         let protocols = config.alpn_protocols.unwrap();
@@ -455,14 +451,18 @@ mod tests {
 
         // Connect
         let result = transport.connect().await;
-        assert!(result.is_ok(), "Failed to connect via TLS: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to connect via TLS: {:?}",
+            result.err()
+        );
         assert!(transport.is_connected());
 
         // Write MQTT CONNECT packet using proper packet construction
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
-        
+
         let connect = ConnectPacket {
             client_id: "tls_test".to_string(),
             keep_alive: 60,
@@ -477,7 +477,11 @@ mod tests {
 
         let mut connect_bytes = Vec::new();
         let result = connect.encode(&mut connect_bytes);
-        assert!(result.is_ok(), "Failed to encode CONNECT packet: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to encode CONNECT packet: {:?}",
+            result.err()
+        );
 
         let result = transport.write(&connect_bytes).await;
         assert!(result.is_ok());

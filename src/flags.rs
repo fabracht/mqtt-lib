@@ -34,11 +34,10 @@ impl ConnectFlags {
     pub fn with_will_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits
         flags &= !0x18; // Clear bits 3 and 4
-        // Set new QoS bits
+                        // Set new QoS bits
         flags |= (qos & 0x03) << 3;
         flags
     }
-
 }
 
 /// Flags for MQTT PUBLISH packet
@@ -65,7 +64,7 @@ impl PublishFlags {
     pub fn with_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits
         flags &= !0x06; // Clear bits 1 and 2
-        // Set new QoS bits
+                        // Set new QoS bits
         flags |= (qos & 0x03) << 1;
         flags
     }
@@ -88,7 +87,7 @@ mod tests {
         // Clean start + username + password
         let flags: u8 = 0xC2; // 11000010
         let decomposed = ConnectFlags::decompose(flags);
-        
+
         assert_eq!(decomposed.len(), 3);
         assert!(decomposed.contains(&ConnectFlags::CleanStart));
         assert!(decomposed.contains(&ConnectFlags::UsernameFlag));
@@ -100,11 +99,11 @@ mod tests {
         // DUP + QoS 2 + Retain = 0x0D (00001101)
         let flags: u8 = 0x0D;
         let decomposed = PublishFlags::decompose(flags);
-        
+
         assert!(decomposed.contains(&PublishFlags::Retain));
         assert!(decomposed.contains(&PublishFlags::QoS1)); // QoS 2 = both bits set
         assert!(decomposed.contains(&PublishFlags::Dup));
-        
+
         // Extract QoS
         assert_eq!(PublishFlags::extract_qos(flags), 2);
     }
@@ -113,7 +112,7 @@ mod tests {
     fn test_connack_flags() {
         let flags: u8 = 0x01;
         let decomposed = ConnAckFlags::decompose(flags);
-        
+
         assert_eq!(decomposed.len(), 1);
         assert!(decomposed.contains(&ConnAckFlags::SessionPresent));
     }
@@ -121,7 +120,7 @@ mod tests {
     #[test]
     fn test_flag_iteration() {
         let flags: u8 = 0x0D; // DUP + QoS 2 + Retain
-        
+
         let collected: Vec<_> = PublishFlags::iter_flags(flags).collect();
         assert_eq!(collected.len(), 3);
     }

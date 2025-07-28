@@ -59,8 +59,9 @@ pub mod transport;
 pub mod types;
 pub mod validation;
 
-
-pub use client::{ConnectionEvent, DisconnectReason, MockCall, MockMqttClient, MqttClient, MqttClientTrait};
+pub use client::{
+    ConnectionEvent, DisconnectReason, MockCall, MockMqttClient, MqttClient, MqttClientTrait,
+};
 pub use error::{MqttError, Result};
 pub use packet::publish::PublishPacket;
 pub use packet::{FixedHeader, Packet, PacketType};
@@ -120,7 +121,6 @@ mod tests {
         assert_eq!(QoS::from(3), QoS::AtMostOnce);
         assert_eq!(QoS::from(255), QoS::AtMostOnce);
     }
-
 
     #[test]
     fn test_qos_into_u8() {

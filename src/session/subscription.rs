@@ -38,7 +38,7 @@ impl SubscriptionManager {
     }
 
     /// Removes a subscription
-    /// 
+    ///
     /// Returns `Ok(true)` if the subscription existed and was removed,
     /// `Ok(false)` if the subscription did not exist.
     pub fn remove(&mut self, topic_filter: &str) -> Result<bool> {

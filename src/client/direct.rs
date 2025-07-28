@@ -11,7 +11,7 @@ use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
 
-use crate::callback::{CallbackManager, CallbackId};
+use crate::callback::{CallbackId, CallbackManager};
 use crate::error::{MqttError, Result};
 use crate::packet::connect::ConnectPacket;
 use crate::packet::publish::PublishPacket;
@@ -259,13 +259,13 @@ impl DirectClientInner {
                 dup: false,
                 properties: options.properties.into(),
             };
-            
+
             self.queued_messages.lock().await.push(publish);
-            
+
             // Return a result indicating the message was queued
             return Ok(PublishResult::QoS1Or2 { packet_id });
         }
-        
+
         if !self.is_connected() {
             return Err(MqttError::NotConnected);
         }
@@ -383,7 +383,11 @@ impl DirectClientInner {
     }
 
     /// Subscribe to topics with callback ID - DIRECT async method
-    pub async fn subscribe_with_callback(&self, packet: SubscribePacket, callback_id: CallbackId) -> Result<Vec<(u16, QoS)>> {
+    pub async fn subscribe_with_callback(
+        &self,
+        packet: SubscribePacket,
+        callback_id: CallbackId,
+    ) -> Result<Vec<(u16, QoS)>> {
         if !self.is_connected() {
             return Err(MqttError::NotConnected);
         }
@@ -401,10 +405,11 @@ impl DirectClientInner {
 
         // Store subscription info for restoration with callback ID
         for filter in &packet.filters {
-            self.stored_subscriptions
-                .write()
-                .await
-                .push((filter.filter.clone(), filter.options, callback_id));
+            self.stored_subscriptions.write().await.push((
+                filter.filter.clone(),
+                filter.options,
+                callback_id,
+            ));
         }
 
         // Send SUBSCRIBE directly
@@ -509,7 +514,6 @@ impl DirectClientInner {
 
         Ok(results)
     }
-    
 
     /// Unsubscribe from topics - DIRECT async method
     pub async fn unsubscribe(&self, packet: UnsubscribePacket) -> Result<()> {
@@ -577,7 +581,7 @@ impl DirectClientInner {
     /// Build CONNECT packet
     async fn build_connect_packet(&self) -> ConnectPacket {
         use crate::protocol::v5::properties::{PropertyId, PropertyValue};
-        
+
         let session = self.session.read().await;
 
         // Build CONNECT properties
@@ -788,7 +792,7 @@ async fn packet_reader_task_with_responses(
             }
         }
     }
-    
+
     // Mark as disconnected when task exits
     connected.store(false, Ordering::SeqCst);
 }

@@ -271,7 +271,7 @@ mod tests {
         )));
         let session = create_test_session();
         let callback_manager = Arc::new(CallbackManager::new());
-        
+
         // Verify these components exist and have correct types
         assert!(Arc::strong_count(&transport) >= 1);
         assert!(Arc::strong_count(&session) >= 1);
@@ -414,7 +414,7 @@ mod tests {
                 1883,
             ))),
         )));
-        
+
         // Verify the transport is created with correct type
         assert!(Arc::strong_count(&transport) >= 1);
 

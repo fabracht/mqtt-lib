@@ -118,14 +118,17 @@ async fn test_message_queuing_during_disconnection() {
                 ..Default::default()
             },
             move |msg| {
-                println!("Callback triggered with message: {:?}", String::from_utf8_lossy(&msg.payload));
+                println!(
+                    "Callback triggered with message: {:?}",
+                    String::from_utf8_lossy(&msg.payload)
+                );
                 let mut received = received_clone.write().unwrap();
                 received.push(String::from_utf8_lossy(&msg.payload).to_string());
             },
         )
         .await
         .expect("Failed to subscribe");
-    
+
     println!("Subscribed with packet_id: {}, qos: {:?}", packet_id, qos);
 
     // Disconnect first client
@@ -160,8 +163,11 @@ async fn test_message_queuing_during_disconnection() {
         .connect_with_options("127.0.0.1:1883", opts)
         .await
         .expect("Failed to reconnect");
-    
-    println!("Reconnected with session_present: {}", reconnect_result.session_present);
+
+    println!(
+        "Reconnected with session_present: {}",
+        reconnect_result.session_present
+    );
 
     // The subscription should be restored automatically with our callback persistence
     // Just wait for queued messages to be delivered
@@ -392,7 +398,10 @@ async fn test_subscription_restoration_after_reconnect() {
                     ..Default::default()
                 },
                 move |msg| {
-                    println!("Callback triggered: {:?}", String::from_utf8_lossy(&msg.payload));
+                    println!(
+                        "Callback triggered: {:?}",
+                        String::from_utf8_lossy(&msg.payload)
+                    );
                     count_clone.fetch_add(1, Ordering::SeqCst);
                 },
             )
@@ -404,19 +413,31 @@ async fn test_subscription_restoration_after_reconnect() {
     // Verify subscriptions work
     println!("Publishing test messages...");
     client
-        .publish_qos(&format!("{}/exact/1", test_prefix), b"Message 1", QoS::AtLeastOnce)
+        .publish_qos(
+            &format!("{}/exact/1", test_prefix),
+            b"Message 1",
+            QoS::AtLeastOnce,
+        )
         .await
         .unwrap();
     println!("Published Message 1");
-    
+
     client
-        .publish_qos(&format!("{}/exact/2", test_prefix), b"Message 2", QoS::AtLeastOnce)
+        .publish_qos(
+            &format!("{}/exact/2", test_prefix),
+            b"Message 2",
+            QoS::AtLeastOnce,
+        )
         .await
         .unwrap();
     println!("Published Message 2");
-    
+
     client
-        .publish_qos(&format!("{}/wildcard/test", test_prefix), b"Wildcard message", QoS::AtLeastOnce)
+        .publish_qos(
+            &format!("{}/wildcard/test", test_prefix),
+            b"Wildcard message",
+            QoS::AtLeastOnce,
+        )
         .await
         .unwrap();
     println!("Published Wildcard message");
@@ -432,25 +453,29 @@ async fn test_subscription_restoration_after_reconnect() {
     println!("Disconnecting...");
     client.disconnect().await.expect("Failed to disconnect");
     println!("Disconnected successfully");
-    
+
     // Wait for disconnect to fully process
     tokio::time::sleep(Duration::from_millis(1000)).await;
-    
+
     // Reset counter
     message_count.store(0, Ordering::SeqCst);
 
     // Check if client is really disconnected
-    println!("Is client connected before reconnect? {}", client.is_connected().await);
+    println!(
+        "Is client connected before reconnect? {}",
+        client.is_connected().await
+    );
 
     // Reconnect using the same client instance - subscriptions should be restored
     println!("Reconnecting...");
-    let reconnect_result = client
-        .connect_with_options("127.0.0.1:1883", opts)
-        .await;
-    
+    let reconnect_result = client.connect_with_options("127.0.0.1:1883", opts).await;
+
     match reconnect_result {
         Ok(result) => {
-            println!("Reconnected successfully with session_present: {}", result.session_present);
+            println!(
+                "Reconnected successfully with session_present: {}",
+                result.session_present
+            );
         }
         Err(e) => {
             println!("Reconnect error type: {:?}", e);
@@ -461,13 +486,21 @@ async fn test_subscription_restoration_after_reconnect() {
     println!("Publishing messages after reconnect...");
     // Publish again to verify subscriptions are still active
     client
-        .publish_qos(&format!("{}/exact/1", test_prefix), b"After reconnect 1", QoS::AtLeastOnce)
+        .publish_qos(
+            &format!("{}/exact/1", test_prefix),
+            b"After reconnect 1",
+            QoS::AtLeastOnce,
+        )
         .await
         .unwrap();
     println!("Published to {}/exact/1", test_prefix);
-    
+
     client
-        .publish_qos(&format!("{}/exact/2", test_prefix), b"After reconnect 2", QoS::AtLeastOnce)
+        .publish_qos(
+            &format!("{}/exact/2", test_prefix),
+            b"After reconnect 2",
+            QoS::AtLeastOnce,
+        )
         .await
         .unwrap();
     println!("Published to {}/exact/2", test_prefix);
@@ -477,7 +510,10 @@ async fn test_subscription_restoration_after_reconnect() {
 
     let final_count = message_count.load(Ordering::SeqCst);
     println!("Received {} messages after reconnect", final_count);
-    assert!(final_count >= 2, "Should have received at least 2 messages after reconnect");
+    assert!(
+        final_count >= 2,
+        "Should have received at least 2 messages after reconnect"
+    );
 
     client.disconnect().await.expect("Failed to disconnect");
 }

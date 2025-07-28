@@ -83,7 +83,7 @@ impl MessageQueue {
     }
 
     /// Enqueues a message with expiry tracking
-    /// 
+    ///
     /// Returns information about the queue operation including whether the message
     /// was queued and how many messages were dropped to make room.
     pub fn enqueue(&mut self, message: ExpiringMessage) -> Result<QueueResult> {
