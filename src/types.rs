@@ -5,6 +5,18 @@ use std::time::Duration;
 pub use crate::protocol::v5::reason_codes::ReasonCode;
 
 /// Result of a publish operation
+///
+/// # Examples
+///
+/// ```
+/// use mqtt_v5::PublishResult;
+///
+/// let result = PublishResult::QoS1Or2 { packet_id: 42 };
+/// assert_eq!(result.packet_id(), Some(42));
+///
+/// let result = PublishResult::QoS0;
+/// assert_eq!(result.packet_id(), None);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PublishResult {
     /// QoS 0 publish completed (no packet ID)
@@ -57,6 +69,36 @@ impl Default for ReconnectConfig {
     }
 }
 
+/// Connection options for MQTT client
+///
+/// # Examples
+///
+/// ```
+/// use mqtt_v5::{ConnectOptions, WillMessage, QoS};
+/// use std::time::Duration;
+///
+/// // Basic connection options
+/// let options = ConnectOptions::new("my-client-id")
+///     .with_clean_start(false)
+///     .with_keep_alive(Duration::from_secs(30));
+///
+/// // With authentication
+/// let options = ConnectOptions::new("secure-client")
+///     .with_credentials("mqtt_user", b"secure_password");
+///
+/// // With Last Will and Testament
+/// let will = WillMessage::new("status/offline", b"Client disconnected")
+///     .with_qos(QoS::AtLeastOnce)
+///     .with_retain(true);
+///
+/// let options = ConnectOptions::new("monitored-client")
+///     .with_will(will);
+///
+/// // With automatic reconnection
+/// let options = ConnectOptions::new("persistent-client")
+///     .with_automatic_reconnect(true)
+///     .with_reconnect_delay(Duration::from_secs(5), Duration::from_secs(60));
+/// ```
 #[derive(Debug, Clone)]
 pub struct ConnectOptions {
     pub client_id: String,
@@ -310,6 +352,32 @@ impl From<WillProperties> for crate::protocol::v5::properties::Properties {
     }
 }
 
+/// Options for publishing messages
+///
+/// # Examples
+///
+/// ```
+/// use mqtt_v5::{PublishOptions, QoS};
+/// use std::time::Duration;
+///
+/// // Basic publish with QoS 1
+/// let mut options = PublishOptions::default();
+/// options.qos = QoS::AtLeastOnce;
+///
+/// // Retained message with QoS 2
+/// let mut options = PublishOptions::default();
+/// options.qos = QoS::ExactlyOnce;
+/// options.retain = true;
+///
+/// // With message expiry
+/// let mut options = PublishOptions::default();
+/// options.properties.message_expiry_interval = Some(3600); // 1 hour
+///
+/// // With response topic for request/response pattern
+/// let mut options = PublishOptions::default();
+/// options.properties.response_topic = Some("response/client123".to_string());
+/// options.properties.correlation_data = Some(b"req-001".to_vec());
+/// ```
 #[derive(Debug, Clone)]
 pub struct PublishOptions {
     pub qos: QoS,
@@ -465,6 +533,34 @@ pub enum RetainHandling {
     DontSend = 2,
 }
 
+/// An MQTT message received from a subscription
+///
+/// # Examples
+///
+/// ```
+/// use mqtt_v5::{Message, QoS};
+///
+/// // Handle different types of messages
+/// fn handle_message(msg: Message) {
+///     // Access message fields
+///     println!("Topic: {}", msg.topic);
+///     println!("QoS: {:?}", msg.qos);
+///     println!("Retained: {}", msg.retain);
+///     
+///     // Handle payload as string
+///     if let Ok(text) = String::from_utf8(msg.payload.clone()) {
+///         println!("Text payload: {}", text);
+///     }
+///     
+///     // Handle payload as bytes
+///     println!("Binary payload: {:?}", msg.payload);
+///     
+///     // Check message properties
+///     if let Some(response_topic) = msg.properties.response_topic {
+///         println!("Should respond to: {}", response_topic);
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct Message {
     pub topic: String,

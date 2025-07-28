@@ -16,7 +16,7 @@
 //! Read ARCHITECTURE.md first. Event loops, command channels, and actor patterns are explicitly
 //! forbidden in this codebase.
 //!
-//! ## Example
+//! ## Quick Start
 //!
 //! ```rust,no_run
 //! use mqtt_v5::{MqttClient, ConnectOptions, QoS};
@@ -30,11 +30,79 @@
 //!     
 //!     // Direct async subscribe with callback
 //!     client.subscribe("sensors/+/data", |msg| {
-//!         // Process message: msg.topic and msg.payload
+//!         println!("Received {} on {}", 
+//!                  String::from_utf8_lossy(&msg.payload), 
+//!                  msg.topic);
 //!     }).await?;
 //!     
 //!     // Direct async publish
 //!     client.publish("sensors/temp/data", b"25.5").await?;
+//!     
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Advanced Example
+//!
+//! ```rust,no_run
+//! use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS, ConnectionEvent};
+//! use std::time::Duration;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Configure connection options
+//!     let options = ConnectOptions::new("weather-station")
+//!         .with_clean_start(false)  // Resume previous session
+//!         .with_keep_alive(Duration::from_secs(30))
+//!         .with_automatic_reconnect(true)
+//!         .with_reconnect_delay(Duration::from_secs(5), Duration::from_secs(60));
+//!     
+//!     let client = MqttClient::with_options(options);
+//!     
+//!     // Monitor connection events
+//!     client.on_connection_event(|event| {
+//!         match event {
+//!             ConnectionEvent::Connected { session_present } => {
+//!                 println!("Connected! Session present: {}", session_present);
+//!             }
+//!             ConnectionEvent::Disconnected { reason } => {
+//!                 println!("Disconnected: {:?}", reason);
+//!             }
+//!             ConnectionEvent::Reconnecting { attempt } => {
+//!                 println!("Reconnecting... attempt {}", attempt);
+//!             }
+//!             ConnectionEvent::ReconnectFailed { error } => {
+//!                 println!("Reconnection failed: {}", error);
+//!             }
+//!         }
+//!     }).await?;
+//!     
+//!     // Connect to broker
+//!     client.connect("mqtts://broker.example.com:8883").await?;
+//!     
+//!     // Subscribe with QoS 2 for critical data
+//!     client.subscribe("weather/+/alerts", |msg| {
+//!         if msg.retain {
+//!             println!("Retained alert: {}", String::from_utf8_lossy(&msg.payload));
+//!         } else {
+//!             println!("New alert: {}", String::from_utf8_lossy(&msg.payload));
+//!         }
+//!     }).await?;
+//!     
+//!     // Publish with custom options
+//!     let mut pub_opts = PublishOptions::default();
+//!     pub_opts.qos = QoS::ExactlyOnce;
+//!     pub_opts.retain = true;
+//!     pub_opts.properties.message_expiry_interval = Some(3600); // 1 hour
+//!     
+//!     client.publish_with_options(
+//!         "weather/station01/temperature",
+//!         b"25.5",
+//!         pub_opts
+//!     ).await?;
+//!     
+//!     // Keep running
+//!     tokio::time::sleep(Duration::from_secs(3600)).await;
 //!     
 //!     Ok(())
 //! }

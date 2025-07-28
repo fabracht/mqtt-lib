@@ -43,6 +43,71 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// Thread-safe MQTT v5.0 client
 ///
 /// This client uses DIRECT async methods - NO event loops!
+///
+/// # Examples
+///
+/// ## Basic usage
+///
+/// ```no_run
+/// use mqtt_v5::MqttClient;
+/// 
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Create a client with a unique ID
+///     let client = MqttClient::new("my-client-id");
+///     
+///     // Connect to the broker
+///     client.connect("mqtt://localhost:1883").await?;
+///     
+///     // Subscribe to a topic
+///     client.subscribe("temperature/room1", |msg| {
+///         println!("Received: {} on topic {}", 
+///                  String::from_utf8_lossy(&msg.payload), 
+///                  msg.topic);
+///     }).await?;
+///     
+///     // Publish a message
+///     client.publish("temperature/room1", b"22.5").await?;
+///     
+///     // Disconnect when done
+///     client.disconnect().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Advanced usage with options
+///
+/// ```no_run
+/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS};
+/// use std::time::Duration;
+/// 
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Create client with custom options
+///     let options = ConnectOptions::new("my-client")
+///         .with_clean_start(true)
+///         .with_keep_alive(Duration::from_secs(30))
+///         .with_credentials("user", b"pass");
+///     
+///     let client = MqttClient::with_options(options);
+///     
+///     // Connect with TLS
+///     client.connect("mqtts://broker.example.com:8883").await?;
+///     
+///     // Publish with QoS 2 and retain flag
+///     let mut pub_options = PublishOptions::default();
+///     pub_options.qos = QoS::ExactlyOnce;
+///     pub_options.retain = true;
+///     
+///     client.publish_with_options(
+///         "status/device1",
+///         b"online",
+///         pub_options
+///     ).await?;
+///     
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone)]
 pub struct MqttClient {
     /// Shared inner state - uses direct async implementation
@@ -57,12 +122,34 @@ pub struct MqttClient {
 
 impl MqttClient {
     /// Creates a new MQTT client with default options
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use mqtt_v5::MqttClient;
+    ///
+    /// let client = MqttClient::new("my-device-001");
+    /// ```
     pub fn new(client_id: impl Into<String>) -> Self {
         let options = ConnectOptions::new(client_id).with_clean_start(false); // Default to persistent session
         Self::with_options(options)
     }
 
     /// Creates a new MQTT client with custom options
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use mqtt_v5::{MqttClient, ConnectOptions};
+    /// use std::time::Duration;
+    ///
+    /// let options = ConnectOptions::new("client-001")
+    ///     .with_clean_start(true)
+    ///     .with_keep_alive(Duration::from_secs(60))
+    ///     .with_credentials("mqtt_user", b"secret");
+    ///
+    /// let client = MqttClient::with_options(options);
+    /// ```
     pub fn with_options(options: ConnectOptions) -> Self {
         let inner = DirectClientInner::new(options);
 
@@ -92,6 +179,34 @@ impl MqttClient {
     }
 
     /// Sets a callback for connection events
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
+    /// 
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    /// 
+    /// client.on_connection_event(|event| {
+    ///     match event {
+    ///         ConnectionEvent::Connected { session_present } => {
+    ///             println!("Connected! Session present: {}", session_present);
+    ///         }
+    ///         ConnectionEvent::Disconnected { reason } => {
+    ///             println!("Disconnected: {:?}", reason);
+    ///         }
+    ///         ConnectionEvent::Reconnecting { attempt } => {
+    ///             println!("Reconnecting attempt {}", attempt);
+    ///         }
+    ///         ConnectionEvent::ReconnectFailed { error } => {
+    ///             println!("Reconnection failed: {}", error);
+    ///         }
+    ///     }
+    /// }).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn on_connection_event<F>(&self, callback: F) -> Result<()>
     where
         F: Fn(ConnectionEvent) + Send + Sync + 'static,
@@ -119,9 +234,26 @@ impl MqttClient {
         Ok(())
     }
 
-    /// Triggers error callbacks
-    ///
     /// Connects to the MQTT broker with default options
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use mqtt_v5::MqttClient;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    /// 
+    /// // Connect via TCP
+    /// client.connect("mqtt://broker.example.com:1883").await?;
+    /// 
+    /// // Or connect via TLS
+    /// // client.connect("mqtts://secure.broker.com:8883").await?;
+    /// 
+    /// // Or use just host:port (defaults to TCP)
+    /// // client.connect("localhost:1883").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn connect(&self, address: &str) -> Result<()> {
         let options = self.inner.read().await.options.clone();
         self.connect_with_options(address, options)
@@ -290,6 +422,28 @@ impl MqttClient {
     }
 
     /// Publishes a message to a topic
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use mqtt_v5::MqttClient;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    /// client.connect("mqtt://localhost:1883").await?;
+    /// 
+    /// // Publish a simple string message
+    /// client.publish("sensors/temperature", "23.5°C").await?;
+    /// 
+    /// // Publish binary data
+    /// let data = vec![0x01, 0x02, 0x03, 0x04];
+    /// client.publish("sensors/binary", data).await?;
+    /// 
+    /// // Publish JSON
+    /// let json = r#"{"temperature": 23.5, "humidity": 45}"#;
+    /// client.publish("sensors/json", json).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn publish(
         &self,
         topic: impl Into<String>,
@@ -331,6 +485,34 @@ impl MqttClient {
     /// Subscribes to a topic with a callback
     ///
     /// This is a DIRECT async method - no event loops!
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use mqtt_v5::MqttClient;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    /// client.connect("mqtt://localhost:1883").await?;
+    /// 
+    /// // Subscribe to a specific topic
+    /// client.subscribe("sensors/temperature", |msg| {
+    ///     println!("Temperature: {}", String::from_utf8_lossy(&msg.payload));
+    /// }).await?;
+    /// 
+    /// // Subscribe with wildcards
+    /// client.subscribe("sensors/+/status", |msg| {
+    ///     println!("Status update on {}: {}", msg.topic, 
+    ///              String::from_utf8_lossy(&msg.payload));
+    /// }).await?;
+    /// 
+    /// // Subscribe to all topics under sensors/
+    /// client.subscribe("sensors/#", |msg| {
+    ///     println!("Sensor data: {} = {}", msg.topic,
+    ///              String::from_utf8_lossy(&msg.payload));
+    /// }).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn subscribe<F>(
         &self,
         topic_filter: impl Into<String>,
