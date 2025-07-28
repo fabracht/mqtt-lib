@@ -1,0 +1,519 @@
+use crate::encoding::{decode_binary, decode_string, encode_binary, encode_string};
+use crate::error::{MqttError, Result};
+use crate::flags::ConnectFlags;
+use crate::packet::{FixedHeader, MqttPacket, PacketType};
+use crate::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
+use crate::types::{ConnectOptions, WillMessage};
+use crate::QoS;
+use bytes::{Buf, BufMut};
+
+const PROTOCOL_NAME: &str = "MQTT";
+const PROTOCOL_VERSION_V5: u8 = 5;
+const PROTOCOL_VERSION_V311: u8 = 4;
+
+/// MQTT CONNECT packet
+#[derive(Debug, Clone)]
+pub struct ConnectPacket {
+    /// Protocol version (4 for v3.1.1, 5 for v5.0)
+    pub protocol_version: u8,
+    /// Clean start flag (Clean Session in v3.1.1)
+    pub clean_start: bool,
+    /// Keep alive interval in seconds
+    pub keep_alive: u16,
+    /// Client identifier
+    pub client_id: String,
+    /// Username (optional)
+    pub username: Option<String>,
+    /// Password (optional)
+    pub password: Option<Vec<u8>>,
+    /// Will message (optional)
+    pub will: Option<WillMessage>,
+    /// CONNECT properties (v5.0 only)
+    pub properties: Properties,
+    /// Will properties (v5.0 only)
+    pub will_properties: Properties,
+}
+
+impl ConnectPacket {
+    /// Creates a new CONNECT packet from options
+    #[must_use]
+    pub fn new(options: ConnectOptions) -> Self {
+        let mut properties = Properties::new();
+        let mut will_properties = Properties::new();
+
+        // Add CONNECT properties
+        if let Some(val) = options.properties.session_expiry_interval {
+            let _ = properties.add(
+                PropertyId::SessionExpiryInterval,
+                PropertyValue::FourByteInteger(val),
+            );
+        }
+        if let Some(val) = options.properties.receive_maximum {
+            let _ = properties.add(
+                PropertyId::ReceiveMaximum,
+                PropertyValue::TwoByteInteger(val),
+            );
+        }
+        if let Some(val) = options.properties.maximum_packet_size {
+            let _ = properties.add(
+                PropertyId::MaximumPacketSize,
+                PropertyValue::FourByteInteger(val),
+            );
+        }
+        if let Some(val) = options.properties.topic_alias_maximum {
+            let _ = properties.add(
+                PropertyId::TopicAliasMaximum,
+                PropertyValue::TwoByteInteger(val),
+            );
+        }
+        if let Some(val) = options.properties.request_response_information {
+            let _ = properties.add(
+                PropertyId::RequestResponseInformation,
+                PropertyValue::Byte(u8::from(val)),
+            );
+        }
+        if let Some(val) = options.properties.request_problem_information {
+            let _ = properties.add(
+                PropertyId::RequestProblemInformation,
+                PropertyValue::Byte(u8::from(val)),
+            );
+        }
+        if let Some(ref val) = options.properties.authentication_method {
+            let _ = properties.add(
+                PropertyId::AuthenticationMethod,
+                PropertyValue::Utf8String(val.clone()),
+            );
+        }
+        if let Some(ref val) = options.properties.authentication_data {
+            let _ = properties.add(
+                PropertyId::AuthenticationData,
+                PropertyValue::BinaryData(val.clone().into()),
+            );
+        }
+        for (key, value) in &options.properties.user_properties {
+            let _ = properties.add(
+                PropertyId::UserProperty,
+                PropertyValue::Utf8StringPair(key.clone(), value.clone()),
+            );
+        }
+
+        // Add will properties if will is present
+        if let Some(ref will) = options.will {
+            if let Some(val) = will.properties.will_delay_interval {
+                let _ = will_properties.add(
+                    PropertyId::WillDelayInterval,
+                    PropertyValue::FourByteInteger(val),
+                );
+            }
+            if let Some(val) = will.properties.payload_format_indicator {
+                let _ = will_properties.add(
+                    PropertyId::PayloadFormatIndicator,
+                    PropertyValue::Byte(u8::from(val)),
+                );
+            }
+            if let Some(val) = will.properties.message_expiry_interval {
+                let _ = will_properties.add(
+                    PropertyId::MessageExpiryInterval,
+                    PropertyValue::FourByteInteger(val),
+                );
+            }
+            if let Some(ref val) = will.properties.content_type {
+                let _ = will_properties.add(
+                    PropertyId::ContentType,
+                    PropertyValue::Utf8String(val.clone()),
+                );
+            }
+            if let Some(ref val) = will.properties.response_topic {
+                let _ = will_properties.add(
+                    PropertyId::ResponseTopic,
+                    PropertyValue::Utf8String(val.clone()),
+                );
+            }
+            if let Some(ref val) = will.properties.correlation_data {
+                let _ = will_properties.add(
+                    PropertyId::CorrelationData,
+                    PropertyValue::BinaryData(val.clone().into()),
+                );
+            }
+            for (key, value) in &will.properties.user_properties {
+                let _ = will_properties.add(
+                    PropertyId::UserProperty,
+                    PropertyValue::Utf8StringPair(key.clone(), value.clone()),
+                );
+            }
+        }
+
+        Self {
+            protocol_version: PROTOCOL_VERSION_V5,
+            clean_start: options.clean_start,
+            keep_alive: options
+                .keep_alive
+                .as_secs()
+                .min(u64::from(u16::MAX))
+                .try_into()
+                .unwrap_or(u16::MAX),
+            client_id: options.client_id,
+            username: options.username,
+            password: options.password,
+            will: options.will,
+            properties,
+            will_properties,
+        }
+    }
+
+    /// Creates a v3.1.1 compatible CONNECT packet
+    #[must_use]
+    pub fn new_v311(options: ConnectOptions) -> Self {
+        Self {
+            protocol_version: PROTOCOL_VERSION_V311,
+            clean_start: options.clean_start,
+            keep_alive: options
+                .keep_alive
+                .as_secs()
+                .min(u64::from(u16::MAX))
+                .try_into()
+                .unwrap_or(u16::MAX),
+            client_id: options.client_id,
+            username: options.username,
+            password: options.password,
+            will: options.will,
+            properties: Properties::new(),
+            will_properties: Properties::new(),
+        }
+    }
+
+    /// Creates connect flags byte
+    fn connect_flags(&self) -> u8 {
+        let mut flags = 0u8;
+
+        if self.clean_start {
+            flags |= ConnectFlags::CleanStart as u8;
+        }
+
+        if let Some(ref will) = self.will {
+            flags |= ConnectFlags::WillFlag as u8;
+            flags = ConnectFlags::with_will_qos(flags, will.qos as u8);
+            if will.retain {
+                flags |= ConnectFlags::WillRetain as u8;
+            }
+        }
+
+        if self.username.is_some() {
+            flags |= ConnectFlags::UsernameFlag as u8;
+        }
+
+        if self.password.is_some() {
+            flags |= ConnectFlags::PasswordFlag as u8;
+        }
+
+        flags
+    }
+}
+
+impl MqttPacket for ConnectPacket {
+    fn packet_type(&self) -> PacketType {
+        PacketType::Connect
+    }
+
+    fn encode_body<B: BufMut>(&self, buf: &mut B) -> Result<()> {
+        // Variable header
+        encode_string(buf, PROTOCOL_NAME)?;
+        buf.put_u8(self.protocol_version);
+        buf.put_u8(self.connect_flags());
+        buf.put_u16(self.keep_alive);
+
+        // Properties (v5.0 only)
+        if self.protocol_version == PROTOCOL_VERSION_V5 {
+            self.properties.encode(buf)?;
+        }
+
+        // Payload
+        encode_string(buf, &self.client_id)?;
+
+        // Will
+        if let Some(ref will) = self.will {
+            if self.protocol_version == PROTOCOL_VERSION_V5 {
+                self.will_properties.encode(buf)?;
+            }
+            encode_string(buf, &will.topic)?;
+            encode_binary(buf, &will.payload)?;
+        }
+
+        // Username
+        if let Some(ref username) = self.username {
+            encode_string(buf, username)?;
+        }
+
+        // Password
+        if let Some(ref password) = self.password {
+            encode_binary(buf, password)?;
+        }
+
+        Ok(())
+    }
+
+    fn decode_body<B: Buf>(buf: &mut B, _fixed_header: &FixedHeader) -> Result<Self> {
+        // Protocol name
+        let protocol_name = decode_string(buf)?;
+        if protocol_name != PROTOCOL_NAME {
+            return Err(MqttError::ProtocolError(format!(
+                "Invalid protocol name: {}",
+                protocol_name
+            )));
+        }
+
+        // Protocol version
+        if !buf.has_remaining() {
+            return Err(MqttError::MalformedPacket(
+                "Missing protocol version".to_string(),
+            ));
+        }
+        let protocol_version = buf.get_u8();
+        if protocol_version != PROTOCOL_VERSION_V311 && protocol_version != PROTOCOL_VERSION_V5 {
+            return Err(MqttError::UnsupportedProtocolVersion);
+        }
+
+        // Connect flags
+        if !buf.has_remaining() {
+            return Err(MqttError::MalformedPacket(
+                "Missing connect flags".to_string(),
+            ));
+        }
+        let flags = buf.get_u8();
+
+        // Parse flags using BeBytes decomposition
+        let decomposed_flags = ConnectFlags::decompose(flags);
+        let clean_start = decomposed_flags.contains(&ConnectFlags::CleanStart);
+        let will_flag = decomposed_flags.contains(&ConnectFlags::WillFlag);
+        let will_qos = ConnectFlags::extract_will_qos(flags);
+        let will_retain = decomposed_flags.contains(&ConnectFlags::WillRetain);
+        let username_flag = decomposed_flags.contains(&ConnectFlags::UsernameFlag);
+        let password_flag = decomposed_flags.contains(&ConnectFlags::PasswordFlag);
+
+        // Validate reserved bit
+        if decomposed_flags.contains(&ConnectFlags::Reserved) {
+            return Err(MqttError::MalformedPacket(
+                "Reserved flag bit must be 0".to_string(),
+            ));
+        }
+
+        // Keep alive
+        if buf.remaining() < 2 {
+            return Err(MqttError::MalformedPacket("Missing keep alive".to_string()));
+        }
+        let keep_alive = buf.get_u16();
+
+        // Properties (v5.0 only)
+        let properties = if protocol_version == PROTOCOL_VERSION_V5 {
+            Properties::decode(buf)?
+        } else {
+            Properties::new()
+        };
+
+        // Payload
+        let client_id = decode_string(buf)?;
+
+        // Will
+        let (will, will_properties) = if will_flag {
+            let will_properties = if protocol_version == PROTOCOL_VERSION_V5 {
+                Properties::decode(buf)?
+            } else {
+                Properties::new()
+            };
+
+            let topic = decode_string(buf)?;
+            let payload = decode_binary(buf)?;
+
+            let qos = match will_qos {
+                0 => QoS::AtMostOnce,
+                1 => QoS::AtLeastOnce,
+                2 => QoS::ExactlyOnce,
+                _ => return Err(MqttError::MalformedPacket("Invalid will QoS".to_string())),
+            };
+
+            let will = WillMessage {
+                topic,
+                payload: payload.to_vec(),
+                qos,
+                retain: will_retain,
+                properties: Default::default(), // Will be populated from will_properties later
+            };
+
+            (Some(will), will_properties)
+        } else {
+            (None, Properties::new())
+        };
+
+        // Username
+        let username = if username_flag {
+            Some(decode_string(buf)?)
+        } else {
+            None
+        };
+
+        // Password
+        let password = if password_flag {
+            Some(decode_binary(buf)?)
+        } else {
+            None
+        };
+
+        // Validate password without username
+        if password.is_some() && username.is_none() {
+            return Err(MqttError::MalformedPacket(
+                "Password without username is not allowed".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            protocol_version,
+            clean_start,
+            keep_alive,
+            client_id,
+            username,
+            password: password.map(|p| p.to_vec()),
+            will,
+            properties,
+            will_properties,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BytesMut;
+    use std::time::Duration;
+
+    #[test]
+    fn test_connect_packet_basic() {
+        let options = ConnectOptions::new("test-client");
+        let packet = ConnectPacket::new(options);
+
+        assert_eq!(packet.protocol_version, PROTOCOL_VERSION_V5);
+        assert!(packet.clean_start);
+        assert_eq!(packet.keep_alive, 60);
+        assert_eq!(packet.client_id, "test-client");
+        assert!(packet.username.is_none());
+        assert!(packet.password.is_none());
+        assert!(packet.will.is_none());
+    }
+
+    #[test]
+    fn test_connect_packet_with_credentials() {
+        let options = ConnectOptions::new("test-client").with_credentials("user", b"pass");
+        let packet = ConnectPacket::new(options);
+
+        assert_eq!(packet.username, Some("user".to_string()));
+        assert_eq!(packet.password, Some(b"pass".to_vec()));
+    }
+
+    #[test]
+    fn test_connect_packet_with_will() {
+        let will = WillMessage::new("will/topic", b"will payload")
+            .with_qos(QoS::AtLeastOnce)
+            .with_retain(true);
+        let options = ConnectOptions::new("test-client").with_will(will);
+        let packet = ConnectPacket::new(options);
+
+        assert!(packet.will.is_some());
+        let will = packet.will.as_ref().unwrap();
+        assert_eq!(will.topic, "will/topic");
+        assert_eq!(will.payload, b"will payload");
+        assert_eq!(will.qos, QoS::AtLeastOnce);
+        assert!(will.retain);
+    }
+
+    #[test]
+    fn test_connect_flags() {
+        let packet = ConnectPacket::new(ConnectOptions::new("test"));
+        assert_eq!(packet.connect_flags(), 0x02); // Clean start only
+
+        let options = ConnectOptions::new("test")
+            .with_clean_start(false)
+            .with_credentials("user", b"pass");
+        let packet = ConnectPacket::new(options);
+        assert_eq!(packet.connect_flags(), 0xC0); // Username + Password
+
+        let will = WillMessage::new("topic", b"payload")
+            .with_qos(QoS::ExactlyOnce)
+            .with_retain(true);
+        let options = ConnectOptions::new("test").with_will(will);
+        let packet = ConnectPacket::new(options);
+        assert_eq!(packet.connect_flags(), 0x36); // Clean start + Will + QoS 2 + Retain
+    }
+
+    #[test]
+    fn test_connect_encode_decode_v5() {
+        let options = ConnectOptions::new("test-client-123")
+            .with_keep_alive(Duration::from_secs(120))
+            .with_credentials("testuser", b"testpass");
+        let packet = ConnectPacket::new(options);
+
+        let mut buf = BytesMut::new();
+        packet.encode(&mut buf).unwrap();
+
+        let fixed_header = FixedHeader::decode(&mut buf).unwrap();
+        assert_eq!(fixed_header.packet_type, PacketType::Connect);
+
+        let decoded = ConnectPacket::decode_body(&mut buf, &fixed_header).unwrap();
+        assert_eq!(decoded.protocol_version, PROTOCOL_VERSION_V5);
+        assert_eq!(decoded.client_id, "test-client-123");
+        assert_eq!(decoded.keep_alive, 120);
+        assert_eq!(decoded.username, Some("testuser".to_string()));
+        assert_eq!(decoded.password, Some(b"testpass".to_vec()));
+    }
+
+    #[test]
+    fn test_connect_encode_decode_v311() {
+        let options = ConnectOptions::new("mqtt-311-client");
+        let packet = ConnectPacket::new_v311(options);
+
+        let mut buf = BytesMut::new();
+        packet.encode(&mut buf).unwrap();
+
+        let fixed_header = FixedHeader::decode(&mut buf).unwrap();
+        let decoded = ConnectPacket::decode_body(&mut buf, &fixed_header).unwrap();
+
+        assert_eq!(decoded.protocol_version, PROTOCOL_VERSION_V311);
+        assert_eq!(decoded.client_id, "mqtt-311-client");
+    }
+
+    #[test]
+    fn test_connect_invalid_protocol_name() {
+        let mut buf = BytesMut::new();
+        encode_string(&mut buf, "INVALID").unwrap();
+        buf.put_u8(5);
+
+        let fixed_header = FixedHeader::new(PacketType::Connect, 0, 0);
+        let result = ConnectPacket::decode_body(&mut buf, &fixed_header);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_connect_invalid_protocol_version() {
+        let mut buf = BytesMut::new();
+        encode_string(&mut buf, "MQTT").unwrap();
+        buf.put_u8(99); // Invalid version
+
+        let fixed_header = FixedHeader::new(PacketType::Connect, 0, 0);
+        let result = ConnectPacket::decode_body(&mut buf, &fixed_header);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_connect_password_without_username() {
+        let mut buf = BytesMut::new();
+        encode_string(&mut buf, "MQTT").unwrap();
+        buf.put_u8(5); // v5.0
+        buf.put_u8(0x40); // Password flag only
+        buf.put_u16(60); // Keep alive
+        buf.put_u8(0); // Empty properties
+        encode_string(&mut buf, "client").unwrap();
+        encode_binary(&mut buf, b"password").unwrap();
+
+        let fixed_header = FixedHeader::new(PacketType::Connect, 0, 0);
+        let result = ConnectPacket::decode_body(&mut buf, &fixed_header);
+        assert!(result.is_err());
+    }
+}

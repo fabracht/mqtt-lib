@@ -1,0 +1,61 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# IDE and Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.claude/
+
+# Project management tools
+.kiro/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+tarpaulin-report.html
+cobertura.xml
+
+# Benchmarking
+/target/criterion
+
+# Documentation
+/target/doc
+
+# Temporary files
+*.tmp
+*.temp
+.env
+/tmp/
+
+# Debug
+*.log
+
+# Backup files
+*.bak
+*.orig
+
+# Python (if any scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node (if any tools use it)
+node_modules/
+npm-debug.log*
+
+# Coverage reports
+*.lcov
+coverage/
+htmlcov/
+
+# Profiling data
+*.profdata
+*.profraw

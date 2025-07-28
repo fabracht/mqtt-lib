@@ -1,0 +1,48 @@
+[package]
+name = "mqtt-v5"
+version = "0.1.0"
+edition = "2021"
+authors = ["MQTT v5 Implementation Team"]
+description = "A complete MQTT v5.0 client library with callback-based message handling"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/example/mqtt-v5"
+keywords = ["mqtt", "iot", "messaging", "async", "tokio"]
+categories = ["network-programming", "asynchronous"]
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+ulid = "1.2.1"
+
+[[bench]]
+name = "mqtt_benchmarks"
+harness = false
+
+[[bench]]
+name = "concurrent_benchmarks"
+harness = false
+
+[lib]
+name = "mqtt_v5"
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+debug = true
+
+[dependencies]
+bebytes = "2.1.2"
+bytes = "1.10.1"
+rustls = "0.23.29"
+rustls-pemfile = "2.2.0"
+serde = { version = "1.0.219", features = ["derive"] }
+socket2 = { version = "0.6.0", features = ["all"] }
+thiserror = "2.0.12"
+tokio = { version = "1.46.1", features = ["full"] }
+tokio-rustls = "0.26.2"
+tracing = "0.1.41"
+webpki-roots = "1.0.2"

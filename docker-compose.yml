@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mqtt-test-broker
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto-tls.conf:/mosquitto/config/mosquitto-tls.conf
+      - ./test_certs:/mosquitto/certs
+      - mosquitto-data:/mosquitto/data
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+
+  mosquitto-tls:
+    image: eclipse-mosquitto:2.0
+    container_name: mqtt-test-broker-tls
+    ports:
+      - "8884:8883"
+    volumes:
+      - ./mosquitto-tls.conf:/mosquitto/config/mosquitto.conf
+      - ./test_certs:/mosquitto/certs
+      - mosquitto-tls-data:/mosquitto/data
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+
+volumes:
+  mosquitto-data:
+  mosquitto-tls-data:
