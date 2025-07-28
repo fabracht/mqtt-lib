@@ -3,6 +3,35 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, MqttError>;
 
+/// MQTT protocol errors
+///
+/// This enum provides specific error variants for all possible MQTT protocol
+/// errors, validation failures, and operational issues.
+///
+/// # Error Categories
+///
+/// - **I/O and Network**: `Io`, `ConnectionError`, `Timeout`, `NotConnected`
+/// - **Validation**: `InvalidTopicName`, `InvalidTopicFilter`, `InvalidClientId`
+/// - **Protocol**: `ProtocolError`, `MalformedPacket`, `InvalidPacketType`
+/// - **Authentication**: `AuthenticationFailed`, `NotAuthorized`, `BadUsernameOrPassword`
+/// - **Operations**: `SubscriptionFailed`, `PublishFailed`, `UnsubscriptionFailed`
+/// - **Server Status**: `ServerUnavailable`, `ServerBusy`, `ServerShuttingDown`
+/// - **Flow Control**: `ReceiveMaximumExceeded`, `FlowControlExceeded`, `PacketIdExhausted`
+///
+/// # Examples
+///
+/// ```
+/// use mqtt_v5::{MqttError, Result};
+///
+/// fn validate_topic(topic: &str) -> Result<()> {
+///     if topic.contains('#') && !topic.ends_with('#') {
+///         return Err(MqttError::InvalidTopicName(
+///             "# wildcard must be at the end".to_string()
+///         ));
+///     }
+///     Ok(())
+/// }
+/// ```
 #[derive(Error, Debug, Clone)]
 pub enum MqttError {
     #[error("IO error: {0}")]
