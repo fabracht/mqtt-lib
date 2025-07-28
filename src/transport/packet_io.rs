@@ -95,61 +95,7 @@ pub trait PacketIo: Transport {
     fn write_packet(&mut self, packet: Packet) -> impl Future<Output = Result<()>> + Send + '_ {
         async move {
             let mut buf = BytesMut::with_capacity(1024);
-
-            // Encode packet
-            match packet {
-                Packet::Connect(p) => {
-                    encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::ConnAck(p) => {
-                    encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::Publish(p) => {
-                    let flags = p.flags();
-                    encode_packet(&mut buf, PacketType::Publish, flags, |buf| {
-                        p.encode_body(buf)
-                    })?;
-                }
-                Packet::PubAck(p) => {
-                    encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::PubRec(p) => {
-                    encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::PubRel(p) => {
-                    encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?;
-                }
-                Packet::PubComp(p) => {
-                    encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::Subscribe(p) => {
-                    encode_packet(&mut buf, PacketType::Subscribe, 0x02, |buf| {
-                        p.encode_body(buf)
-                    })?;
-                }
-                Packet::SubAck(p) => {
-                    encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::Unsubscribe(p) => {
-                    encode_packet(&mut buf, PacketType::Unsubscribe, 0x02, |buf| {
-                        p.encode_body(buf)
-                    })?;
-                }
-                Packet::UnsubAck(p) => {
-                    encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
-                }
-                Packet::PingReq => encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(()))?,
-                Packet::PingResp => encode_packet(&mut buf, PacketType::PingResp, 0, |_| Ok(()))?,
-                Packet::Disconnect(p) => {
-                    encode_packet(&mut buf, PacketType::Disconnect, 0, |buf| {
-                        p.encode_body(buf)
-                    })?;
-                }
-                Packet::Auth(p) => {
-                    encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
-                }
-            }
-            // Write to transport
+            encode_packet_to_buffer(&packet, &mut buf)?;
             self.write(&buf).await?;
             Ok(())
         }
@@ -260,65 +206,68 @@ impl PacketReader for OwnedReadHalf {
     }
 }
 
+/// Helper function to encode any packet to a buffer
+fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
+    match packet {
+        Packet::Connect(p) => {
+            encode_packet(buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::ConnAck(p) => {
+            encode_packet(buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::Publish(p) => {
+            let flags = p.flags();
+            encode_packet(buf, PacketType::Publish, flags, |buf| {
+                p.encode_body(buf)
+            })?;
+        }
+        Packet::PubAck(p) => {
+            encode_packet(buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::PubRec(p) => {
+            encode_packet(buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::PubRel(p) => {
+            encode_packet(buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?;
+        }
+        Packet::PubComp(p) => {
+            encode_packet(buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::Subscribe(p) => {
+            encode_packet(buf, PacketType::Subscribe, 0x02, |buf| {
+                p.encode_body(buf)
+            })?;
+        }
+        Packet::SubAck(p) => {
+            encode_packet(buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::Unsubscribe(p) => {
+            encode_packet(buf, PacketType::Unsubscribe, 0x02, |buf| {
+                p.encode_body(buf)
+            })?;
+        }
+        Packet::UnsubAck(p) => {
+            encode_packet(buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
+        }
+        Packet::PingReq => encode_packet(buf, PacketType::PingReq, 0, |_| Ok(()))?,
+        Packet::PingResp => encode_packet(buf, PacketType::PingResp, 0, |_| Ok(()))?,
+        Packet::Disconnect(p) => {
+            encode_packet(buf, PacketType::Disconnect, 0, |buf| {
+                p.encode_body(buf)
+            })?;
+        }
+        Packet::Auth(p) => {
+            encode_packet(buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
+        }
+    }
+    Ok(())
+}
+
 /// Implementation for TCP write half
 impl PacketWriter for OwnedWriteHalf {
     async fn write_packet(&mut self, packet: Packet) -> Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
-
-        // Encode packet
-        match packet {
-            Packet::Connect(p) => {
-                encode_packet(&mut buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::ConnAck(p) => {
-                encode_packet(&mut buf, PacketType::ConnAck, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::Publish(p) => {
-                let flags = p.flags();
-                encode_packet(&mut buf, PacketType::Publish, flags, |buf| {
-                    p.encode_body(buf)
-                })?;
-            }
-            Packet::PubAck(p) => {
-                encode_packet(&mut buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::PubRec(p) => {
-                encode_packet(&mut buf, PacketType::PubRec, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::PubRel(p) => {
-                encode_packet(&mut buf, PacketType::PubRel, 0x02, |buf| p.encode_body(buf))?;
-            }
-            Packet::PubComp(p) => {
-                encode_packet(&mut buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::Subscribe(p) => {
-                encode_packet(&mut buf, PacketType::Subscribe, 0x02, |buf| {
-                    p.encode_body(buf)
-                })?;
-            }
-            Packet::SubAck(p) => {
-                encode_packet(&mut buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::Unsubscribe(p) => {
-                encode_packet(&mut buf, PacketType::Unsubscribe, 0x02, |buf| {
-                    p.encode_body(buf)
-                })?;
-            }
-            Packet::UnsubAck(p) => {
-                encode_packet(&mut buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
-            }
-            Packet::PingReq => encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(()))?,
-            Packet::PingResp => encode_packet(&mut buf, PacketType::PingResp, 0, |_| Ok(()))?,
-            Packet::Disconnect(p) => {
-                encode_packet(&mut buf, PacketType::Disconnect, 0, |buf| {
-                    p.encode_body(buf)
-                })?;
-            }
-            Packet::Auth(p) => {
-                encode_packet(&mut buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
-            }
-        }
-        // Write to transport
+        encode_packet_to_buffer(&packet, &mut buf)?;
         self.write_all(&buf).await?;
         self.flush().await?;
         Ok(())

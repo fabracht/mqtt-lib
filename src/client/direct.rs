@@ -611,7 +611,7 @@ impl DirectClientInner {
 
         // Wait for UNSUBACK from packet reader task
         let timeout = Duration::from_secs(10);
-        let _unsuback = match tokio::time::timeout(timeout, rx).await {
+        let unsuback = match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(unsuback)) => unsuback,
             Ok(Err(_)) => {
                 return Err(MqttError::ProtocolError(
@@ -627,6 +627,14 @@ impl DirectClientInner {
                 return Err(MqttError::Timeout);
             }
         };
+        
+        // Validate UNSUBACK packet ID matches
+        if unsuback.packet_id != packet_id {
+            return Err(MqttError::ProtocolError(format!(
+                "UNSUBACK packet ID mismatch: expected {}, got {}",
+                packet_id, unsuback.packet_id
+            )));
+        }
 
         // Remove subscriptions from session
         for filter in packet.filters {

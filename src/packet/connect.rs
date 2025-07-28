@@ -5,7 +5,7 @@ use crate::packet::{FixedHeader, MqttPacket, PacketType};
 use crate::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
 use crate::types::{ConnectOptions, WillMessage, WillProperties};
 use crate::QoS;
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, Bytes};
 
 const PROTOCOL_NAME: &str = "MQTT";
 const PROTOCOL_VERSION_V5: u8 = 5;
@@ -253,6 +253,49 @@ impl MqttPacket for ConnectPacket {
     }
 
     fn decode_body<B: Buf>(buf: &mut B, _fixed_header: &FixedHeader) -> Result<Self> {
+        // Decode variable header
+        let protocol_version = Self::decode_protocol_header(buf)?;
+        let (flags, keep_alive) = Self::decode_connect_flags_and_keepalive(buf)?;
+        
+        // Properties (v5.0 only)
+        let properties = if protocol_version == PROTOCOL_VERSION_V5 {
+            Properties::decode(buf)?
+        } else {
+            Properties::default()
+        };
+
+        // Decode payload
+        let client_id = decode_string(buf)?;
+        let (will, will_properties) = Self::decode_will(buf, &flags, protocol_version)?;
+        let (username, password) = Self::decode_credentials(buf, &flags)?;
+
+        Ok(Self {
+            protocol_version,
+            clean_start: flags.clean_start,
+            keep_alive,
+            client_id,
+            username,
+            password: password.map(|p| p.to_vec()),
+            will,
+            properties,
+            will_properties,
+        })
+    }
+}
+
+/// Helper struct to hold decoded connect flags
+struct DecodedConnectFlags {
+    clean_start: bool,
+    will_flag: bool,
+    will_qos: u8,
+    will_retain: bool,
+    username_flag: bool,
+    password_flag: bool,
+}
+
+impl ConnectPacket {
+    /// Decode and validate protocol header
+    fn decode_protocol_header<B: Buf>(buf: &mut B) -> Result<u8> {
         // Protocol name
         let protocol_name = decode_string(buf)?;
         if protocol_name != PROTOCOL_NAME {
@@ -272,6 +315,11 @@ impl MqttPacket for ConnectPacket {
             return Err(MqttError::UnsupportedProtocolVersion);
         }
 
+        Ok(protocol_version)
+    }
+
+    /// Decode connect flags and keep alive
+    fn decode_connect_flags_and_keepalive<B: Buf>(buf: &mut B) -> Result<(DecodedConnectFlags, u16)> {
         // Connect flags
         if !buf.has_remaining() {
             return Err(MqttError::MalformedPacket(
@@ -282,13 +330,7 @@ impl MqttPacket for ConnectPacket {
 
         // Parse flags using BeBytes decomposition
         let decomposed_flags = ConnectFlags::decompose(flags);
-        let clean_start = decomposed_flags.contains(&ConnectFlags::CleanStart);
-        let will_flag = decomposed_flags.contains(&ConnectFlags::WillFlag);
-        let will_qos = ConnectFlags::extract_will_qos(flags);
-        let will_retain = decomposed_flags.contains(&ConnectFlags::WillRetain);
-        let username_flag = decomposed_flags.contains(&ConnectFlags::UsernameFlag);
-        let password_flag = decomposed_flags.contains(&ConnectFlags::PasswordFlag);
-
+        
         // Validate reserved bit
         if decomposed_flags.contains(&ConnectFlags::Reserved) {
             return Err(MqttError::MalformedPacket(
@@ -296,62 +338,73 @@ impl MqttPacket for ConnectPacket {
             ));
         }
 
+        let decoded_flags = DecodedConnectFlags {
+            clean_start: decomposed_flags.contains(&ConnectFlags::CleanStart),
+            will_flag: decomposed_flags.contains(&ConnectFlags::WillFlag),
+            will_qos: ConnectFlags::extract_will_qos(flags),
+            will_retain: decomposed_flags.contains(&ConnectFlags::WillRetain),
+            username_flag: decomposed_flags.contains(&ConnectFlags::UsernameFlag),
+            password_flag: decomposed_flags.contains(&ConnectFlags::PasswordFlag),
+        };
+
         // Keep alive
         if buf.remaining() < 2 {
             return Err(MqttError::MalformedPacket("Missing keep alive".to_string()));
         }
         let keep_alive = buf.get_u16();
 
-        // Properties (v5.0 only)
-        let properties = if protocol_version == PROTOCOL_VERSION_V5 {
+        Ok((decoded_flags, keep_alive))
+    }
+
+    /// Decode will message if present
+    fn decode_will<B: Buf>(
+        buf: &mut B, 
+        flags: &DecodedConnectFlags, 
+        protocol_version: u8
+    ) -> Result<(Option<WillMessage>, Properties)> {
+        if !flags.will_flag {
+            return Ok((None, Properties::default()));
+        }
+
+        let will_properties = if protocol_version == PROTOCOL_VERSION_V5 {
             Properties::decode(buf)?
         } else {
             Properties::default()
         };
 
-        // Payload
-        let client_id = decode_string(buf)?;
+        let topic = decode_string(buf)?;
+        let payload = decode_binary(buf)?;
 
-        // Will
-        let (will, will_properties) = if will_flag {
-            let will_properties = if protocol_version == PROTOCOL_VERSION_V5 {
-                Properties::decode(buf)?
-            } else {
-                Properties::default()
-            };
-
-            let topic = decode_string(buf)?;
-            let payload = decode_binary(buf)?;
-
-            let qos = match will_qos {
-                0 => QoS::AtMostOnce,
-                1 => QoS::AtLeastOnce,
-                2 => QoS::ExactlyOnce,
-                _ => return Err(MqttError::MalformedPacket("Invalid will QoS".to_string())),
-            };
-
-            let will = WillMessage {
-                topic,
-                payload: payload.to_vec(),
-                qos,
-                retain: will_retain,
-                properties: WillProperties::default(), // Will be populated from will_properties later
-            };
-
-            (Some(will), will_properties)
-        } else {
-            (None, Properties::default())
+        let qos = match flags.will_qos {
+            0 => QoS::AtMostOnce,
+            1 => QoS::AtLeastOnce,
+            2 => QoS::ExactlyOnce,
+            _ => return Err(MqttError::MalformedPacket("Invalid will QoS".to_string())),
         };
 
-        // Username
-        let username = if username_flag {
+        let will = WillMessage {
+            topic,
+            payload: payload.to_vec(),
+            qos,
+            retain: flags.will_retain,
+            properties: WillProperties::default(),
+        };
+
+        Ok((Some(will), will_properties))
+    }
+
+    /// Decode username and password if present
+    fn decode_credentials<B: Buf>(
+        buf: &mut B, 
+        flags: &DecodedConnectFlags
+    ) -> Result<(Option<String>, Option<Bytes>)> {
+        let username = if flags.username_flag {
             Some(decode_string(buf)?)
         } else {
             None
         };
 
-        // Password
-        let password = if password_flag {
+        let password = if flags.password_flag {
             Some(decode_binary(buf)?)
         } else {
             None
@@ -364,17 +417,7 @@ impl MqttPacket for ConnectPacket {
             ));
         }
 
-        Ok(Self {
-            protocol_version,
-            clean_start,
-            keep_alive,
-            client_id,
-            username,
-            password: password.map(|p| p.to_vec()),
-            will,
-            properties,
-            will_properties,
-        })
+        Ok((username, password))
     }
 }
 

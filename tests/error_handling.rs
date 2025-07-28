@@ -261,7 +261,6 @@ async fn test_connection_lost_callback() {
     use std::sync::Arc;
 
     let disconnected = Arc::new(AtomicBool::new(false));
-    let _disconnected_clone = disconnected.clone();
 
     let options = ConnectOptions::new("callback-test");
     // Connection lost callbacks would be set at the client level
