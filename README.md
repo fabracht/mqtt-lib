@@ -160,6 +160,9 @@ cargo build
 ### Testing
 
 ```bash
+# Generate test certificates (required for TLS tests)
+./scripts/generate_test_certs.sh
+
 # Run all tests including unit and mock tests
 cargo test
 

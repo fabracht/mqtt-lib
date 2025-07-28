@@ -216,7 +216,7 @@ async fn test_qos_levels_separate_clients() {
 
         // Check QoS levels (may be downgraded based on subscription)
         for (payload, qos) in messages.iter() {
-            println!("Received: {} with QoS {:?}", payload, qos);
+            println!("Received: {payload} with QoS {qos:?}");
         }
     } // Drop the lock before awaiting
 
@@ -350,15 +350,15 @@ async fn test_concurrent_publishers() {
 
     for i in 0..10 {
         let handle = tokio::spawn(async move {
-            let publisher = MqttClient::new(format!("concurrent-pub-{}", i));
+            let publisher = MqttClient::new(format!("concurrent-pub-{i}"));
             publisher.connect("mqtt://localhost:1883").await.unwrap();
 
             // Each publisher sends 10 messages
             for j in 0..10 {
                 publisher
                     .publish(
-                        format!("test/concurrent/{}", i),
-                        format!("Message {} from publisher {}", j, i),
+                        format!("test/concurrent/{i}"),
+                        format!("Message {j} from publisher {i}"),
                     )
                     .await
                     .unwrap();
@@ -378,7 +378,7 @@ async fn test_concurrent_publishers() {
     sleep(Duration::from_secs(1)).await;
 
     let total = counter.load(Ordering::Relaxed);
-    println!("Received {} messages from concurrent publishers", total);
+    println!("Received {total} messages from concurrent publishers");
     assert_eq!(total, 100, "Should receive all 100 messages");
 
     subscriber.disconnect().await.unwrap();
@@ -419,11 +419,11 @@ async fn test_publisher_subscriber_isolation() {
     // Clients publish to each other
     for i in 0..5 {
         client1
-            .publish("from/client1", format!("Message {} from client1", i))
+            .publish("from/client1", format!("Message {i} from client1"))
             .await
             .unwrap();
         client2
-            .publish("from/client2", format!("Message {} from client2", i))
+            .publish("from/client2", format!("Message {i} from client2"))
             .await
             .unwrap();
     }
@@ -445,7 +445,7 @@ async fn test_late_subscriber() {
     // Publish messages before subscriber connects
     for i in 0..5 {
         publisher
-            .publish("test/late/sub", format!("Early message {}", i))
+            .publish("test/late/sub", format!("Early message {i}"))
             .await
             .unwrap();
     }
@@ -470,7 +470,7 @@ async fn test_late_subscriber() {
     // Publish more messages after subscription
     for i in 5..10 {
         publisher
-            .publish("test/late/sub", format!("Late message {}", i))
+            .publish("test/late/sub", format!("Late message {i}"))
             .await
             .unwrap();
     }

@@ -3,6 +3,7 @@ target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
+mutants.out*
 
 # IDE and Editor
 .idea/
@@ -59,3 +60,9 @@ htmlcov/
 # Profiling data
 *.profdata
 *.profraw
+
+# Test certificates (generated locally)
+test_certs/*.key
+test_certs/*.pem
+test_certs/*.csr
+test_certs/*.srl

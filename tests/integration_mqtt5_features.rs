@@ -67,7 +67,7 @@ async fn test_mqtt5_properties_system() {
                 }
                 // User properties
                 for (key, value) in &props.user_properties {
-                    map.insert(format!("user_{}", key), value.clone());
+                    map.insert(format!("user_{key}"), value.clone());
                 }
             });
         })
@@ -219,7 +219,7 @@ async fn test_topic_aliases() {
         .subscribe("sensors/+/temperature", move |msg: Message| {
             let received_clone = received_clone.clone();
             let topic = msg.topic.clone();
-            let payload = msg.payload.to_vec();
+            let payload = msg.payload.clone();
             tokio::spawn(async move {
                 received_clone.lock().await.push((topic, payload));
             });
@@ -230,7 +230,7 @@ async fn test_topic_aliases() {
     // Publish multiple times to same topic (should use alias after first)
     for i in 0..5 {
         client
-            .publish_qos1("sensors/room1/temperature", format!("25.{}", i).as_bytes())
+            .publish_qos1("sensors/room1/temperature", format!("25.{i}").as_bytes())
             .await
             .expect("Failed to publish");
     }
@@ -319,7 +319,7 @@ async fn test_flow_control_receive_maximum() {
     // Send 5 messages rapidly
     for i in 1..=5 {
         publisher
-            .publish_qos2("flow/test", format!("Message {}", i).as_bytes())
+            .publish_qos2("flow/test", format!("Message {i}").as_bytes())
             .await
             .expect("Failed to publish");
     }
@@ -333,7 +333,7 @@ async fn test_flow_control_receive_maximum() {
     let processed = processing.lock().await;
     assert_eq!(processed.len(), 5);
     for i in 1..=5 {
-        assert!(processed.contains(&format!("Message {}", i)));
+        assert!(processed.contains(&format!("Message {i}")));
     }
 
     client.disconnect().await.expect("Failed to disconnect");
@@ -416,7 +416,7 @@ async fn test_shared_subscriptions() {
     // Create multiple clients sharing a subscription
     let mut clients = vec![];
     for i in 0..3 {
-        let client_id = test_client_id(&format!("shared-{}", i));
+        let client_id = test_client_id(&format!("shared-{i}"));
         let client = MqttClient::new(client_id.clone());
 
         client
@@ -458,7 +458,7 @@ async fn test_shared_subscriptions() {
 
     for i in 1..=9 {
         publisher
-            .publish_qos1("shared/topic", format!("Message {}", i).as_bytes())
+            .publish_qos1("shared/topic", format!("Message {i}").as_bytes())
             .await
             .expect("Failed to publish");
     }
@@ -467,7 +467,7 @@ async fn test_shared_subscriptions() {
 
     // Verify load balancing
     let msgs = received.lock().await;
-    let total_messages: usize = msgs.values().map(|v| v.len()).sum();
+    let total_messages: usize = msgs.values().map(std::vec::Vec::len).sum();
 
     // All messages should be received exactly once across all clients
     assert_eq!(total_messages, 9);
@@ -547,7 +547,7 @@ async fn test_reason_codes_and_strings() {
 
     // The result might contain a reason code if subscription is denied
     if result.is_err() {
-        println!("Subscription failed as expected: {:?}", result);
+        println!("Subscription failed as expected: {result:?}");
     }
 
     client.disconnect().await.expect("Failed to disconnect");

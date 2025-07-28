@@ -75,6 +75,10 @@ pub async fn keepalive_task(
 /// Handle an incoming packet
 ///
 /// This is a direct function call, not part of an event loop
+///
+/// # Errors
+///
+/// Returns an error if packet handling fails
 pub async fn handle_incoming_packet(
     packet: Packet,
     transport: &Arc<tokio::sync::Mutex<crate::transport::TransportType>>,
@@ -250,7 +254,7 @@ mod tests {
 
         // Inject a PINGRESP packet
         transport
-            .inject_packet(encode_packet(Packet::PingResp).unwrap())
+            .inject_packet(encode_packet(&Packet::PingResp).unwrap())
             .await;
 
         // Set transport to fail on second read to exit the loop

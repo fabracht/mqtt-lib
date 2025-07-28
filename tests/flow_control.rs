@@ -248,7 +248,7 @@ async fn test_flow_control_concurrent_access() {
 
     for handle in handles {
         match handle.await.unwrap() {
-            Ok(_) => successes += 1,
+            Ok(()) => successes += 1,
             Err(_) => failures += 1,
         }
     }

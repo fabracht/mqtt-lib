@@ -7,7 +7,7 @@ async fn test_minimal_connection() {
 
     println!("Connecting to mqtt://127.0.0.1:1883...");
     match client.connect("mqtt://127.0.0.1:1883").await {
-        Ok(_) => {
+        Ok(()) => {
             println!("Connected successfully!");
             assert!(client.is_connected().await);
 
@@ -17,8 +17,8 @@ async fn test_minimal_connection() {
             println!("Test passed!");
         }
         Err(e) => {
-            println!("Connection failed: {:?}", e);
-            println!("Error type: {}", e);
+            println!("Connection failed: {e:?}");
+            println!("Error type: {e}");
             panic!("Failed to connect");
         }
     }

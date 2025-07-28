@@ -1,5 +1,7 @@
 use crate::error::{MqttError, Result};
 use crate::packet::publish::PublishPacket;
+#[allow(unused_imports)]
+use crate::{Properties};
 use crate::session::flow_control::{FlowControlManager, TopicAliasManager};
 use crate::session::limits::LimitsManager;
 use crate::session::queue::{MessageQueue, QueuedMessage};
@@ -96,7 +98,7 @@ impl SessionState {
             retained_messages: Arc::new(RetainedMessageStore::new()),
             will_message: Arc::new(RwLock::new(None)),
             will_delay_handle: Arc::new(RwLock::new(None)),
-            limits: Arc::new(RwLock::new(LimitsManager::default())),
+            limits: Arc::new(RwLock::new(LimitsManager::with_defaults())),
         }
     }
 
@@ -313,7 +315,7 @@ impl SessionState {
 
     /// Checks if we can send a `QoS` 1/2 message according to flow control
     pub async fn can_send_qos_message(&self) -> bool {
-        self.flow_control.read().await.can_send().await
+        self.flow_control.read().await.can_send()
     }
 
     /// Registers a `QoS` 1/2 message as in-flight for flow control
@@ -596,15 +598,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_expiry() {
-        let mut config = SessionConfig::default();
-        config.session_expiry_interval = 1; // 1 second
+        let config = SessionConfig {
+            session_expiry_interval: 1, // 1 second
+            ..Default::default()
+        };
         let session = SessionState::new("test-client".to_string(), config, false);
 
         // Initially not expired
         assert!(!session.is_expired().await);
 
         // Update last activity to past
-        *session.last_activity.write().await = Instant::now() - Duration::from_secs(2);
+        *session.last_activity.write().await = Instant::now().checked_sub(Duration::from_secs(2)).unwrap();
 
         // Now should be expired
         assert!(session.is_expired().await);
@@ -680,7 +684,7 @@ mod tests {
             qos: QoS::AtLeastOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         // Store unacked publish
@@ -825,12 +829,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_expiry_zero_interval() {
-        let mut config = SessionConfig::default();
-        config.session_expiry_interval = 0; // Session doesn't expire
+        let config = SessionConfig {
+            session_expiry_interval: 0, // Session doesn't expire
+            ..Default::default()
+        };
         let session = SessionState::new("test-client".to_string(), config, false);
 
         // Update last activity to past
-        *session.last_activity.write().await = Instant::now() - Duration::from_secs(100);
+        *session.last_activity.write().await = Instant::now().checked_sub(Duration::from_secs(100)).unwrap();
 
         // Should not be expired
         assert!(!session.is_expired().await);
@@ -869,9 +875,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_queue_limits() {
-        let mut config = SessionConfig::default();
-        config.max_queued_messages = 2;
-        config.max_queued_size = 100;
+        let config = SessionConfig {
+            max_queued_messages: 2,
+            max_queued_size: 100,
+            ..Default::default()
+        };
 
         let session = SessionState::new("test-client".to_string(), config, true);
 
@@ -928,7 +936,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         // Should fail to store
@@ -947,7 +955,7 @@ mod tests {
             qos: QoS::ExactlyOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         session.store_unacked_publish(packet).await.unwrap();
@@ -996,7 +1004,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: true,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         session.store_retained_message(&packet1).await;
@@ -1014,7 +1022,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: true,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         session.store_retained_message(&packet2).await;
@@ -1036,7 +1044,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: true,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         let packet2 = PublishPacket {
@@ -1046,7 +1054,7 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: true,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         session.store_retained_message(&packet1).await;
@@ -1112,8 +1120,10 @@ mod tests {
         let session = SessionState::new("test-client".to_string(), SessionConfig::default(), true);
 
         // Set will message with delay
-        let mut will_props = WillProperties::default();
-        will_props.will_delay_interval = Some(1); // 1 second delay
+        let will_props = WillProperties {
+            will_delay_interval: Some(1), // 1 second delay
+            ..Default::default()
+        };
 
         let will = WillMessage {
             topic: "test/will".to_string(),
@@ -1188,7 +1198,7 @@ mod tests {
             qos: QoS::AtLeastOnce,
             retain: false,
             dup: false,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         session.store_unacked_publish(packet).await.unwrap();

@@ -83,7 +83,8 @@ impl FlowControlManager {
     }
 
     /// Checks if we can send a new `QoS` 1/2 message
-    pub async fn can_send(&self) -> bool {
+    #[must_use]
+    pub fn can_send(&self) -> bool {
         if self.receive_maximum == 0 {
             return true; // 0 means unlimited
         }
@@ -230,16 +231,22 @@ impl FlowControlManager {
                 0
             };
 
-            if target_permits > current_permits {
-                self.quota_semaphore
-                    .add_permits(target_permits - current_permits);
-            } else if target_permits < current_permits {
-                // Need to reduce permits - acquire the difference and forget them
-                let to_remove = current_permits - target_permits;
-                for _ in 0..to_remove {
-                    if let Ok(permit) = self.quota_semaphore.try_acquire() {
-                        permit.forget();
+            match target_permits.cmp(&current_permits) {
+                std::cmp::Ordering::Greater => {
+                    self.quota_semaphore
+                        .add_permits(target_permits - current_permits);
+                }
+                std::cmp::Ordering::Less => {
+                    // Need to reduce permits - acquire the difference and forget them
+                    let to_remove = current_permits - target_permits;
+                    for _ in 0..to_remove {
+                        if let Ok(permit) = self.quota_semaphore.try_acquire() {
+                            permit.forget();
+                        }
                     }
+                }
+                std::cmp::Ordering::Equal => {
+                    // No change needed
                 }
             }
         }
@@ -451,7 +458,7 @@ mod tests {
     async fn test_flow_control_basic() {
         let fc = FlowControlManager::new(3);
 
-        assert!(fc.can_send().await);
+        assert!(fc.can_send());
 
         // Register some messages
         fc.register_send(1).await.unwrap();
@@ -459,7 +466,7 @@ mod tests {
         fc.register_send(3).await.unwrap();
 
         assert_eq!(fc.in_flight_count().await, 3);
-        assert!(!fc.can_send().await);
+        assert!(!fc.can_send());
 
         // Try to register another
         assert!(fc.register_send(4).await.is_err());
@@ -467,7 +474,7 @@ mod tests {
         // Acknowledge one
         fc.acknowledge(2).await.unwrap();
         assert_eq!(fc.in_flight_count().await, 2);
-        assert!(fc.can_send().await);
+        assert!(fc.can_send());
     }
 
     #[tokio::test]
@@ -475,7 +482,7 @@ mod tests {
         let fc = FlowControlManager::new(0); // 0 means unlimited
 
         // Should always be able to send
-        assert!(fc.can_send().await);
+        assert!(fc.can_send());
 
         // Registration should be no-op
         fc.register_send(1).await.unwrap();
@@ -559,8 +566,8 @@ mod tests {
     fn test_topic_alias_clear() {
         let mut ta = TopicAliasManager::new(10);
 
-        ta.get_or_create_alias("topic/1");
-        ta.get_or_create_alias("topic/2");
+        let _ = ta.get_or_create_alias("topic/1");
+        let _ = ta.get_or_create_alias("topic/2");
         ta.register_alias(5, "topic/5").unwrap();
 
         ta.clear();

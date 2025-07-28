@@ -66,9 +66,9 @@ pub fn decode_variable_int<B: Buf>(buf: &mut B) -> Result<u32> {
         }
 
         let byte = buf.get_u8();
-        value += u32::from(byte & 0x7F) * multiplier;
+        value += u32::from(byte & crate::constants::masks::VARIABLE_BYTE_VALUE) * multiplier;
 
-        if (byte & 0x80) == 0 {
+        if (byte & crate::constants::masks::CONTINUATION_BIT) == 0 {
             break;
         }
 

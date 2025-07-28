@@ -78,7 +78,7 @@ mod tests {
         assert!(config.enabled);
         assert_eq!(config.initial_delay, Duration::from_secs(1));
         assert_eq!(config.max_delay, Duration::from_secs(60));
-        assert_eq!(config.backoff_factor, 2.0);
+        assert!((config.backoff_factor - 2.0).abs() < f64::EPSILON);
         assert_eq!(config.max_attempts, None);
     }
 }

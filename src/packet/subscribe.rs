@@ -77,8 +77,12 @@ impl SubscriptionOptions {
     }
 
     /// Decodes subscription options from a byte (v5.0)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `QoS` value is invalid
     pub fn decode(byte: u8) -> Result<Self> {
-        let qos_val = byte & 0x03;
+        let qos_val = byte & crate::constants::subscription::QOS_MASK;
         let qos = match qos_val {
             0 => QoS::AtMostOnce,
             1 => QoS::AtLeastOnce,
@@ -90,10 +94,10 @@ impl SubscriptionOptions {
             }
         };
 
-        let no_local = (byte & 0x04) != 0;
-        let retain_as_published = (byte & 0x08) != 0;
+        let no_local = (byte & crate::constants::subscription::NO_LOCAL_MASK) != 0;
+        let retain_as_published = (byte & crate::constants::subscription::RETAIN_AS_PUBLISHED_MASK) != 0;
 
-        let retain_handling_val = (byte >> 4) & 0x03;
+        let retain_handling_val = (byte >> crate::constants::subscription::RETAIN_HANDLING_SHIFT) & crate::constants::subscription::QOS_MASK;
         let retain_handling = match retain_handling_val {
             0 => RetainHandling::SendAtSubscribe,
             1 => RetainHandling::SendAtSubscribeIfNew,
@@ -106,7 +110,7 @@ impl SubscriptionOptions {
         };
 
         // Check reserved bits
-        if (byte & 0xC0) != 0 {
+        if (byte & crate::constants::subscription::RESERVED_BITS_MASK) != 0 {
             return Err(MqttError::MalformedPacket(
                 "Reserved bits in subscription options must be 0".to_string(),
             ));
@@ -335,7 +339,7 @@ mod tests {
         let packet = SubscribePacket::new(456)
             .add_filter_with_options(TopicFilter::with_options("test/topic", options));
 
-        assert_eq!(packet.filters[0].options.no_local, true);
+        assert!(packet.filters[0].options.no_local);
         assert_eq!(
             packet.filters[0].options.retain_handling,
             RetainHandling::DoNotSend

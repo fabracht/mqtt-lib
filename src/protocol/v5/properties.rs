@@ -194,7 +194,6 @@ impl Properties {
         }
     }
 
-    #[must_use]
     /// Adds a property value
     ///
     /// # Errors
@@ -263,7 +262,6 @@ impl Properties {
             .flat_map(|(id, values)| values.iter().map(move |value| (*id, value)))
     }
 
-    #[must_use]
     /// Encodes all properties to the buffer
     ///
     /// # Errors
@@ -328,7 +326,6 @@ impl Properties {
         Ok(())
     }
 
-    #[must_use]
     /// Decodes properties from the buffer
     ///
     /// # Errors

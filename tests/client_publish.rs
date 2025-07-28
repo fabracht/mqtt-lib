@@ -48,7 +48,7 @@ async fn test_publish_qos1() {
             assert!(result.is_ok());
             match result.unwrap() {
                 PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-                _ => panic!("Expected QoS1Or2 result"),
+                PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
             }
 
             client.disconnect().await.unwrap();
@@ -70,7 +70,7 @@ async fn test_publish_qos2() {
             assert!(result.is_ok());
             match result.unwrap() {
                 PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-                _ => panic!("Expected QoS1Or2 result"),
+                PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
             }
 
             client.disconnect().await.unwrap();

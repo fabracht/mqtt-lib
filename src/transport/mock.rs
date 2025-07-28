@@ -58,6 +58,7 @@ pub struct MockTransport {
 
 impl MockTransport {
     /// Creates a new mock transport
+    #[must_use]
     pub fn new() -> Self {
         Self {
             connected: false,
@@ -168,8 +169,8 @@ impl Transport for MockTransport {
         }
 
         let to_read = incoming.len().min(buf.len()).min(behavior.read_chunk_size);
-        for i in 0..to_read {
-            buf[i] = incoming.pop_front().unwrap();
+        for byte in buf.iter_mut().take(to_read) {
+            *byte = incoming.pop_front().unwrap();
         }
 
         Ok(to_read)
@@ -205,8 +206,15 @@ pub struct MockTransportBuilder {
     transport: MockTransport,
 }
 
+impl Default for MockTransportBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockTransportBuilder {
     /// Creates a new builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             transport: MockTransport::new(),
@@ -214,6 +222,11 @@ impl MockTransportBuilder {
     }
 
     /// Sets the transport to fail on next connect
+    ///
+    /// # Panics
+    ///
+    /// Panics if unable to create a tokio runtime
+    #[must_use]
     pub fn fail_on_connect(self) -> Self {
         let transport = self.transport;
         tokio::runtime::Runtime::new().unwrap().block_on(async {
@@ -224,6 +237,11 @@ impl MockTransportBuilder {
     }
 
     /// Sets the transport to fail on next read
+    ///
+    /// # Panics
+    ///
+    /// Panics if unable to create a tokio runtime
+    #[must_use]
     pub fn fail_on_read(self) -> Self {
         let transport = self.transport;
         tokio::runtime::Runtime::new().unwrap().block_on(async {
@@ -234,6 +252,11 @@ impl MockTransportBuilder {
     }
 
     /// Sets delays for operations
+    ///
+    /// # Panics
+    ///
+    /// Panics if unable to create a tokio runtime
+    #[must_use]
     pub fn with_delays(self, connect_ms: u64, read_ms: u64, write_ms: u64) -> Self {
         let transport = self.transport;
         tokio::runtime::Runtime::new().unwrap().block_on(async {
@@ -246,6 +269,7 @@ impl MockTransportBuilder {
     }
 
     /// Builds the mock transport
+    #[must_use]
     pub fn build(self) -> MockTransport {
         self.transport
     }
@@ -328,13 +352,14 @@ mod tests {
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
-        // Inject a packet
-        transport.inject_packet(vec![0x30, 0x0A]).await; // PUBLISH header
+        // Inject a packet (PUBLISH with QoS 1)
+        transport.inject_packet(vec![crate::constants::fixed_header::PUBLISH_BASE | 0x02, 0x0A]).await;
 
         // Read it
         let mut buf = [0u8; 2];
         let n = transport.read(&mut buf).await.unwrap();
         assert_eq!(n, 2);
-        assert_eq!(buf, [0x30, 0x0A]);
+        assert_eq!(buf[0], crate::constants::fixed_header::PUBLISH_BASE | 0x02);
+        assert_eq!(buf[1], 0x0A);
     }
 }

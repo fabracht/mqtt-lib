@@ -1,5 +1,6 @@
 use crate::packet::publish::PublishPacket;
-use crate::QoS;
+#[allow(unused_imports)]
+use crate::{Properties, QoS};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -99,6 +100,7 @@ impl Default for RetainedMessageStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestMessageBuilder;
 
     #[tokio::test]
     async fn test_store_and_retrieve() {
@@ -109,7 +111,7 @@ mod tests {
             topic: "test/topic".to_string(),
             payload: b"test payload".to_vec(),
             qos: QoS::AtLeastOnce,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         store
@@ -135,7 +137,7 @@ mod tests {
             topic: "test/topic".to_string(),
             payload: b"test payload".to_vec(),
             qos: QoS::AtMostOnce,
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         store.store("test/topic".to_string(), Some(msg)).await;
@@ -165,9 +167,9 @@ mod tests {
         for topic in topics {
             let msg = RetainedMessage {
                 topic: topic.to_string(),
-                payload: format!("data for {}", topic).into_bytes(),
+                payload: format!("data for {topic}").into_bytes(),
                 qos: QoS::AtMostOnce,
-                properties: Default::default(),
+                properties: Properties::default(),
             };
             store.store(topic.to_string(), Some(msg)).await;
         }
@@ -195,14 +197,12 @@ mod tests {
         let store = RetainedMessageStore::new();
 
         // Store multiple messages
-        for i in 0..5 {
-            let msg = RetainedMessage {
-                topic: format!("topic/{}", i),
-                payload: vec![i as u8],
-                qos: QoS::AtMostOnce,
-                properties: Default::default(),
-            };
-            store.store(format!("topic/{}", i), Some(msg)).await;
+        let messages = TestMessageBuilder::new()
+            .with_topic_prefix("topic")
+            .build_retained_batch(5);
+        
+        for (i, msg) in messages.into_iter().enumerate() {
+            store.store(format!("topic/{i}"), Some(msg)).await;
         }
 
         assert_eq!(store.count().await, 5);

@@ -26,7 +26,7 @@ async fn test_qos0_fire_and_forget() {
     // Publish 10 messages with QoS 0
     for i in 0..10 {
         let result = pub_client
-            .publish_qos0("test/qos0", format!("Message {}", i))
+            .publish_qos0("test/qos0", format!("Message {i}"))
             .await;
         assert!(result.is_ok());
     }
@@ -36,7 +36,7 @@ async fn test_qos0_fire_and_forget() {
 
     // With QoS 0, we might not receive all messages
     let count = received.load(Ordering::Relaxed);
-    println!("QoS 0: Received {} of 10 messages", count);
+    println!("QoS 0: Received {count} of 10 messages");
     assert!(count > 0); // Should receive at least some messages
 
     pub_client.disconnect().await.unwrap();
@@ -73,18 +73,18 @@ async fn test_qos1_at_least_once() {
     let mut packet_ids = Vec::new();
     for i in 0..10 {
         let result = pub_client
-            .publish_qos1("test/qos1", format!("Message {}", i))
+            .publish_qos1("test/qos1", format!("Message {i}"))
             .await
             .unwrap();
         match result {
             PublishResult::QoS1Or2 { packet_id } => packet_ids.push(packet_id),
-            _ => panic!("Expected QoS1Or2 result"),
+            PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
         }
     }
 
     // All packet IDs should be unique
     let mut unique_ids = packet_ids.clone();
-    unique_ids.sort();
+    unique_ids.sort_unstable();
     unique_ids.dedup();
     assert_eq!(packet_ids.len(), unique_ids.len());
 
@@ -129,18 +129,18 @@ async fn test_qos2_exactly_once() {
     let mut packet_ids = Vec::new();
     for i in 0..10 {
         let result = pub_client
-            .publish_qos2("test/qos2", format!("Message {}", i))
+            .publish_qos2("test/qos2", format!("Message {i}"))
             .await
             .unwrap();
         match result {
             PublishResult::QoS1Or2 { packet_id } => packet_ids.push(packet_id),
-            _ => panic!("Expected QoS1Or2 result"),
+            PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
         }
     }
 
     // All packet IDs should be unique
     let mut unique_ids = packet_ids.clone();
-    unique_ids.sort();
+    unique_ids.sort_unstable();
     unique_ids.dedup();
     assert_eq!(packet_ids.len(), unique_ids.len());
 
@@ -274,7 +274,7 @@ async fn test_qos1_retransmission() {
         .unwrap();
     match result {
         PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-        _ => panic!("Expected QoS1Or2 result for QoS 1 publish"),
+        PublishResult::QoS0 => panic!("Expected QoS1Or2 result for QoS 1 publish, got QoS0"),
     }
 
     // Wait for message to arrive
@@ -316,7 +316,7 @@ async fn test_qos2_no_duplicates() {
     // Send multiple messages with QoS 2
     for i in 0..5 {
         client
-            .publish_qos2("test/nodup", format!("Message {}", i))
+            .publish_qos2("test/nodup", format!("Message {i}"))
             .await
             .unwrap();
     }
@@ -325,14 +325,16 @@ async fn test_qos2_no_duplicates() {
     sleep(Duration::from_secs(1)).await;
 
     // Check we received exactly one copy of each
-    let msgs = messages.lock().unwrap();
-    assert_eq!(msgs.len(), 5);
+    {
+        let msgs = messages.lock().unwrap();
+        assert_eq!(msgs.len(), 5);
 
-    // All messages should be unique
-    let mut unique_msgs = msgs.clone();
-    unique_msgs.sort();
-    unique_msgs.dedup();
-    assert_eq!(msgs.len(), unique_msgs.len());
+        // All messages should be unique
+        let mut unique_msgs = msgs.clone();
+        unique_msgs.sort();
+        unique_msgs.dedup();
+        assert_eq!(msgs.len(), unique_msgs.len());
+    } // Drop the lock before awaiting
 
     client.disconnect().await.unwrap();
 }
@@ -377,22 +379,24 @@ async fn test_mixed_qos_levels() {
 
     sleep(Duration::from_millis(500)).await;
 
-    let counts = qos_counts.lock().unwrap();
-    println!(
-        "Received: QoS0={}, QoS1={}, QoS2={}",
-        counts[0], counts[1], counts[2]
-    );
+    {
+        let counts = qos_counts.lock().unwrap();
+        println!(
+            "Received: QoS0={}, QoS1={}, QoS2={}",
+            counts[0], counts[1], counts[2]
+        );
 
-    // Should receive all messages
-    assert_eq!(counts[0], 1, "Should receive QoS 0 message");
-    assert_eq!(
-        counts[1], 2,
-        "Should receive QoS 1 and downgraded QoS 2 messages"
-    );
-    assert_eq!(
-        counts[2], 0,
-        "No messages should be received at QoS 2 (subscription is QoS 1)"
-    );
+        // Should receive all messages
+        assert_eq!(counts[0], 1, "Should receive QoS 0 message");
+        assert_eq!(
+            counts[1], 2,
+            "Should receive QoS 1 and downgraded QoS 2 messages"
+        );
+        assert_eq!(
+            counts[2], 0,
+            "No messages should be received at QoS 2 (subscription is QoS 1)"
+        );
+    } // Drop the lock before awaiting
 
     client.disconnect().await.unwrap();
 }
@@ -465,15 +469,15 @@ async fn test_qos_packet_id_exhaustion() {
     // Send 100 messages rapidly
     for i in 0..100 {
         match client
-            .publish_qos1("test/exhaustion", format!("Message {}", i))
+            .publish_qos1("test/exhaustion", format!("Message {i}"))
             .await
         {
             Ok(result) => match result {
                 PublishResult::QoS1Or2 { packet_id } => packet_ids.push(packet_id),
-                _ => panic!("Expected QoS1Or2 result"),
+                PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
             },
             Err(e) => {
-                println!("Failed to send message {}: {:?}", i, e);
+                println!("Failed to send message {i}: {e:?}");
                 break;
             }
         }
@@ -483,7 +487,7 @@ async fn test_qos_packet_id_exhaustion() {
 
     // All successful packet IDs should be unique
     let mut unique_ids = packet_ids.clone();
-    unique_ids.sort();
+    unique_ids.sort_unstable();
     unique_ids.dedup();
     assert_eq!(
         packet_ids.len(),

@@ -40,7 +40,7 @@ pub trait PacketIo: Transport {
                 }
                 header_buf.put_u8(byte[0]);
 
-                if (byte[0] & 0x80) == 0 {
+                if (byte[0] & crate::constants::masks::CONTINUATION_BIT) == 0 {
                     break;
                 }
 
@@ -78,77 +78,12 @@ pub trait PacketIo: Transport {
 
             // Parse packet based on type
             let mut payload_buf = BytesMut::from(&payload[..]);
-
-            match fixed_header.packet_type {
-                PacketType::Connect => {
-                    use crate::packet::connect::ConnectPacket;
-                    let packet = ConnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Connect(Box::new(packet)))
-                }
-                PacketType::ConnAck => {
-                    use crate::packet::connack::ConnAckPacket;
-                    let packet = ConnAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::ConnAck(packet))
-                }
-                PacketType::Publish => {
-                    use crate::packet::publish::PublishPacket;
-                    let packet = PublishPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Publish(packet))
-                }
-                PacketType::PubAck => {
-                    use crate::packet::puback::PubAckPacket;
-                    tracing::trace!(payload_len = payload.len(), "Decoding PUBACK packet");
-                    let packet = PubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubAck(packet))
-                }
-                PacketType::PubRec => {
-                    use crate::packet::pubrec::PubRecPacket;
-                    let packet = PubRecPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubRec(packet))
-                }
-                PacketType::PubRel => {
-                    use crate::packet::pubrel::PubRelPacket;
-                    let packet = PubRelPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubRel(packet))
-                }
-                PacketType::PubComp => {
-                    use crate::packet::pubcomp::PubCompPacket;
-                    let packet = PubCompPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::PubComp(packet))
-                }
-                PacketType::Subscribe => {
-                    use crate::packet::subscribe::SubscribePacket;
-                    let packet = SubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Subscribe(packet))
-                }
-                PacketType::SubAck => {
-                    use crate::packet::suback::SubAckPacket;
-                    let packet = SubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::SubAck(packet))
-                }
-                PacketType::Unsubscribe => {
-                    use crate::packet::unsubscribe::UnsubscribePacket;
-                    let packet = UnsubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Unsubscribe(packet))
-                }
-                PacketType::UnsubAck => {
-                    use crate::packet::unsuback::UnsubAckPacket;
-                    let packet = UnsubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::UnsubAck(packet))
-                }
-                PacketType::PingReq => Ok(Packet::PingReq),
-                PacketType::PingResp => Ok(Packet::PingResp),
-                PacketType::Disconnect => {
-                    use crate::packet::disconnect::DisconnectPacket;
-                    let packet = DisconnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Disconnect(packet))
-                }
-                PacketType::Auth => {
-                    use crate::packet::auth::AuthPacket;
-                    let packet = AuthPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                    Ok(Packet::Auth(packet))
-                }
+            
+            if fixed_header.packet_type == PacketType::PubAck {
+                tracing::trace!(payload_len = payload.len(), "Decoding PUBACK packet");
             }
+            
+            Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
         }
     }
 
@@ -236,9 +171,9 @@ where
     encode_body(&mut body_buf)?;
 
     // Write fixed header
-    let byte1 = (u8::from(packet_type) << 4) | (flags & 0x0F);
+    let byte1 = (u8::from(packet_type) << 4) | (flags & crate::constants::masks::FLAGS);
     buf.put_u8(byte1);
-    encode_variable_int(buf, body_buf.len().min(u32::MAX as usize) as u32)?;
+    encode_variable_int(buf, u32::try_from(body_buf.len()).unwrap_or(u32::MAX))?;
 
     // Write body
     buf.put(body_buf);
@@ -291,7 +226,7 @@ impl PacketReader for OwnedReadHalf {
             }
             header_buf.put_u8(byte[0]);
 
-            if (byte[0] & 0x80) == 0 {
+            if (byte[0] & crate::constants::masks::CONTINUATION_BIT) == 0 {
                 break;
             }
 
@@ -321,76 +256,7 @@ impl PacketReader for OwnedReadHalf {
 
         // Parse packet based on type
         let mut payload_buf = BytesMut::from(&payload[..]);
-
-        match fixed_header.packet_type {
-            PacketType::Connect => {
-                use crate::packet::connect::ConnectPacket;
-                let packet = ConnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Connect(Box::new(packet)))
-            }
-            PacketType::ConnAck => {
-                use crate::packet::connack::ConnAckPacket;
-                let packet = ConnAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::ConnAck(packet))
-            }
-            PacketType::Publish => {
-                use crate::packet::publish::PublishPacket;
-                let packet = PublishPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Publish(packet))
-            }
-            PacketType::PubAck => {
-                use crate::packet::puback::PubAckPacket;
-                let packet = PubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::PubAck(packet))
-            }
-            PacketType::PubRec => {
-                use crate::packet::pubrec::PubRecPacket;
-                let packet = PubRecPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::PubRec(packet))
-            }
-            PacketType::PubRel => {
-                use crate::packet::pubrel::PubRelPacket;
-                let packet = PubRelPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::PubRel(packet))
-            }
-            PacketType::PubComp => {
-                use crate::packet::pubcomp::PubCompPacket;
-                let packet = PubCompPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::PubComp(packet))
-            }
-            PacketType::Subscribe => {
-                use crate::packet::subscribe::SubscribePacket;
-                let packet = SubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Subscribe(packet))
-            }
-            PacketType::SubAck => {
-                use crate::packet::suback::SubAckPacket;
-                let packet = SubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::SubAck(packet))
-            }
-            PacketType::Unsubscribe => {
-                use crate::packet::unsubscribe::UnsubscribePacket;
-                let packet = UnsubscribePacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Unsubscribe(packet))
-            }
-            PacketType::UnsubAck => {
-                use crate::packet::unsuback::UnsubAckPacket;
-                let packet = UnsubAckPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::UnsubAck(packet))
-            }
-            PacketType::PingReq => Ok(Packet::PingReq),
-            PacketType::PingResp => Ok(Packet::PingResp),
-            PacketType::Disconnect => {
-                use crate::packet::disconnect::DisconnectPacket;
-                let packet = DisconnectPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Disconnect(packet))
-            }
-            PacketType::Auth => {
-                use crate::packet::auth::AuthPacket;
-                let packet = AuthPacket::decode_body(&mut payload_buf, &fixed_header)?;
-                Ok(Packet::Auth(packet))
-            }
-        }
+        Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
     }
 }
 
@@ -475,8 +341,8 @@ mod tests {
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
-        // Inject a PINGRESP packet (0xD0 0x00)
-        transport.add_incoming_data(&[0xD0, 0x00]).await;
+        // Inject a PINGRESP packet
+        transport.add_incoming_data(&crate::constants::packets::PINGRESP_BYTES).await;
 
         let packet = transport.read_packet().await.unwrap();
         assert!(matches!(packet, Packet::PingResp));
@@ -487,8 +353,8 @@ mod tests {
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
-        // Inject a PINGREQ packet (0xC0 0x00)
-        transport.add_incoming_data(&[0xC0, 0x00]).await;
+        // Inject a PINGREQ packet
+        transport.add_incoming_data(&crate::constants::packets::PINGREQ_BYTES).await;
 
         let packet = transport.read_packet().await.unwrap();
         assert!(matches!(packet, Packet::PingReq));
@@ -499,14 +365,17 @@ mod tests {
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
-        // Create a simple CONNACK: fixed header + session present + reason code + properties
-        let data = vec![
-            0x20, // CONNACK type
-            0x03, // Remaining length
-            0x00, // Session not present
-            0x00, // Success reason code
-            0x00, // No properties
-        ];
+        // Create a CONNACK packet using proper encoding
+        use crate::packet::connack::ConnAckPacket;
+        let connack = ConnAckPacket {
+            protocol_version: 5,
+            session_present: false,
+            reason_code: ReasonCode::Success,
+            properties: Properties::new(),
+        };
+        
+        let mut data = BytesMut::new();
+        connack.encode(&mut data).unwrap();
         transport.add_incoming_data(&data).await;
 
         let packet = transport.read_packet().await.unwrap();
@@ -528,23 +397,23 @@ mod tests {
         let topic = "test/topic";
         let payload = b"Hello MQTT";
 
-        let mut data = vec![
-            0x30,                                                             // PUBLISH with QoS 0
-            u8::try_from(2 + topic.len() + 1 + payload.len()).unwrap_or(255), // Remaining length (topic_len + topic + props + payload)
-        ];
-
-        // Topic length and name
-        data.extend_from_slice(&[
-            ((topic.len() >> 8) & 0xFF) as u8,
-            (topic.len() & 0xFF) as u8,
-        ]);
-        data.extend_from_slice(topic.as_bytes());
-
+        // Use proper encoding
+        let mut buf = BytesMut::new();
+        
+        // Encode topic string using the proper function
+        crate::encoding::encode_string(&mut buf, topic).unwrap();
+        
         // Properties length (0 for no properties)
-        data.push(0x00);
-
+        buf.put_u8(0x00);
+        
         // Payload
-        data.extend_from_slice(payload);
+        buf.extend_from_slice(payload);
+        
+        // Now create the full packet with fixed header
+        let mut data = BytesMut::new();
+        data.put_u8(0x30); // PUBLISH with QoS 0
+        crate::encoding::encode_variable_int(&mut data, u32::try_from(buf.len()).unwrap()).unwrap();
+        data.extend_from_slice(&buf);
 
         transport.add_incoming_data(&data).await;
 
@@ -566,10 +435,11 @@ mod tests {
         transport.connect().await.unwrap();
 
         // Create packet with invalid remaining length (5 bytes with continuation bit)
-        let data = vec![
-            0x30, // PUBLISH
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Invalid - too many bytes
-        ];
+        // This must be manually constructed as it's testing invalid encoding
+        let mut data = BytesMut::new();
+        data.put_u8(crate::constants::fixed_header::PUBLISH_BASE);
+        // Invalid variable byte integer - 5 bytes all with continuation bit
+        data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         transport.add_incoming_data(&data).await;
 
         let result = transport.read_packet().await;
@@ -599,7 +469,7 @@ mod tests {
         transport.write_packet(Packet::PingReq).await.unwrap();
 
         let written = transport.get_written_data().await;
-        assert_eq!(written, vec![0xC0, 0x00]); // PINGREQ packet
+        assert_eq!(written, crate::constants::packets::PINGREQ_BYTES.to_vec()); // PINGREQ packet
     }
 
     #[tokio::test]
@@ -626,7 +496,7 @@ mod tests {
 
         // Verify fixed header
         assert_eq!(written[0] >> 4, u8::from(PacketType::Publish));
-        assert_eq!(written[0] & 0x0F, 0x02); // QoS 1 flag
+        assert_eq!(written[0] & crate::constants::masks::FLAGS, 0x02); // QoS 1 flag
 
         // Should contain topic, packet ID, and payload
         assert!(written.len() > 2 + 4 + 2 + 3); // header + topic + packet_id + payload
@@ -711,7 +581,7 @@ mod tests {
         encode_packet(&mut buf, PacketType::PingReq, 0, |_| Ok(())).unwrap();
 
         assert_eq!(buf.len(), 2);
-        assert_eq!(buf[0], 0xC0); // PINGREQ type
+        assert_eq!(buf[0], crate::constants::fixed_header::PINGREQ); // PINGREQ type
         assert_eq!(buf[1], 0x00); // Zero length
     }
 
@@ -722,8 +592,8 @@ mod tests {
 
         // Create a publish with large payload to test variable length encoding
         let mut large_payload = vec![0u8; 200];
-        for i in 0..200 {
-            large_payload[i] = (i % 256) as u8;
+        for (i, byte) in large_payload.iter_mut().enumerate() {
+            *byte = u8::try_from(i % 256).expect("modulo 256 always fits in u8");
         }
 
         let publish = PublishPacket {
@@ -744,7 +614,7 @@ mod tests {
         let written = transport.get_written_data().await;
 
         // Verify the remaining length uses 2 bytes (since payload > 127)
-        assert!(written[1] & 0x80 != 0); // Continuation bit set
+        assert!(written[1] & crate::constants::masks::CONTINUATION_BIT != 0); // Continuation bit set
         assert!(written.len() > 200); // Contains the large payload
     }
 }

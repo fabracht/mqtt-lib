@@ -72,7 +72,8 @@ async fn test_clean_start_false() {
         .unwrap();
 
     // Note: Some brokers may not preserve sessions even with clean_start=false
-    println!("Session present: {}", session_present.session_present);
+    let session_present_flag = session_present.session_present;
+    println!("Session present: {session_present_flag}");
     if !session_present.session_present {
         println!("Warning: Broker did not preserve session. This is broker-dependent behavior.");
     }
@@ -189,7 +190,7 @@ async fn test_qos1_message_persistence() {
 
     for i in 0..5 {
         pub_client
-            .publish_qos1("test/persist/qos1", format!("Offline message {}", i))
+            .publish_qos1("test/persist/qos1", format!("Offline message {i}"))
             .await
             .unwrap();
     }
@@ -238,7 +239,7 @@ async fn test_qos1_message_persistence() {
     sleep(Duration::from_secs(2)).await;
 
     let count = received.load(Ordering::Relaxed);
-    println!("Received {} offline messages", count);
+    println!("Received {count} offline messages");
     // Only assert if session was preserved
     if session_present.session_present {
         assert!(
@@ -280,7 +281,7 @@ async fn test_qos2_message_persistence() {
 
     for i in 0..3 {
         pub_client
-            .publish_qos2("test/persist/qos2", format!("QoS2 offline message {}", i))
+            .publish_qos2("test/persist/qos2", format!("QoS2 offline message {i}"))
             .await
             .unwrap();
     }
@@ -317,14 +318,17 @@ async fn test_qos2_message_persistence() {
     // Wait for queued messages
     sleep(Duration::from_secs(2)).await;
 
-    let msgs = messages.lock().unwrap();
-    println!("Received {} QoS 2 offline messages", msgs.len());
+    {
+        let msgs = messages.lock().unwrap();
+        let msg_count = msgs.len();
+        println!("Received {msg_count} QoS 2 offline messages");
 
-    // Should receive exactly once
-    let mut unique_msgs = msgs.clone();
-    unique_msgs.sort();
-    unique_msgs.dedup();
-    assert_eq!(msgs.len(), unique_msgs.len(), "No duplicate QoS 2 messages");
+        // Should receive exactly once
+        let mut unique_msgs = msgs.clone();
+        unique_msgs.sort();
+        unique_msgs.dedup();
+        assert_eq!(msgs.len(), unique_msgs.len(), "No duplicate QoS 2 messages");
+    } // Drop the lock before awaiting
 
     sub_client2.disconnect().await.unwrap();
 }
@@ -387,11 +391,13 @@ async fn test_subscription_persistence() {
 
     sleep(Duration::from_millis(500)).await;
 
-    let topics = received_topics.lock().unwrap();
-    assert!(
-        topics.len() >= 3,
-        "Should receive messages on persisted subscriptions"
-    );
+    {
+        let topics = received_topics.lock().unwrap();
+        assert!(
+            topics.len() >= 3,
+            "Should receive messages on persisted subscriptions"
+        );
+    } // Drop the lock before awaiting
 
     client2.disconnect().await.unwrap();
 }
@@ -439,7 +445,7 @@ async fn test_will_message_persistence() {
 
     // Will message delivery depends on broker implementation
     let received = will_received.load(Ordering::Relaxed);
-    println!("Will message received: {}", received);
+    println!("Will message received: {received}");
     if !received {
         println!("Warning: Will message not received. This may be due to broker configuration or the connection not being detected as abnormal.");
     }
@@ -461,7 +467,7 @@ async fn test_packet_id_persistence() {
     let mut first_ids = Vec::new();
     for i in 0..5 {
         let id = client1
-            .publish_qos1("test/pid", format!("Message {}", i))
+            .publish_qos1("test/pid", format!("Message {i}"))
             .await
             .unwrap();
         first_ids.push(id);
@@ -476,7 +482,7 @@ async fn test_packet_id_persistence() {
     let mut second_ids = Vec::new();
     for i in 5..10 {
         let id = client2
-            .publish_qos1("test/pid", format!("Message {}", i))
+            .publish_qos1("test/pid", format!("Message {i}"))
             .await
             .unwrap();
         second_ids.push(id);
@@ -484,8 +490,8 @@ async fn test_packet_id_persistence() {
 
     // With clean disconnection, packet IDs can be reused
     // This is normal behavior as the previous IDs were acknowledged
-    println!("First session IDs: {:?}", first_ids);
-    println!("Second session IDs: {:?}", second_ids);
+    println!("First session IDs: {first_ids:?}");
+    println!("Second session IDs: {second_ids:?}");
 
     client2.disconnect().await.unwrap();
 }
@@ -527,7 +533,7 @@ async fn test_inflight_message_persistence() {
     // Some might still be in-flight
     for i in 0..10 {
         let _ = pub_client
-            .publish_qos1("test/inflight", format!("Msg {}", i))
+            .publish_qos1("test/inflight", format!("Msg {i}"))
             .await;
     }
 
@@ -538,7 +544,7 @@ async fn test_inflight_message_persistence() {
     sleep(Duration::from_millis(500)).await;
 
     let initial_count = received.load(Ordering::Relaxed);
-    println!("Initially received: {} messages", initial_count);
+    println!("Initially received: {initial_count} messages");
 
     // Reconnect publisher - any in-flight messages should be retransmitted
     let pub_client2 =
@@ -549,7 +555,7 @@ async fn test_inflight_message_persistence() {
     sleep(Duration::from_secs(1)).await;
 
     let final_count = received.load(Ordering::Relaxed);
-    println!("Finally received: {} messages", final_count);
+    println!("Finally received: {final_count} messages");
 
     // Should eventually receive all messages
     assert!(

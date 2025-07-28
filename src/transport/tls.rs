@@ -151,7 +151,7 @@ impl TlsConfig {
 
     /// Sets ALPN protocols
     #[must_use]
-    pub fn with_alpn_protocols(mut self, protocols: Vec<&str>) -> Self {
+    pub fn with_alpn_protocols(mut self, protocols: &[&str]) -> Self {
         self.alpn_protocols = Some(protocols.iter().map(|p| p.as_bytes().to_vec()).collect());
         self
     }
@@ -316,7 +316,7 @@ impl TlsTransport {
 
         // Configure ALPN protocols if provided
         if let Some(ref protocols) = self.config.alpn_protocols {
-            config.alpn_protocols = protocols.clone();
+            config.alpn_protocols.clone_from(protocols);
         }
 
         Ok(config)
@@ -419,7 +419,7 @@ mod tests {
     fn test_tls_config_with_alpn() {
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
         let config =
-            TlsConfig::new(addr, "localhost").with_alpn_protocols(vec!["mqtt", "x-amzn-mqtt-ca"]);
+            TlsConfig::new(addr, "localhost").with_alpn_protocols(&["mqtt", "x-amzn-mqtt-ca"]);
 
         assert!(config.alpn_protocols.is_some());
         let protocols = config.alpn_protocols.unwrap();
@@ -456,6 +456,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_tls_connect_real_broker() {
+        use crate::packet::connect::ConnectPacket;
+        use crate::packet::MqttPacket;
+        use crate::protocol::v5::properties::Properties;
+
         let mut config = TlsConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8884),
             "localhost",
@@ -477,9 +481,6 @@ mod tests {
         assert!(transport.is_connected());
 
         // Write MQTT CONNECT packet using proper packet construction
-        use crate::packet::connect::ConnectPacket;
-        use crate::packet::MqttPacket;
-        use crate::protocol::v5::properties::Properties;
 
         let connect = ConnectPacket {
             client_id: "tls_test".to_string(),

@@ -13,7 +13,7 @@ async fn test_connection_refused_wrong_port() {
 
     match result.unwrap_err() {
         MqttError::ConnectionError(_) => {} // Expected: connection refused
-        other => panic!("Expected ConnectionError, got: {:?}", other),
+        other => panic!("Expected ConnectionError, got: {other:?}"),
     }
 }
 
@@ -58,7 +58,7 @@ async fn test_publish_before_connect() {
 
     match result.unwrap_err() {
         MqttError::NotConnected => {} // Expected
-        other => panic!("Expected NotConnected error, got: {:?}", other),
+        other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
 
@@ -71,7 +71,7 @@ async fn test_subscribe_before_connect() {
 
     match result.unwrap_err() {
         MqttError::NotConnected => {} // Expected
-        other => panic!("Expected NotConnected error, got: {:?}", other),
+        other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
 
@@ -133,7 +133,7 @@ async fn test_packet_too_large() {
 
     match result.unwrap_err() {
         MqttError::PacketTooLarge { .. } => {} // Expected
-        other => panic!("Expected PacketTooLarge error, got: {:?}", other),
+        other => panic!("Expected PacketTooLarge error, got: {other:?}"),
     }
 
     client.disconnect().await.unwrap();
@@ -152,7 +152,7 @@ async fn test_duplicate_connect() {
 
     match result.unwrap_err() {
         MqttError::AlreadyConnected => {} // Expected
-        other => panic!("Expected AlreadyConnected error, got: {:?}", other),
+        other => panic!("Expected AlreadyConnected error, got: {other:?}"),
     }
 
     client.disconnect().await.unwrap();
@@ -168,7 +168,7 @@ async fn test_disconnect_not_connected() {
 
     match result.unwrap_err() {
         MqttError::NotConnected => {} // Expected
-        other => panic!("Expected NotConnected error, got: {:?}", other),
+        other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
 
@@ -241,8 +241,10 @@ async fn test_subscribe_with_invalid_qos() {
     client.connect("mqtt://localhost:1883").await.unwrap();
 
     // Create subscribe options with valid QoS
-    let mut options = SubscribeOptions::default();
-    options.qos = QoS::ExactlyOnce; // Valid QoS 2
+    let options = SubscribeOptions {
+        qos: QoS::ExactlyOnce, // Valid QoS 2
+        ..Default::default()
+    };
 
     // Subscribe should work
     let result = client
@@ -312,15 +314,17 @@ async fn test_flow_control_exceeded() {
         .unwrap();
 
     // Send multiple QoS 1 messages quickly
-    let mut pub_options = PublishOptions::default();
-    pub_options.qos = QoS::AtLeastOnce;
+    let pub_options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     // First two should succeed
     for i in 0..2 {
         let result = client
             .publish_with_options(
-                &format!("test/flow/{}", i),
-                format!("message {}", i),
+                &format!("test/flow/{i}"),
+                format!("message {i}"),
                 pub_options.clone(),
             )
             .await;

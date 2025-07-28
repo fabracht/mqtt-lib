@@ -36,7 +36,7 @@ async fn test_keepalive_activity_resets_timer() {
     // This activity should prevent pings
     for i in 0..10 {
         client
-            .publish("test/keepalive", format!("msg {}", i))
+            .publish("test/keepalive", format!("msg {i}"))
             .await
             .unwrap();
         sleep(Duration::from_millis(500)).await;
@@ -108,7 +108,7 @@ async fn test_keepalive_with_qos_messages() {
         client
             .publish_qos(
                 "test/keepalive/qos",
-                format!("qos message {}", i),
+                format!("qos message {i}"),
                 mqtt_v5::QoS::AtLeastOnce,
             )
             .await

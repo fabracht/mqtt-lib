@@ -15,7 +15,7 @@ async fn test_error_callback_registration() {
     // Register error callback
     client
         .on_error(move |error| {
-            println!("Error occurred: {}", error);
+            println!("Error occurred: {error}");
             error_count_clone.fetch_add(1, Ordering::Relaxed);
         })
         .await
@@ -44,10 +44,12 @@ async fn test_error_recovery_config() {
     assert_eq!(config.max_retries, 3);
 
     // Update config
-    let mut new_config = ErrorRecoveryConfig::default();
-    new_config.auto_retry = false;
-    new_config.max_retries = 5;
-    new_config.initial_retry_delay = Duration::from_secs(1);
+    let new_config = ErrorRecoveryConfig {
+        auto_retry: false,
+        max_retries: 5,
+        initial_retry_delay: Duration::from_secs(1),
+        ..Default::default()
+    };
 
     client.set_error_recovery_config(new_config.clone()).await;
 
@@ -104,8 +106,10 @@ async fn test_disable_auto_retry() {
     let client = MqttClient::new("test-client");
 
     // Disable auto retry
-    let mut config = ErrorRecoveryConfig::default();
-    config.auto_retry = false;
+    let config = ErrorRecoveryConfig {
+        auto_retry: false,
+        ..Default::default()
+    };
     client.set_error_recovery_config(config).await;
 
     // Attempt to publish while disconnected should fail immediately

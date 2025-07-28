@@ -78,8 +78,8 @@ fn test_topic_alias_manager_invalid() {
 fn test_topic_alias_manager_clear() {
     let mut tam = TopicAliasManager::new(10);
 
-    tam.get_or_create_alias("topic/1");
-    tam.get_or_create_alias("topic/2");
+    let _ = tam.get_or_create_alias("topic/1");
+    let _ = tam.get_or_create_alias("topic/2");
     tam.register_alias(5, "topic/5").unwrap();
 
     tam.clear();

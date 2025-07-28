@@ -257,16 +257,16 @@ mod tests {
 
     #[test]
     fn test_result_type() {
+        #[allow(clippy::unnecessary_wraps)]
         fn returns_result() -> Result<String> {
             Ok("success".to_string())
         }
-
-        assert!(returns_result().is_ok());
 
         fn returns_error() -> Result<String> {
             Err(MqttError::NotConnected)
         }
 
+        assert!(returns_result().is_ok());
         assert!(returns_error().is_err());
     }
 }

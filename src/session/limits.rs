@@ -40,7 +40,7 @@ impl LimitsManager {
 
     #[must_use]
     /// Creates a new limits manager with default configuration
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         Self::new(LimitsConfig::default())
     }
 
@@ -117,7 +117,7 @@ impl LimitsManager {
                 let now = Instant::now();
                 if now < expiry {
                     let remaining = expiry.duration_since(now);
-                    Some(remaining.as_secs().min(u64::from(u32::MAX)) as u32)
+                    Some(u32::try_from(remaining.as_secs()).unwrap_or(u32::MAX))
                 } else {
                     Some(0) // Expired
                 }
@@ -196,7 +196,7 @@ impl ExpiringMessage {
                 let now = Instant::now();
                 if now < expiry {
                     let remaining = expiry.duration_since(now);
-                    Some(remaining.as_secs().min(u64::from(u32::MAX)) as u32)
+                    Some(u32::try_from(remaining.as_secs()).unwrap_or(u32::MAX))
                 } else {
                     Some(0)
                 }
@@ -212,14 +212,14 @@ mod tests {
 
     #[test]
     fn test_limits_manager_creation() {
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
         assert_eq!(limits.client_maximum_packet_size(), 268_435_456);
         assert_eq!(limits.server_maximum_packet_size(), None);
     }
 
     #[test]
     fn test_effective_packet_size() {
-        let mut limits = LimitsManager::default();
+        let mut limits = LimitsManager::with_defaults();
 
         // Only client limit
         assert_eq!(limits.effective_maximum_packet_size(), 268_435_456);
@@ -229,8 +229,10 @@ mod tests {
         assert_eq!(limits.effective_maximum_packet_size(), 1_048_576);
 
         // Server limit higher than client
-        let mut config = LimitsConfig::default();
-        config.client_maximum_packet_size = 1_048_576; // 1 MB
+        let config = LimitsConfig {
+            client_maximum_packet_size: 1_048_576, // 1 MB
+            ..Default::default()
+        };
         let mut limits = LimitsManager::new(config);
         limits.set_server_maximum_packet_size(10_485_760); // 10 MB
         assert_eq!(limits.effective_maximum_packet_size(), 1_048_576);
@@ -238,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_packet_size_checking() {
-        let mut limits = LimitsManager::default();
+        let mut limits = LimitsManager::with_defaults();
         limits.set_server_maximum_packet_size(1024);
 
         // Within limits
@@ -256,8 +258,10 @@ mod tests {
 
     #[test]
     fn test_message_expiry() {
-        let mut config = LimitsConfig::default();
-        config.default_message_expiry = Some(Duration::from_secs(60));
+        let config = LimitsConfig {
+            default_message_expiry: Some(Duration::from_secs(60)),
+            ..Default::default()
+        };
         let limits = LimitsManager::new(config);
 
         // With explicit expiry
@@ -269,7 +273,7 @@ mod tests {
         assert!(expiry_time.is_some());
 
         // Check expiry
-        let past_time = Some(Instant::now() - Duration::from_secs(10));
+        let past_time = Some(Instant::now().checked_sub(Duration::from_secs(10)).unwrap());
         assert!(limits.is_message_expired(past_time));
 
         let future_time = Some(Instant::now() + Duration::from_secs(10));
@@ -278,21 +282,21 @@ mod tests {
 
     #[test]
     fn test_remaining_expiry() {
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let future_time = Some(Instant::now() + Duration::from_secs(100));
         let remaining = limits.get_remaining_expiry(future_time);
         assert!(remaining.is_some());
         assert!(remaining.unwrap() > 95 && remaining.unwrap() <= 100);
 
-        let past_time = Some(Instant::now() - Duration::from_secs(10));
+        let past_time = Some(Instant::now().checked_sub(Duration::from_secs(10)).unwrap());
         let remaining = limits.get_remaining_expiry(past_time);
         assert_eq!(remaining, Some(0));
     }
 
     #[test]
     fn test_expiring_message() {
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let msg = ExpiringMessage::new(
             "test/topic".to_string(),
@@ -319,15 +323,17 @@ mod tests {
         );
 
         // Manually set to past
-        msg.expiry_time = Some(Instant::now() - Duration::from_secs(10));
+        msg.expiry_time = Some(Instant::now().checked_sub(Duration::from_secs(10)).unwrap());
         assert!(msg.is_expired());
         assert_eq!(msg.remaining_expiry_interval(), Some(0));
     }
 
     #[test]
     fn test_max_expiry_limit() {
-        let mut config = LimitsConfig::default();
-        config.max_message_expiry = Some(Duration::from_secs(3600)); // 1 hour max
+        let config = LimitsConfig {
+            max_message_expiry: Some(Duration::from_secs(3600)), // 1 hour max
+            ..Default::default()
+        };
         let limits = LimitsManager::new(config);
 
         // Request 2 hours, should be capped to 1 hour

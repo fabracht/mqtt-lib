@@ -210,7 +210,7 @@ fn benchmark_message_queue_stress(c: &mut Criterion) {
     group.bench_function("queue_dequeue_cycle", |b| {
         let mut config = SessionConfig::default();
         config.max_queued_messages = 1000;
-        config.max_queued_size = 1048576; // 1MB
+        config.max_queued_size = 1_048_576; // 1MB
 
         let session = SessionState::new("bench-client".to_string(), config, true);
 
@@ -251,8 +251,7 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
                 // Simulate 10 sensors publishing data
                 for sensor_id in 0..10 {
                     let topic = format!("sensors/{}/temperature", sensor_id);
-                    let payload =
-                        format!(r#"{{"temp": 23.5, "humidity": 45, "timestamp": 1234567890}}"#);
+                    let payload = r#"{"temp": 23.5, "humidity": 45, "timestamp": 1234567890}"#;
 
                     let mut props = Properties::new();
                     props

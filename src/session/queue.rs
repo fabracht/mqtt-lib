@@ -84,7 +84,6 @@ impl MessageQueue {
         }
     }
 
-    #[must_use]
     /// Enqueues a message with expiry tracking
     ///
     /// Returns information about the queue operation including whether the message
@@ -256,11 +255,12 @@ pub struct QueueStats {
 mod tests {
     use super::*;
     use crate::session::limits::LimitsConfig;
+    use crate::test_utils::{test_expiring_message, TestMessageBuilder};
 
     #[test]
     fn test_queue_basic_operations() {
         let mut queue = MessageQueue::new(10, 1024);
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let msg1 = ExpiringMessage::new(
             "test/1".to_string(),
@@ -303,18 +303,9 @@ mod tests {
     #[test]
     fn test_queue_max_messages() {
         let mut queue = MessageQueue::new(2, 1024);
-        let limits = LimitsManager::default();
 
-        for i in 0..3 {
-            let msg = ExpiringMessage::new(
-                format!("test/{}", i),
-                vec![i as u8],
-                QoS::AtMostOnce,
-                false,
-                None,
-                None,
-                &limits,
-            );
+        for i in 0u8..3 {
+            let msg = test_expiring_message(i);
             let result = queue.enqueue(msg).unwrap();
             assert!(result.was_queued);
         }
@@ -331,7 +322,7 @@ mod tests {
     #[test]
     fn test_queue_max_size() {
         let mut queue = MessageQueue::new(10, 20); // 20 bytes max
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let msg1 = ExpiringMessage::new(
             "test".to_string(), // 4 bytes
@@ -367,7 +358,7 @@ mod tests {
     #[test]
     fn test_queue_message_too_large() {
         let mut queue = MessageQueue::new(10, 20);
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let msg = ExpiringMessage::new(
             "test".to_string(),
@@ -386,18 +377,13 @@ mod tests {
     #[test]
     fn test_queue_batch_dequeue() {
         let mut queue = MessageQueue::new(10, 1024);
-        let limits = LimitsManager::default();
 
-        for i in 0..5 {
-            let msg = ExpiringMessage::new(
-                format!("test/{}", i),
-                vec![i as u8],
-                QoS::AtMostOnce,
-                false,
-                None,
-                None,
-                &limits,
-            );
+        // Use TestMessageBuilder to create a batch of messages
+        let messages = TestMessageBuilder::new()
+            .with_topic_prefix("test")
+            .build_expiring_batch(5);
+        
+        for msg in messages {
             let result = queue.enqueue(msg).unwrap();
             assert!(result.was_queued);
         }
@@ -414,18 +400,9 @@ mod tests {
     #[test]
     fn test_queue_clear() {
         let mut queue = MessageQueue::new(10, 1024);
-        let limits = LimitsManager::default();
 
-        for i in 0..3 {
-            let msg = ExpiringMessage::new(
-                format!("test/{}", i),
-                vec![i as u8],
-                QoS::AtMostOnce,
-                false,
-                None,
-                None,
-                &limits,
-            );
+        for i in 0u8..3 {
+            let msg = test_expiring_message(i);
             let result = queue.enqueue(msg).unwrap();
             assert!(result.was_queued);
         }
@@ -439,14 +416,14 @@ mod tests {
     #[test]
     fn test_queue_expired_messages() {
         let mut queue = MessageQueue::new(10, 1024);
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         // Add messages with artificial timestamps in the past
         let now = Instant::now();
-        for i in 0..3 {
+        for i in 0u8..3 {
             let msg = ExpiringMessage::new(
-                format!("test/{}", i),
-                vec![i as u8],
+                format!("test/{i}"),
+                vec![i],
                 QoS::AtMostOnce,
                 false,
                 None,
@@ -459,7 +436,7 @@ mod tests {
             // Manually adjust the timestamp of the last enqueued message
             if let Some(last) = queue.queue.back_mut() {
                 // Set timestamps: 30ms, 20ms, 10ms ago
-                last.queued_at = now - std::time::Duration::from_millis((3 - i) * 10);
+                last.queued_at = now.checked_sub(std::time::Duration::from_millis((3 - u64::from(i)) * 10)).unwrap();
             }
         }
 
@@ -474,7 +451,7 @@ mod tests {
     #[test]
     fn test_queue_stats() {
         let mut queue = MessageQueue::new(10, 1024);
-        let limits = LimitsManager::default();
+        let limits = LimitsManager::with_defaults();
 
         let msg = ExpiringMessage::new(
             "test".to_string(),
@@ -500,8 +477,10 @@ mod tests {
     #[test]
     fn test_queue_with_expiring_messages() {
         let mut queue = MessageQueue::new(10, 1024);
-        let mut config = LimitsConfig::default();
-        config.default_message_expiry = Some(std::time::Duration::from_millis(50));
+        let config = LimitsConfig {
+            default_message_expiry: Some(std::time::Duration::from_millis(50)),
+            ..Default::default()
+        };
         let limits = LimitsManager::new(config);
 
         // Add a message with short expiry

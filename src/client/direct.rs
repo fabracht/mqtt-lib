@@ -238,7 +238,7 @@ impl DirectClientInner {
         }
 
         // Stop background tasks
-        self.stop_background_tasks().await;
+        self.stop_background_tasks();
 
         // Clear state
         self.set_connected(false);
@@ -782,7 +782,7 @@ impl DirectClientInner {
     }
 
     /// Stop background tasks
-    async fn stop_background_tasks(&mut self) {
+    fn stop_background_tasks(&mut self) {
         if let Some(handle) = self.packet_reader_handle.take() {
             handle.abort();
         }
@@ -1128,7 +1128,7 @@ mod tests {
             reason_code: ReasonCode::Success,
             properties: Properties::default(),
         };
-        let connack_bytes = encode_packet(Packet::ConnAck(connack)).unwrap();
+        let connack_bytes = encode_packet(&Packet::ConnAck(connack)).unwrap();
         transport.inject_packet(connack_bytes).await;
 
         // Connect with mock transport
@@ -1141,7 +1141,7 @@ mod tests {
         let mock_transport = MockTransport::new();
         mock_transport
             .inject_packet(
-                encode_packet(Packet::ConnAck(ConnAckPacket {
+                encode_packet(&Packet::ConnAck(ConnAckPacket {
                     protocol_version: 5,
                     session_present: false,
                     reason_code: ReasonCode::Success,
@@ -1247,7 +1247,7 @@ mod tests {
                 payload: b"offline".to_vec(),
                 qos: QoS::AtLeastOnce,
                 retain: true,
-                properties: crate::protocol::v5::properties::WillProperties::default(),
+                properties: crate::WillProperties::default(),
             }),
             ..Default::default()
         };

@@ -7,9 +7,11 @@ use std::time::Duration;
 
 #[test]
 fn test_packet_size_validation() {
-    let mut config = LimitsConfig::default();
-    config.client_maximum_packet_size = 1024; // 1KB limit
-    config.server_maximum_packet_size = Some(512); // Server limit lower
+    let config = LimitsConfig {
+        client_maximum_packet_size: 1024,      // 1KB limit
+        server_maximum_packet_size: Some(512), // Server limit lower
+        ..Default::default()
+    };
     let limits = LimitsManager::new(config);
 
     // Should use the lower limit (server's)
@@ -32,9 +34,11 @@ fn test_packet_size_validation() {
 
 #[test]
 fn test_message_expiry_calculation() {
-    let mut config = LimitsConfig::default();
-    config.default_message_expiry = Some(Duration::from_secs(60));
-    config.max_message_expiry = Some(Duration::from_secs(300)); // 5 min max
+    let config = LimitsConfig {
+        default_message_expiry: Some(Duration::from_secs(60)),
+        max_message_expiry: Some(Duration::from_secs(300)), // 5 min max
+        ..Default::default()
+    };
     let limits = LimitsManager::new(config);
 
     // Explicit expiry within max
@@ -57,8 +61,10 @@ fn test_message_expiry_calculation() {
 #[test]
 fn test_expiring_message_in_queue() {
     let mut queue = MessageQueue::new(10, 1024);
-    let mut config = LimitsConfig::default();
-    config.default_message_expiry = Some(Duration::from_millis(100));
+    let config = LimitsConfig {
+        default_message_expiry: Some(Duration::from_millis(100)),
+        ..Default::default()
+    };
     let limits = LimitsManager::new(config);
 
     // Add messages with different expiry times
@@ -102,7 +108,7 @@ fn test_expiring_message_in_queue() {
 #[test]
 fn test_queue_with_mixed_expiry() {
     let mut queue = MessageQueue::new(10, 1024);
-    let limits = LimitsManager::default();
+    let limits = LimitsManager::with_defaults();
 
     // Add non-expiring message
     let msg1 = ExpiringMessage::new(
@@ -116,8 +122,10 @@ fn test_queue_with_mixed_expiry() {
     );
 
     // Add expiring message
-    let mut config = LimitsConfig::default();
-    config.default_message_expiry = Some(Duration::from_millis(50));
+    let config = LimitsConfig {
+        default_message_expiry: Some(Duration::from_millis(50)),
+        ..Default::default()
+    };
     let limits_with_expiry = LimitsManager::new(config);
 
     let msg2 = ExpiringMessage::new(
@@ -144,7 +152,7 @@ fn test_queue_with_mixed_expiry() {
 
 #[test]
 fn test_remaining_expiry_interval() {
-    let limits = LimitsManager::default();
+    let limits = LimitsManager::with_defaults();
 
     let mut msg = ExpiringMessage::new(
         "test".to_string(),
@@ -169,9 +177,11 @@ fn test_remaining_expiry_interval() {
 
 #[test]
 fn test_zero_packet_size_limit() {
-    let mut config = LimitsConfig::default();
-    config.client_maximum_packet_size = 0; // No limit
-    config.server_maximum_packet_size = Some(0); // No limit
+    let config = LimitsConfig {
+        client_maximum_packet_size: 0, // No limit
+        server_maximum_packet_size: Some(0), // No limit
+        ..Default::default()
+    };
     let limits = LimitsManager::new(config);
 
     // Should allow any size when limit is 0

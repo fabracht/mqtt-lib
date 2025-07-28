@@ -112,6 +112,7 @@
 
 pub mod callback;
 pub mod client;
+pub mod constants;
 pub mod encoding;
 pub mod error;
 pub mod flags;
@@ -120,7 +121,6 @@ pub mod packet_id;
 pub mod protocol;
 pub mod session;
 pub mod tasks; // Direct async tasks - NO event loops
-#[cfg(test)]
 pub mod test_utils;
 pub mod topic_matching;
 pub mod transport;
@@ -154,10 +154,9 @@ pub enum QoS {
 impl From<u8> for QoS {
     fn from(value: u8) -> Self {
         match value {
-            0 => QoS::AtMostOnce,
             1 => QoS::AtLeastOnce,
             2 => QoS::ExactlyOnce,
-            _ => QoS::AtMostOnce, // Default to QoS 0 for invalid values
+            _ => QoS::AtMostOnce, // Default to QoS 0 for invalid values (including 0)
         }
     }
 }

@@ -256,8 +256,7 @@ impl MqttPacket for ConnAckPacket {
                 ReasonCode::ClientIdentifierNotValid => 0x02,
                 ReasonCode::ServerUnavailable => 0x03,
                 ReasonCode::BadUsernameOrPassword => 0x04,
-                ReasonCode::NotAuthorized => 0x05,
-                _ => 0x05, // Map other codes to not authorized
+                _ => u8::from(ReasonCode::NotAuthorized), // Map other codes to not authorized
             };
             buf.put_u8(return_code);
         } else {
@@ -270,6 +269,9 @@ impl MqttPacket for ConnAckPacket {
     }
 
     fn decode_body<B: Buf>(buf: &mut B, _fixed_header: &FixedHeader) -> Result<Self> {
+        // Validate reserved bits - only bit 0 (session present) is valid
+        const RESERVED_BITS_MASK: u8 = 0xFE;  // All bits except bit 0
+        
         // Acknowledge flags
         if !buf.has_remaining() {
             return Err(MqttError::MalformedPacket(
@@ -277,13 +279,12 @@ impl MqttPacket for ConnAckPacket {
             ));
         }
         let flags = buf.get_u8();
-
+        
         // Use BeBytes decomposition to parse flags
         let decomposed_flags = ConnAckFlags::decompose(flags);
         let session_present = decomposed_flags.contains(&ConnAckFlags::SessionPresent);
 
-        // Validate reserved bits - only bit 0 is valid
-        if (flags & 0xFE) != 0 {
+        if (flags & RESERVED_BITS_MASK) != 0 {
             return Err(MqttError::MalformedPacket(
                 "Invalid acknowledge flags - reserved bits must be 0".to_string(),
             ));

@@ -7,7 +7,7 @@ use ulid::Ulid;
 
 /// Helper function to get a unique client ID for tests
 fn test_client_id(test_name: &str) -> String {
-    format!("test-{}-{}", test_name, Ulid::new())
+    format!("test-{test_name}-{}", Ulid::new())
 }
 
 #[tokio::test]
@@ -35,7 +35,9 @@ async fn test_automatic_reconnection() {
             ConnectionEvent::Reconnecting { .. } => {
                 reconnecting_clone.fetch_add(1, Ordering::SeqCst);
             }
-            _ => {}
+            ConnectionEvent::ReconnectFailed { .. } => {
+                // Do nothing for failed reconnects in this test
+            }
         })
         .await
         .expect("Failed to register connection event handler");
@@ -118,10 +120,8 @@ async fn test_message_queuing_during_disconnection() {
                 ..Default::default()
             },
             move |msg| {
-                println!(
-                    "Callback triggered with message: {:?}",
-                    String::from_utf8_lossy(&msg.payload)
-                );
+                let payload = String::from_utf8_lossy(&msg.payload);
+                println!("Callback triggered with message: {payload:?}");
                 let mut received = received_clone.write().unwrap();
                 received.push(String::from_utf8_lossy(&msg.payload).to_string());
             },
@@ -129,7 +129,7 @@ async fn test_message_queuing_during_disconnection() {
         .await
         .expect("Failed to subscribe");
 
-    println!("Subscribed with packet_id: {}, qos: {:?}", packet_id, qos);
+    println!("Subscribed with packet_id: {packet_id}, qos: {qos:?}");
 
     // Disconnect first client
     client1.disconnect().await.expect("Failed to disconnect");
@@ -146,8 +146,8 @@ async fn test_message_queuing_during_disconnection() {
     for i in 1..=5 {
         publisher
             .publish_qos1(
-                &format!("test/queue/msg{}", i),
-                format!("Offline message {}", i).as_bytes(),
+                &format!("test/queue/msg{i}"),
+                format!("Offline message {i}").as_bytes(),
             )
             .await
             .expect("Failed to publish offline message");
@@ -164,25 +164,26 @@ async fn test_message_queuing_during_disconnection() {
         .await
         .expect("Failed to reconnect");
 
-    println!(
-        "Reconnected with session_present: {}",
-        reconnect_result.session_present
-    );
+    let session_present = reconnect_result.session_present;
+    println!("Reconnected with session_present: {session_present}");
 
     // The subscription should be restored automatically with our callback persistence
     // Just wait for queued messages to be delivered
     tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Verify all messages were received
-    let messages = received.read().unwrap();
-    println!("Received {} messages", messages.len());
-    for msg in messages.iter() {
-        println!("  - {}", msg);
-    }
-    assert_eq!(messages.len(), 5);
-    for i in 1..=5 {
-        assert!(messages.contains(&format!("Offline message {}", i)));
-    }
+    {
+        let messages = received.read().unwrap();
+        let len = messages.len();
+        println!("Received {len} messages");
+        for msg in messages.iter() {
+            println!("  - {msg}");
+        }
+        assert_eq!(messages.len(), 5);
+        for i in 1..=5 {
+            assert!(messages.contains(&format!("Offline message {i}")));
+        }
+    } // Drop the lock before awaiting
 
     client1.disconnect().await.expect("Failed to disconnect");
 }
@@ -200,7 +201,7 @@ async fn test_exponential_backoff_reconnection() {
             if let ConnectionEvent::Reconnecting { attempt } = event {
                 let mut times = attempt_times_clone.write().unwrap();
                 times.push(std::time::Instant::now());
-                println!("Reconnection attempt {}", attempt);
+                println!("Reconnection attempt {attempt}");
             }
         })
         .await
@@ -225,7 +226,8 @@ async fn test_exponential_backoff_reconnection() {
     // Verify exponential backoff
     for i in 1..times.len() {
         let delay = times[i].duration_since(times[i - 1]);
-        println!("Delay between attempt {} and {}: {:?}", i, i + 1, delay);
+        let next = i + 1;
+        println!("Delay between attempt {i} and {next}: {delay:?}");
 
         // Each delay should be roughly double the previous (with some tolerance)
         if i > 1 {
@@ -328,7 +330,7 @@ async fn test_keep_alive_timeout_detection() {
     client
         .on_connection_event(move |event| {
             if let ConnectionEvent::Disconnected { reason } = event {
-                println!("Disconnected with reason: {:?}", reason);
+                println!("Disconnected with reason: {reason:?}");
                 disconnected_clone.store(true, Ordering::SeqCst);
             }
         })
@@ -380,15 +382,16 @@ async fn test_subscription_restoration_after_reconnect() {
         .expect("Failed to connect");
 
     // Set up multiple subscriptions with unique prefix to avoid conflicts
-    let test_prefix = format!("test-restore-{}", Ulid::new());
-    let topics = vec![
-        format!("{}/exact/1", test_prefix),
-        format!("{}/exact/2", test_prefix),
-        format!("{}/wildcard/+", test_prefix),
+    let ulid = Ulid::new();
+    let test_prefix = format!("test-restore-{ulid}");
+    let topics = [
+        format!("{test_prefix}/exact/1"),
+        format!("{test_prefix}/exact/2"),
+        format!("{test_prefix}/wildcard/+"),
     ];
 
     for (i, topic) in topics.iter().enumerate() {
-        println!("Subscribing to topic {}: {}", i, topic);
+        println!("Subscribing to topic {i}: {topic}");
         let count_clone = Arc::clone(&message_count);
         client
             .subscribe_with_options(
@@ -407,14 +410,14 @@ async fn test_subscription_restoration_after_reconnect() {
             )
             .await
             .expect("Failed to subscribe");
-        println!("Successfully subscribed to topic {}", topic);
+        println!("Successfully subscribed to topic {topic}");
     }
 
     // Verify subscriptions work
     println!("Publishing test messages...");
     client
         .publish_qos(
-            &format!("{}/exact/1", test_prefix),
+            &format!("{test_prefix}/exact/1"),
             b"Message 1",
             QoS::AtLeastOnce,
         )
@@ -424,7 +427,7 @@ async fn test_subscription_restoration_after_reconnect() {
 
     client
         .publish_qos(
-            &format!("{}/exact/2", test_prefix),
+            &format!("{test_prefix}/exact/2"),
             b"Message 2",
             QoS::AtLeastOnce,
         )
@@ -434,7 +437,7 @@ async fn test_subscription_restoration_after_reconnect() {
 
     client
         .publish_qos(
-            &format!("{}/wildcard/test", test_prefix),
+            &format!("{test_prefix}/wildcard/test"),
             b"Wildcard message",
             QoS::AtLeastOnce,
         )
@@ -446,7 +449,7 @@ async fn test_subscription_restoration_after_reconnect() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let count = message_count.load(Ordering::SeqCst);
-    println!("Received {} messages before disconnect", count);
+    println!("Received {count} messages before disconnect");
     assert_eq!(count, 3, "Should have received exactly 3 messages");
 
     // Simulate disconnection
@@ -478,8 +481,8 @@ async fn test_subscription_restoration_after_reconnect() {
             );
         }
         Err(e) => {
-            println!("Reconnect error type: {:?}", e);
-            panic!("Failed to reconnect: {:?}", e);
+            println!("Reconnect error type: {e:?}");
+            panic!("Failed to reconnect: {e:?}");
         }
     }
 
@@ -487,29 +490,29 @@ async fn test_subscription_restoration_after_reconnect() {
     // Publish again to verify subscriptions are still active
     client
         .publish_qos(
-            &format!("{}/exact/1", test_prefix),
+            &format!("{test_prefix}/exact/1"),
             b"After reconnect 1",
             QoS::AtLeastOnce,
         )
         .await
         .unwrap();
-    println!("Published to {}/exact/1", test_prefix);
+    println!("Published to {test_prefix}/exact/1");
 
     client
         .publish_qos(
-            &format!("{}/exact/2", test_prefix),
+            &format!("{test_prefix}/exact/2"),
             b"After reconnect 2",
             QoS::AtLeastOnce,
         )
         .await
         .unwrap();
-    println!("Published to {}/exact/2", test_prefix);
+    println!("Published to {test_prefix}/exact/2");
 
     println!("Waiting for messages...");
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let final_count = message_count.load(Ordering::SeqCst);
-    println!("Received {} messages after reconnect", final_count);
+    println!("Received {final_count} messages after reconnect");
     assert!(
         final_count >= 2,
         "Should have received at least 2 messages after reconnect"

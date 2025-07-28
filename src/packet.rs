@@ -82,7 +82,7 @@ impl FixedHeader {
     ///
     /// Returns an error if the operation fails
     pub fn encode<B: BufMut>(&self, buf: &mut B) -> Result<()> {
-        let byte1 = (u8::from(self.packet_type) << 4) | (self.flags & 0x0F);
+        let byte1 = (u8::from(self.packet_type) << 4) | (self.flags & crate::constants::masks::FLAGS);
         buf.put_u8(byte1);
         encode_variable_int(buf, self.remaining_length)?;
         Ok(())
@@ -108,8 +108,8 @@ impl FixedHeader {
         }
 
         let byte1 = buf.get_u8();
-        let packet_type_val = (byte1 >> 4) & 0x0F;
-        let flags = byte1 & 0x0F;
+        let packet_type_val = (byte1 >> 4) & crate::constants::masks::FLAGS;
+        let flags = byte1 & crate::constants::masks::FLAGS;
 
         let packet_type = PacketType::from_u8(packet_type_val)
             .ok_or(MqttError::InvalidPacketType(packet_type_val))?;
@@ -129,7 +129,7 @@ impl FixedHeader {
         match self.packet_type {
             PacketType::Publish => true, // Publish has variable flags
             PacketType::PubRel | PacketType::Subscribe | PacketType::Unsubscribe => {
-                self.flags == 0x02
+                self.flags == 0x02  // Required flags for these packet types
             }
             _ => self.flags == 0,
         }
@@ -161,6 +161,76 @@ pub enum Packet {
     PingResp,
     Disconnect(disconnect::DisconnectPacket),
     Auth(auth::AuthPacket),
+}
+
+impl Packet {
+    /// Decode a packet body based on the packet type
+    ///
+    /// # Errors
+    /// 
+    /// Returns an error if decoding fails
+    pub fn decode_from_body<B: Buf>(
+        packet_type: PacketType,
+        fixed_header: &FixedHeader,
+        buf: &mut B,
+    ) -> Result<Self> {
+        match packet_type {
+            PacketType::Connect => {
+                let packet = connect::ConnectPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Connect(Box::new(packet)))
+            }
+            PacketType::ConnAck => {
+                let packet = connack::ConnAckPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::ConnAck(packet))
+            }
+            PacketType::Publish => {
+                let packet = publish::PublishPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Publish(packet))
+            }
+            PacketType::PubAck => {
+                let packet = puback::PubAckPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::PubAck(packet))
+            }
+            PacketType::PubRec => {
+                let packet = pubrec::PubRecPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::PubRec(packet))
+            }
+            PacketType::PubRel => {
+                let packet = pubrel::PubRelPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::PubRel(packet))
+            }
+            PacketType::PubComp => {
+                let packet = pubcomp::PubCompPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::PubComp(packet))
+            }
+            PacketType::Subscribe => {
+                let packet = subscribe::SubscribePacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Subscribe(packet))
+            }
+            PacketType::SubAck => {
+                let packet = suback::SubAckPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::SubAck(packet))
+            }
+            PacketType::Unsubscribe => {
+                let packet = unsubscribe::UnsubscribePacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Unsubscribe(packet))
+            }
+            PacketType::UnsubAck => {
+                let packet = unsuback::UnsubAckPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::UnsubAck(packet))
+            }
+            PacketType::PingReq => Ok(Packet::PingReq),
+            PacketType::PingResp => Ok(Packet::PingResp),
+            PacketType::Disconnect => {
+                let packet = disconnect::DisconnectPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Disconnect(packet))
+            }
+            PacketType::Auth => {
+                let packet = auth::AuthPacket::decode_body(buf, fixed_header)?;
+                Ok(Packet::Auth(packet))
+            }
+        }
+    }
 }
 
 /// Trait for MQTT packets

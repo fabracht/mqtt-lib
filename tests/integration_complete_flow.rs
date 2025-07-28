@@ -19,15 +19,15 @@ async fn test_complete_mqtt_flow() {
     // Connect to broker using simple connect method
     println!("Attempting to connect to mqtt://127.0.0.1:1883");
     match client.connect("mqtt://127.0.0.1:1883").await {
-        Ok(_) => println!("Connected successfully"),
+        Ok(()) => println!("Connected successfully"),
         Err(e) => {
-            eprintln!("Connection failed: {:?}", e);
+            eprintln!("Connection failed: {e:?}");
             // Try one more time after a delay
             println!("Retrying connection after 1 second...");
             tokio::time::sleep(Duration::from_secs(1)).await;
             match client.connect("mqtt://127.0.0.1:1883").await {
-                Ok(_) => println!("Connected successfully on retry"),
-                Err(e2) => panic!("Failed to connect after retry: {:?}", e2),
+                Ok(()) => println!("Connected successfully on retry"),
+                Err(e2) => panic!("Failed to connect after retry: {e2:?}"),
             }
         }
     }
@@ -38,8 +38,10 @@ async fn test_complete_mqtt_flow() {
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = Arc::clone(&received);
 
-    let mut sub_opts = SubscribeOptions::default();
-    sub_opts.qos = QoS::AtLeastOnce;
+    let sub_opts = SubscribeOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     client
         .subscribe_with_options("test/topic", sub_opts, move |msg| {
@@ -59,7 +61,7 @@ async fn test_complete_mqtt_flow() {
 
     match result {
         PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-        _ => panic!("Expected QoS1Or2 result"),
+        PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
     }
 
     // Wait for message to be received
@@ -115,7 +117,7 @@ async fn test_multiple_subscriptions_and_wildcards() {
         .subscribe("sensors/exact/temperature", move |msg| {
             let messages_clone = messages_clone.clone();
             let topic = msg.topic.to_string();
-            let payload = msg.payload.to_vec();
+            let payload = msg.payload.clone();
             tokio::spawn(async move {
                 let mut msgs = messages_clone.lock().await;
                 msgs.entry(topic).or_default().push(payload);
@@ -130,7 +132,7 @@ async fn test_multiple_subscriptions_and_wildcards() {
         .subscribe("devices/+/status", move |msg| {
             let messages_clone = messages_clone.clone();
             let key = format!("wildcard-single:{}", msg.topic);
-            let payload = msg.payload.to_vec();
+            let payload = msg.payload.clone();
             tokio::spawn(async move {
                 let mut msgs = messages_clone.lock().await;
                 msgs.entry(key).or_default().push(payload);
@@ -145,7 +147,7 @@ async fn test_multiple_subscriptions_and_wildcards() {
         .subscribe("system/#", move |msg| {
             let messages_clone = messages_clone.clone();
             let key = format!("wildcard-multi:{}", msg.topic);
-            let payload = msg.payload.to_vec();
+            let payload = msg.payload.clone();
             tokio::spawn(async move {
                 let mut msgs = messages_clone.lock().await;
                 msgs.entry(key).or_default().push(payload);
@@ -237,7 +239,7 @@ async fn test_qos_levels_and_acknowledgments() {
         .expect("Failed to publish QoS 1");
     match result {
         PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-        _ => panic!("Expected QoS1Or2 result"),
+        PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
     }
 
     // Test QoS 2 - should get packet ID
@@ -247,7 +249,7 @@ async fn test_qos_levels_and_acknowledgments() {
         .expect("Failed to publish QoS 2");
     match result {
         PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-        _ => panic!("Expected QoS1Or2 result"),
+        PublishResult::QoS0 => panic!("Expected QoS1Or2 result, got QoS0"),
     }
 
     // Subscribe and verify QoS downgrade
@@ -255,8 +257,10 @@ async fn test_qos_levels_and_acknowledgments() {
     let received_qos_clone = Arc::clone(&received_qos);
 
     // Subscribe with QoS 1
-    let mut sub_opts = SubscribeOptions::default();
-    sub_opts.qos = QoS::AtLeastOnce;
+    let sub_opts = SubscribeOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     client
         .subscribe_with_options("qostest/+", sub_opts, move |msg| {
@@ -369,7 +373,7 @@ async fn test_session_persistence() {
     println!("Waiting for offline message from restored session...");
     tokio::time::sleep(Duration::from_millis(1000)).await;
     let count = received.load(Ordering::SeqCst);
-    println!("Received message count after waiting: {}", count);
+    println!("Received message count after waiting: {count}");
 
     // Since we can't set up callbacks without subscribing in our current architecture,
     // let's try re-subscribing with the callback
@@ -389,7 +393,7 @@ async fn test_session_persistence() {
     println!("Waiting for message after re-subscribe...");
     tokio::time::sleep(Duration::from_millis(500)).await;
     let final_count = received.load(Ordering::SeqCst);
-    println!("Final received message count: {}", final_count);
+    println!("Final received message count: {final_count}");
 
     // NOTE: Session persistence behavior varies by broker implementation
     // Some brokers may not queue QoS 1 messages for offline persistent sessions
@@ -430,19 +434,25 @@ async fn test_publish_options_and_properties() {
         .expect("Failed to subscribe");
 
     // Publish with various options
-    let mut opts = PublishOptions::default();
-    opts.qos = QoS::AtLeastOnce;
-    opts.retain = true;
-    opts.properties.message_expiry_interval = Some(300);
-    opts.properties.content_type = Some("text/plain".to_string());
-    opts.properties
-        .user_properties
-        .push(("key1".to_string(), "value1".to_string()));
-    opts.properties
-        .user_properties
-        .push(("key2".to_string(), "value2".to_string()));
-    opts.properties.correlation_data = Some(b"correlation-123".to_vec());
-    opts.properties.response_topic = Some("response/topic".to_string());
+    let user_properties = vec![
+        ("key1".to_string(), "value1".to_string()),
+        ("key2".to_string(), "value2".to_string()),
+    ];
+    
+    let properties = mqtt_v5::types::PublishProperties {
+        message_expiry_interval: Some(300),
+        content_type: Some("text/plain".to_string()),
+        correlation_data: Some(b"correlation-123".to_vec()),
+        response_topic: Some("response/topic".to_string()),
+        user_properties,
+        ..Default::default()
+    };
+    
+    let opts = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        retain: true,
+        properties,
+    };
 
     let _ = client
         .publish_with_options("test/properties", b"Message with properties", opts)
@@ -455,7 +465,7 @@ async fn test_publish_options_and_properties() {
     let msgs = messages.lock().await;
     // We might receive both normal delivery and retained delivery
     // Take the first message (normal delivery) for properties testing
-    assert!(msgs.len() >= 1);
+    assert!(!msgs.is_empty());
 
     let msg = &msgs[0];
     assert_eq!(msg.topic, "test/properties");
@@ -502,9 +512,11 @@ async fn test_subscription_options() {
     let received_local = Arc::new(AtomicU32::new(0));
     let received_local_clone = Arc::clone(&received_local);
 
-    let mut opts = SubscribeOptions::default();
-    opts.no_local = true;
-    opts.retain_as_published = true;
+    let opts = SubscribeOptions {
+        no_local: true,
+        retain_as_published: true,
+        ..Default::default()
+    };
 
     client
         .subscribe_with_options("test/nolocal", opts, move |_| {
@@ -569,7 +581,7 @@ async fn test_large_payload_handling() {
     client
         .subscribe("test/large", move |msg| {
             let received_clone = received_clone.clone();
-            let payload = msg.payload.to_vec();
+            let payload = msg.payload.clone();
             tokio::spawn(async move {
                 *received_clone.lock().await = Some(payload);
             });
@@ -608,7 +620,7 @@ async fn test_concurrent_operations() {
     for i in 0..10 {
         let received_clone = Arc::clone(&received);
         client
-            .subscribe(&format!("concurrent/topic{}", i), move |_| {
+            .subscribe(&format!("concurrent/topic{i}"), move |_| {
                 received_clone.fetch_add(1, Ordering::SeqCst);
             })
             .await
@@ -624,8 +636,8 @@ async fn test_concurrent_operations() {
             for j in 0..10 {
                 client_clone
                     .publish_qos1(
-                        &format!("concurrent/topic{}", i),
-                        format!("Message {}", j).as_bytes(),
+                        &format!("concurrent/topic{i}"),
+                        format!("Message {j}").as_bytes(),
                     )
                     .await
                     .expect("Failed to publish");

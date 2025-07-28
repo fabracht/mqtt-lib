@@ -393,7 +393,7 @@ mod tests {
         assert!(config.auto_reconnect);
         assert_eq!(config.reconnect_delay, Duration::from_secs(1));
         assert_eq!(config.max_reconnect_delay, Duration::from_secs(60));
-        assert_eq!(config.reconnect_multiplier, 2.0);
+        assert!((config.reconnect_multiplier - 2.0).abs() < f64::EPSILON);
         assert_eq!(config.keep_alive_interval, Some(Duration::from_secs(30)));
         assert_eq!(config.idle_timeout, Some(Duration::from_secs(300)));
     }

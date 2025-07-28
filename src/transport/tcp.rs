@@ -230,6 +230,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_connect_real_broker() {
+        use crate::packet::connect::ConnectPacket;
+        use crate::packet::MqttPacket;
+        use crate::protocol::v5::properties::Properties;
+
         let mut transport = TcpTransport::from_addr(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             1883,
@@ -242,9 +246,6 @@ mod tests {
 
         // Test that we can write and read something
         // Use the proper MQTT CONNECT packet
-        use crate::packet::connect::ConnectPacket;
-        use crate::packet::MqttPacket;
-        use crate::protocol::v5::properties::Properties;
 
         let connect = ConnectPacket {
             client_id: "test".to_string(),
@@ -278,8 +279,8 @@ mod tests {
         let n = result.unwrap();
         assert!(n > 0, "Expected to read some bytes but got 0");
 
-        // Basic validation - should be a CONNACK (0x20)
-        assert_eq!(buf[0] & 0xF0, 0x20, "Expected CONNACK packet type");
+        // Basic validation - should be a CONNACK
+        assert_eq!(buf[0] & crate::constants::masks::PACKET_TYPE, crate::constants::fixed_header::CONNACK, "Expected CONNACK packet type");
 
         // Close connection
         let result = transport.close().await;

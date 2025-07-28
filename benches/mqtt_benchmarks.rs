@@ -42,7 +42,7 @@ fn benchmark_packet_encoding(c: &mut Criterion) {
             b.iter(|| {
                 let mut buf = BytesMut::with_capacity(size + 128);
                 packet.encode(&mut buf).unwrap();
-            black_box(&buf);
+                black_box(&buf);
             });
         });
     }
@@ -144,7 +144,7 @@ fn benchmark_properties(c: &mut Criterion) {
         props
             .add(
                 PropertyId::MaximumPacketSize,
-                PropertyValue::FourByteInteger(1048576),
+                PropertyValue::FourByteInteger(1_048_576),
             )
             .unwrap();
         props
@@ -185,7 +185,7 @@ fn benchmark_properties(c: &mut Criterion) {
         props
             .add(
                 PropertyId::MaximumPacketSize,
-                PropertyValue::FourByteInteger(1048576),
+                PropertyValue::FourByteInteger(1_048_576),
             )
             .unwrap();
         props
@@ -251,7 +251,7 @@ fn benchmark_encoding_primitives(c: &mut Criterion) {
     group.bench_function("variable_int_large", |b| {
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(8);
-            encode_variable_int(&mut buf, 268435455).unwrap(); // Max 4-byte value
+            encode_variable_int(&mut buf, 268_435_455).unwrap(); // Max 4-byte value
             black_box(&buf);
         });
     });
@@ -265,24 +265,21 @@ fn benchmark_topic_validation(c: &mut Criterion) {
     group.bench_function("simple", |b| {
         let topic = "test/topic";
         b.iter(|| {
-            let result = validate_topic_name(topic).unwrap();
-            black_box(result);
+            validate_topic_name(topic).unwrap();
         });
     });
 
     group.bench_function("complex", |b| {
         let topic = "test/very/long/topic/name/with/many/levels/that/needs/validation";
         b.iter(|| {
-            let result = validate_topic_name(topic).unwrap();
-            black_box(result);
+            validate_topic_name(topic).unwrap();
         });
     });
 
     group.bench_function("unicode", |b| {
         let topic = "test/topic/with/émojis/🚀/and/special/characters/测试";
         b.iter(|| {
-            let result = validate_topic_name(topic).unwrap();
-            black_box(result);
+            validate_topic_name(topic).unwrap();
         });
     });
 
@@ -385,11 +382,11 @@ fn benchmark_session_operations(c: &mut Criterion) {
             // Add multiple subscriptions
             for i in 0..10 {
                 let sub = Subscription {
-                    topic_filter: format!("test/{}/+", i),
+                    topic_filter: format!("test/{i}/+"),
                     options: SubscriptionOptions::default(),
                 };
                 session
-                    .add_subscription(format!("test/{}/+", i), sub)
+                    .add_subscription(format!("test/{i}/+"), sub)
                     .await
                     .unwrap();
             }
@@ -425,7 +422,7 @@ fn benchmark_client_operations(c: &mut Criterion) {
             // Add properties if needed
             options.properties.session_expiry_interval = Some(3600);
             options.properties.receive_maximum = Some(100);
-            options.properties.maximum_packet_size = Some(1048576);
+            options.properties.maximum_packet_size = Some(1_048_576);
             options.properties.topic_alias_maximum = Some(10);
             black_box(options);
         });
@@ -459,7 +456,7 @@ fn benchmark_memory_allocation(c: &mut Criterion) {
         b.iter(|| {
             let messages: Vec<PublishPacket> = (0..100)
                 .map(|i| PublishPacket {
-                    topic_name: format!("test/topic/{}", i),
+                    topic_name: format!("test/topic/{i}"),
                     payload: vec![0u8; 64],
                     qos: QoS::AtMostOnce,
                     retain: false,

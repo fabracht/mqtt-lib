@@ -22,7 +22,7 @@ async fn test_message_queuing_when_disconnected() {
     assert!(result.is_ok());
     match result.unwrap() {
         PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-        _ => panic!("Expected QoS1Or2 result"),
+        PublishResult::QoS0 => panic!("Expected QoS1Or2 result"),
     }
 }
 
@@ -74,23 +74,19 @@ async fn test_queue_multiple_messages() {
         };
 
         let result = client
-            .publish_with_options(
-                format!("test/topic/{}", i),
-                format!("message {}", i),
-                options,
-            )
+            .publish_with_options(format!("test/topic/{i}"), format!("message {i}"), options)
             .await;
 
         assert!(result.is_ok());
         match result.unwrap() {
             PublishResult::QoS1Or2 { packet_id } => packet_ids.push(packet_id),
-            _ => panic!("Expected QoS1Or2 result"),
+            PublishResult::QoS0 => panic!("Expected QoS1Or2 result"),
         }
     }
 
     // All packet IDs should be unique
     let mut unique_ids = packet_ids.clone();
-    unique_ids.sort();
+    unique_ids.sort_unstable();
     unique_ids.dedup();
     assert_eq!(packet_ids.len(), unique_ids.len());
 }
@@ -159,7 +155,7 @@ async fn test_message_replay_on_reconnect() {
         assert!(result.is_ok());
         match result.unwrap() {
             PublishResult::QoS1Or2 { packet_id } => packet_ids.push(packet_id),
-            _ => panic!("Expected QoS1Or2 result"),
+            PublishResult::QoS0 => panic!("Expected QoS1Or2 result"),
         }
     }
 
@@ -204,8 +200,10 @@ async fn test_clean_session_no_queuing() {
     assert!(client.is_queue_on_disconnect().await);
 
     // Now queuing should work even for clean session
-    let mut pub_opts = PublishOptions::default();
-    pub_opts.qos = QoS::AtLeastOnce;
+    let pub_opts = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     let result = client
         .publish_with_options("test/topic", "message", pub_opts)
