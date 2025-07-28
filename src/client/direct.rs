@@ -16,7 +16,7 @@ use crate::error::{MqttError, Result};
 use crate::packet::connect::ConnectPacket;
 use crate::packet::publish::PublishPacket;
 use crate::packet::suback::{SubAckPacket, SubAckReasonCode};
-use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions};
+use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsuback::UnsubAckPacket;
 use crate::packet::unsubscribe::UnsubscribePacket;
 use crate::packet::{MqttPacket, Packet};
@@ -231,6 +231,74 @@ impl DirectClientInner {
         Ok(())
     }
 
+    /// Queue a publish message when disconnected
+    async fn queue_publish_message(&self, topic: String, payload: Vec<u8>, options: &PublishOptions) -> Result<PublishResult> {
+        let packet_id = self.packet_id_generator.next();
+        let publish = PublishPacket {
+            topic_name: topic,
+            packet_id: Some(packet_id),
+            payload,
+            qos: options.qos,
+            retain: options.retain,
+            dup: false,
+            properties: options.properties.clone().into(),
+        };
+
+        self.queued_messages.lock().await.push(publish);
+        Ok(PublishResult::QoS1Or2 { packet_id })
+    }
+
+    /// Set up acknowledgment channel for `QoS` > 0
+    async fn setup_publish_acknowledgment(&self, qos: QoS, packet_id: Option<u16>) -> Option<oneshot::Receiver<()>> {
+        match qos {
+            QoS::AtMostOnce => None,
+            QoS::AtLeastOnce => {
+                let (tx, rx) = oneshot::channel();
+                if let Some(pid) = packet_id {
+                    self.pending_pubacks.lock().await.insert(pid, tx);
+                }
+                Some(rx)
+            }
+            QoS::ExactlyOnce => {
+                let (tx, rx) = oneshot::channel();
+                if let Some(pid) = packet_id {
+                    self.pending_pubrecs.lock().await.insert(pid, tx);
+                }
+                Some(rx)
+            }
+        }
+    }
+
+    /// Wait for acknowledgment with timeout
+    async fn wait_for_acknowledgment(&self, rx: oneshot::Receiver<()>, qos: QoS, packet_id: Option<u16>) -> Result<()> {
+        let timeout = Duration::from_secs(10);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(_)) => Err(MqttError::ProtocolError("Acknowledgment channel closed".to_string())),
+            Err(_) => {
+                // Timeout - remove from pending in a separate task to avoid blocking
+                if let Some(pid) = packet_id {
+                    match qos {
+                        QoS::AtLeastOnce => {
+                            let pending = self.pending_pubacks.clone();
+                            tokio::spawn(async move {
+                                pending.lock().await.remove(&pid);
+                            });
+                        }
+                        QoS::ExactlyOnce => {
+                            let pending = self.pending_pubrecs.clone();
+                            tokio::spawn(async move {
+                                pending.lock().await.remove(&pid);
+                            });
+                        }
+                        QoS::AtMostOnce => {}
+                    }
+                }
+                Err(MqttError::Timeout)
+            }
+        }
+    }
+
     /// Publish a message - DIRECT async method
     ///
     /// # Errors
@@ -249,21 +317,7 @@ impl DirectClientInner {
     ) -> Result<PublishResult> {
         // Check if we should queue the message
         if !self.is_connected() && self.queue_on_disconnect && options.qos != QoS::AtMostOnce {
-            let packet_id = self.packet_id_generator.next();
-            let publish = PublishPacket {
-                topic_name: topic,
-                packet_id: Some(packet_id),
-                payload,
-                qos: options.qos,
-                retain: options.retain,
-                dup: false,
-                properties: options.properties.into(),
-            };
-
-            self.queued_messages.lock().await.push(publish);
-
-            // Return a result indicating the message was queued
-            return Ok(PublishResult::QoS1Or2 { packet_id });
+            return self.queue_publish_message(topic, payload, &options).await;
         }
 
         if !self.is_connected() {
@@ -306,25 +360,7 @@ impl DirectClientInner {
         }
 
         // For QoS > 0, set up acknowledgment waiting
-        let rx = match options.qos {
-            QoS::AtMostOnce => None,
-            QoS::AtLeastOnce => {
-                // QoS 1: Wait for PUBACK
-                let (tx, rx) = oneshot::channel();
-                if let Some(pid) = packet_id {
-                    self.pending_pubacks.lock().await.insert(pid, tx);
-                }
-                Some(rx)
-            }
-            QoS::ExactlyOnce => {
-                // QoS 2: Wait for PUBREC
-                let (tx, rx) = oneshot::channel();
-                if let Some(pid) = packet_id {
-                    self.pending_pubrecs.lock().await.insert(pid, tx);
-                }
-                Some(rx)
-            }
-        };
+        let rx = self.setup_publish_acknowledgment(options.qos, packet_id).await;
 
         // Send PUBLISH directly - no event loop
         if publish.payload.len() > 10000 {
@@ -344,42 +380,64 @@ impl DirectClientInner {
 
         // Wait for acknowledgment if QoS > 0
         if let Some(rx) = rx {
-            let timeout = Duration::from_secs(10);
-            match tokio::time::timeout(timeout, rx).await {
-                Ok(Ok(())) => {}
-                Ok(Err(_)) => {
-                    return Err(MqttError::ProtocolError(
-                        "Acknowledgment channel closed".to_string(),
-                    ))
-                }
-                Err(_) => {
-                    // Timeout - remove from pending in a separate task to avoid blocking
-                    if let Some(pid) = packet_id {
-                        match options.qos {
-                            QoS::AtLeastOnce => {
-                                let pending = self.pending_pubacks.clone();
-                                tokio::spawn(async move {
-                                    pending.lock().await.remove(&pid);
-                                });
-                            }
-                            QoS::ExactlyOnce => {
-                                let pending = self.pending_pubrecs.clone();
-                                tokio::spawn(async move {
-                                    pending.lock().await.remove(&pid);
-                                });
-                            }
-                            QoS::AtMostOnce => {}
-                        }
-                    }
-                    return Err(MqttError::Timeout);
-                }
-            }
+            self.wait_for_acknowledgment(rx, options.qos, packet_id).await?;
         }
 
         Ok(match packet_id {
             None => PublishResult::QoS0,
             Some(id) => PublishResult::QoS1Or2 { packet_id: id },
         })
+    }
+
+    /// Create a subscription from filter and reason code
+    fn create_subscription_from_filter(filter: &TopicFilter, reason_code: SubAckReasonCode) -> Option<Subscription> {
+        match &reason_code {
+            SubAckReasonCode::GrantedQoS0 => Some(Subscription {
+                topic_filter: filter.filter.clone(),
+                options: SubscriptionOptions {
+                    qos: QoS::AtMostOnce,
+                    no_local: filter.options.no_local,
+                    retain_as_published: filter.options.retain_as_published,
+                    retain_handling: filter.options.retain_handling,
+                },
+            }),
+            SubAckReasonCode::GrantedQoS1 => Some(Subscription {
+                topic_filter: filter.filter.clone(),
+                options: SubscriptionOptions {
+                    qos: QoS::AtLeastOnce,
+                    no_local: filter.options.no_local,
+                    retain_as_published: filter.options.retain_as_published,
+                    retain_handling: filter.options.retain_handling,
+                },
+            }),
+            SubAckReasonCode::GrantedQoS2 => Some(Subscription {
+                topic_filter: filter.filter.clone(),
+                options: SubscriptionOptions {
+                    qos: QoS::ExactlyOnce,
+                    no_local: filter.options.no_local,
+                    retain_as_published: filter.options.retain_as_published,
+                    retain_handling: filter.options.retain_handling,
+                },
+            }),
+            _ => None, // Failed subscription
+        }
+    }
+
+    /// Wait for SUBACK with timeout
+    async fn wait_for_suback(&self, rx: oneshot::Receiver<SubAckPacket>, packet_id: u16) -> Result<SubAckPacket> {
+        let timeout = Duration::from_secs(10);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(suback)) => Ok(suback),
+            Ok(Err(_)) => Err(MqttError::ProtocolError("SUBACK channel closed".to_string())),
+            Err(_) => {
+                // Timeout - remove from pending in a separate task to avoid blocking
+                let pending = self.pending_subacks.clone();
+                tokio::spawn(async move {
+                    pending.lock().await.remove(&packet_id);
+                });
+                Err(MqttError::Timeout)
+            }
+        }
     }
 
     /// Subscribe to topics with callback ID - DIRECT async method
@@ -420,81 +478,17 @@ impl DirectClientInner {
             .await?;
 
         // Wait for SUBACK from packet reader task
-        let timeout = Duration::from_secs(10);
-        let suback = match tokio::time::timeout(timeout, rx).await {
-            Ok(Ok(suback)) => suback,
-            Ok(Err(_)) => {
-                return Err(MqttError::ProtocolError(
-                    "SUBACK channel closed".to_string(),
-                ))
-            }
-            Err(_) => {
-                // Timeout - remove from pending in a separate task to avoid blocking
-                let pending = self.pending_subacks.clone();
-                tokio::spawn(async move {
-                    pending.lock().await.remove(&packet_id);
-                });
-                return Err(MqttError::Timeout);
-            }
-        };
+        let suback = self.wait_for_suback(rx, packet_id).await?;
 
         // Update session
         for (filter, reason_code) in packet.filters.iter().zip(suback.reason_codes.iter()) {
-            match reason_code {
-                SubAckReasonCode::GrantedQoS0 => {
-                    let subscription = Subscription {
-                        topic_filter: filter.filter.clone(),
-                        options: SubscriptionOptions {
-                            qos: QoS::AtMostOnce,
-                            no_local: filter.options.no_local,
-                            retain_as_published: filter.options.retain_as_published,
-                            retain_handling: filter.options.retain_handling,
-                        },
-                    };
-                    self.session
-                        .write()
-                        .await
-                        .add_subscription(filter.filter.clone(), subscription)
-                        .await
-                        .ok();
-                }
-                SubAckReasonCode::GrantedQoS1 => {
-                    let subscription = Subscription {
-                        topic_filter: filter.filter.clone(),
-                        options: SubscriptionOptions {
-                            qos: QoS::AtLeastOnce,
-                            no_local: filter.options.no_local,
-                            retain_as_published: filter.options.retain_as_published,
-                            retain_handling: filter.options.retain_handling,
-                        },
-                    };
-                    self.session
-                        .write()
-                        .await
-                        .add_subscription(filter.filter.clone(), subscription)
-                        .await
-                        .ok();
-                }
-                SubAckReasonCode::GrantedQoS2 => {
-                    let subscription = Subscription {
-                        topic_filter: filter.filter.clone(),
-                        options: SubscriptionOptions {
-                            qos: QoS::ExactlyOnce,
-                            no_local: filter.options.no_local,
-                            retain_as_published: filter.options.retain_as_published,
-                            retain_handling: filter.options.retain_handling,
-                        },
-                    };
-                    self.session
-                        .write()
-                        .await
-                        .add_subscription(filter.filter.clone(), subscription)
-                        .await
-                        .ok();
-                }
-                _ => {
-                    // Subscription failed
-                }
+            if let Some(subscription) = Self::create_subscription_from_filter(filter, *reason_code) {
+                self.session
+                    .write()
+                    .await
+                    .add_subscription(filter.filter.clone(), subscription)
+                    .await
+                    .ok();
             }
         }
 
@@ -506,8 +500,7 @@ impl DirectClientInner {
                 let qos = match rc {
                     SubAckReasonCode::GrantedQoS1 => QoS::AtLeastOnce,
                     SubAckReasonCode::GrantedQoS2 => QoS::ExactlyOnce,
-                    SubAckReasonCode::GrantedQoS0 => QoS::AtMostOnce,
-                    _ => QoS::AtMostOnce, // for failed subscriptions
+                    SubAckReasonCode::GrantedQoS0 | _ => QoS::AtMostOnce,
                 };
                 (packet_id, qos)
             })
@@ -689,19 +682,19 @@ impl DirectClientInner {
 
         let writer_for_reader = writer_for_keepalive.clone();
 
+        let ctx = PacketReaderContext {
+            session: reader_session,
+            callback_manager: reader_callbacks,
+            suback_channels,
+            unsuback_channels,
+            puback_channels,
+            pubrec_channels,
+            writer: writer_for_reader,
+            connected,
+        };
+
         self.packet_reader_handle = Some(tokio::spawn(async move {
-            packet_reader_task_with_responses(
-                reader,
-                reader_session,
-                reader_callbacks,
-                suback_channels,
-                unsuback_channels,
-                puback_channels,
-                pubrec_channels,
-                writer_for_reader,
-                connected,
-            )
-            .await;
+            packet_reader_task_with_responses(reader, ctx).await;
         }));
 
         // Start keepalive task
@@ -726,9 +719,8 @@ impl DirectClientInner {
     }
 }
 
-/// Packet reader task that handles response channels
-async fn packet_reader_task_with_responses(
-    mut reader: OwnedReadHalf,
+/// Context for packet reader task
+struct PacketReaderContext {
     session: Arc<RwLock<SessionState>>,
     callback_manager: Arc<CallbackManager>,
     suback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<SubAckPacket>>>>,
@@ -737,6 +729,12 @@ async fn packet_reader_task_with_responses(
     pubrec_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
     writer: Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
     connected: Arc<AtomicBool>,
+}
+
+/// Packet reader task that handles response channels
+async fn packet_reader_task_with_responses(
+    mut reader: OwnedReadHalf,
+    ctx: PacketReaderContext,
 ) {
     loop {
         // Read packet directly from reader - no mutex needed!
@@ -747,26 +745,26 @@ async fn packet_reader_task_with_responses(
                 // Check if this is a response we're waiting for
                 match &packet {
                     Packet::SubAck(suback) => {
-                        if let Some(tx) = suback_channels.lock().await.remove(&suback.packet_id) {
+                        if let Some(tx) = ctx.suback_channels.lock().await.remove(&suback.packet_id) {
                             let _ = tx.send(suback.clone());
                             continue;
                         }
                     }
                     Packet::UnsubAck(unsuback) => {
-                        if let Some(tx) = unsuback_channels.lock().await.remove(&unsuback.packet_id)
+                        if let Some(tx) = ctx.unsuback_channels.lock().await.remove(&unsuback.packet_id)
                         {
                             let _ = tx.send(unsuback.clone());
                             continue;
                         }
                     }
                     Packet::PubAck(puback) => {
-                        if let Some(tx) = puback_channels.lock().await.remove(&puback.packet_id) {
+                        if let Some(tx) = ctx.puback_channels.lock().await.remove(&puback.packet_id) {
                             let _ = tx.send(());
                             continue;
                         }
                     }
                     Packet::PubRec(pubrec) => {
-                        if let Some(tx) = pubrec_channels.lock().await.remove(&pubrec.packet_id) {
+                        if let Some(tx) = ctx.pubrec_channels.lock().await.remove(&pubrec.packet_id) {
                             let _ = tx.send(());
                             // Note: The PUBREL handling is done in handle_incoming_packet
                             // We just need to notify the publish() call that PUBREC was received
@@ -778,24 +776,24 @@ async fn packet_reader_task_with_responses(
 
                 // Handle other packets normally
                 if let Err(e) =
-                    handle_incoming_packet_with_writer(packet, &writer, &session, &callback_manager)
+                    handle_incoming_packet_with_writer(packet, &ctx.writer, &ctx.session, &ctx.callback_manager)
                         .await
                 {
                     tracing::error!("Error handling packet: {e}");
-                    connected.store(false, Ordering::SeqCst);
+                    ctx.connected.store(false, Ordering::SeqCst);
                     break;
                 }
             }
             Err(e) => {
                 tracing::error!("Error reading packet: {e}");
-                connected.store(false, Ordering::SeqCst);
+                ctx.connected.store(false, Ordering::SeqCst);
                 break;
             }
         }
     }
 
     // Mark as disconnected when task exits
-    connected.store(false, Ordering::SeqCst);
+    ctx.connected.store(false, Ordering::SeqCst);
 }
 
 /// Keepalive task that uses the write half
@@ -860,7 +858,7 @@ async fn handle_incoming_packet_with_writer(
     }
 }
 
-/// Handle PUBLISH packet with proper QoS acknowledgments
+/// Handle PUBLISH packet with proper `QoS` acknowledgments
 async fn handle_publish_with_ack(
     publish: crate::packet::publish::PublishPacket,
     writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
@@ -919,7 +917,7 @@ async fn handle_publish_with_ack(
     Ok(())
 }
 
-/// Handle PUBREC packet for outgoing QoS 2 messages
+/// Handle PUBREC packet for outgoing `QoS` 2 messages
 async fn handle_pubrec_outgoing(
     pubrec: crate::packet::pubrec::PubRecPacket,
     writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
@@ -951,7 +949,7 @@ async fn handle_pubrec_outgoing(
     Ok(())
 }
 
-/// Handle PUBCOMP packet for outgoing QoS 2 messages
+/// Handle PUBCOMP packet for outgoing `QoS` 2 messages
 async fn handle_pubcomp_outgoing(
     pubcomp: crate::packet::pubcomp::PubCompPacket,
     session: &Arc<RwLock<SessionState>>,
@@ -966,7 +964,7 @@ async fn handle_pubcomp_outgoing(
     Ok(())
 }
 
-/// Handle PUBREL packet for QoS 2 flow
+/// Handle PUBREL packet for `QoS` 2 flow
 async fn handle_pubrel(
     pubrel: crate::packet::pubrel::PubRelPacket,
     writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
