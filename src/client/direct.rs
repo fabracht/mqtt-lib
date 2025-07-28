@@ -529,7 +529,7 @@ impl DirectClientInner {
                 let qos = match rc {
                     SubAckReasonCode::GrantedQoS1 => QoS::AtLeastOnce,
                     SubAckReasonCode::GrantedQoS2 => QoS::ExactlyOnce,
-                    SubAckReasonCode::GrantedQoS0 | _ => QoS::AtMostOnce,
+                    _ => QoS::AtMostOnce,
                 };
                 (packet_id, qos)
             })

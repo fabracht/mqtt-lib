@@ -35,7 +35,7 @@ jobs:
         with:
           components: clippy
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::must-use-candidate -A clippy::missing-errors-doc -A clippy::manual-async-fn -A clippy::doc-markdown
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   # Build and test on multiple platforms
   test:

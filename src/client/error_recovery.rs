@@ -150,7 +150,7 @@ impl RecoverableError {
 }
 
 /// Retry state for tracking retry attempts
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RetryState {
     /// Number of attempts made
     pub attempts: u32,
@@ -158,16 +158,6 @@ pub struct RetryState {
     pub last_error: Option<MqttError>,
     /// Type of recoverable error
     pub error_type: Option<RecoverableError>,
-}
-
-impl Default for RetryState {
-    fn default() -> Self {
-        Self {
-            attempts: 0,
-            last_error: None,
-            error_type: None,
-        }
-    }
 }
 
 impl RetryState {
@@ -185,11 +175,13 @@ impl RetryState {
     }
 
     /// Checks if retry should be attempted
+    #[must_use]
     pub fn should_retry(&self, config: &ErrorRecoveryConfig) -> bool {
         self.attempts < config.max_retries
     }
 
     /// Gets the next retry delay
+    #[must_use]
     pub fn next_delay(&self, config: &ErrorRecoveryConfig) -> Duration {
         if let Some(error_type) = self.error_type {
             error_type.retry_delay(self.attempts, config)

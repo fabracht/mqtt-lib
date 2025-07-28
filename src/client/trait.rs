@@ -41,7 +41,7 @@ pub trait MqttClientTrait: Send + Sync {
         payload: impl Into<Vec<u8>> + Send + 'a,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a;
 
-    /// Publishes a message to a topic with specific QoS
+    /// Publishes a message to a topic with specific `QoS`
     fn publish_qos<'a>(
         &'a self,
         topic: impl Into<String> + Send + 'a,
@@ -57,7 +57,7 @@ pub trait MqttClientTrait: Send + Sync {
         options: PublishOptions,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a;
 
-    /// Subscribes to a topic with a callback, returning (packet_id, granted_qos)
+    /// Subscribes to a topic with a callback, returning (`packet_id`, `granted_qos`)
     fn subscribe<'a, F>(
         &'a self,
         topic_filter: impl Into<String> + Send + 'a,
@@ -106,21 +106,21 @@ pub trait MqttClientTrait: Send + Sync {
         payload: impl Into<Vec<u8>> + Send + 'a,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a;
 
-    /// Publish with QoS 0 (convenience method)
+    /// Publish with `QoS` 0 (convenience method)
     fn publish_qos0<'a>(
         &'a self,
         topic: impl Into<String> + Send + 'a,
         payload: impl Into<Vec<u8>> + Send + 'a,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a;
 
-    /// Publish with QoS 1 (convenience method)
+    /// Publish with `QoS` 1 (convenience method)
     fn publish_qos1<'a>(
         &'a self,
         topic: impl Into<String> + Send + 'a,
         payload: impl Into<Vec<u8>> + Send + 'a,
     ) -> impl Future<Output = Result<PublishResult>> + Send + 'a;
 
-    /// Publish with QoS 2 (convenience method)
+    /// Publish with `QoS` 2 (convenience method)
     fn publish_qos2<'a>(
         &'a self,
         topic: impl Into<String> + Send + 'a,

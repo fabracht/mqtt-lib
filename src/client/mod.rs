@@ -150,6 +150,7 @@ impl MqttClient {
     ///
     /// let client = MqttClient::with_options(options);
     /// ```
+    #[must_use]
     pub fn with_options(options: ConnectOptions) -> Self {
         let inner = DirectClientInner::new(options);
 
@@ -264,7 +265,7 @@ impl MqttClient {
     /// Connects to the MQTT broker with custom options
     ///
     /// This is a DIRECT async method - no event loops!
-    /// Returns session_present flag from CONNACK
+    /// Returns `session_present` flag from CONNACK
     pub async fn connect_with_options(
         &self,
         address: &str,
@@ -322,10 +323,10 @@ impl MqttClient {
         let (client_transport_type, host, port) = Self::parse_address(address)?;
 
         // Resolve address
-        let addr_str = format!("{}:{}", host, port);
+        let addr_str = format!("{host}:{port}");
         let addr = addr_str
             .to_socket_addrs()
-            .map_err(|e| MqttError::ConnectionError(format!("Failed to resolve address: {}", e)))?
+            .map_err(|e| MqttError::ConnectionError(format!("Failed to resolve address: {e}")))?
             .next()
             .ok_or_else(|| MqttError::ConnectionError("No valid address found".to_string()))?;
 
@@ -337,7 +338,7 @@ impl MqttClient {
 
                 // Connect TCP transport directly
                 tcp_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TCP connect failed: {}", e))
+                    MqttError::ConnectionError(format!("TCP connect failed: {e}"))
                 })?;
 
                 TransportType::Tcp(tcp_transport)
@@ -348,7 +349,7 @@ impl MqttClient {
 
                 // Connect TLS transport directly
                 tls_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TLS connect failed: {}", e))
+                    MqttError::ConnectionError(format!("TLS connect failed: {e}"))
                 })?;
 
                 TransportType::Tls(Box::new(tls_transport))
@@ -453,15 +454,14 @@ impl MqttClient {
         self.publish_with_options(topic, payload, options).await
     }
 
-    /// Publishes a message to a topic with specific QoS (compatibility method)
+    /// Publishes a message to a topic with specific `QoS` (compatibility method)
     pub async fn publish_qos(
         &self,
         topic: impl Into<String>,
         payload: impl Into<Vec<u8>>,
         qos: QoS,
     ) -> Result<PublishResult> {
-        let mut options = PublishOptions::default();
-        options.qos = qos;
+        let options = PublishOptions { qos, ..Default::default() };
         self.publish_with_options(topic, payload, options).await
     }
 
@@ -545,7 +545,7 @@ impl MqttClient {
             .await
     }
 
-    /// Internal method that accepts PublishPacket callbacks
+    /// Internal method that accepts `PublishPacket` callbacks
     async fn subscribe_with_options_raw<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -589,7 +589,7 @@ impl MqttClient {
         let mut packet = SubscribePacket {
             packet_id: 0, // Will be assigned in subscribe method
             filters: vec![filter],
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         // Add subscription identifier if provided
@@ -632,7 +632,7 @@ impl MqttClient {
         let packet = UnsubscribePacket {
             packet_id: 0, // Will be assigned in unsubscribe method
             filters: vec![topic_filter],
-            properties: Default::default(),
+            properties: Properties::default(),
         };
 
         // Direct unsubscribe - no command channels!
@@ -650,8 +650,7 @@ impl MqttClient {
     {
         let mut results = Vec::new();
         for (topic, qos) in topics {
-            let mut opts = SubscribeOptions::default();
-            opts.qos = qos;
+            let opts = SubscribeOptions { qos, ..Default::default() };
             let result = self
                 .subscribe_with_options(topic, opts, callback.clone())
                 .await?;
@@ -682,12 +681,11 @@ impl MqttClient {
         topic: impl Into<String>,
         payload: impl Into<Vec<u8>>,
     ) -> Result<PublishResult> {
-        let mut opts = PublishOptions::default();
-        opts.retain = true;
+        let opts = PublishOptions { retain: true, ..Default::default() };
         self.publish_with_options(topic, payload, opts).await
     }
 
-    /// Publish with QoS 0 (convenience method)
+    /// Publish with `QoS` 0 (convenience method)
     pub async fn publish_qos0(
         &self,
         topic: impl Into<String>,
@@ -696,7 +694,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtMostOnce).await
     }
 
-    /// Publish with QoS 1 (convenience method)
+    /// Publish with `QoS` 1 (convenience method)
     pub async fn publish_qos1(
         &self,
         topic: impl Into<String>,
@@ -705,7 +703,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtLeastOnce).await
     }
 
-    /// Publish with QoS 2 (convenience method)
+    /// Publish with `QoS` 2 (convenience method)
     pub async fn publish_qos2(
         &self,
         topic: impl Into<String>,
@@ -753,7 +751,8 @@ impl MqttClient {
     }
 }
 
-/// Implementation of MqttClientTrait for MqttClient
+/// Implementation of `MqttClientTrait` for `MqttClient`
+#[allow(clippy::manual_async_fn)]
 impl MqttClientTrait for MqttClient {
     fn is_connected(&self) -> impl Future<Output = bool> + Send + '_ {
         async move { self.is_connected().await }
