@@ -256,7 +256,6 @@ impl Properties {
         self.properties.is_empty()
     }
 
-    #[must_use]
     /// Iterates over all properties and their values
     pub fn iter(&self) -> impl Iterator<Item = (PropertyId, &PropertyValue)> + '_ {
         self.properties

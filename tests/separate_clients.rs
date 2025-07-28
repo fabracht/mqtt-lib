@@ -88,11 +88,13 @@ async fn test_multiple_publishers_one_subscriber() {
 
     sleep(Duration::from_millis(500)).await;
 
-    let msgs = messages.lock().unwrap();
-    assert_eq!(msgs.len(), 3, "Should receive all 3 messages");
-    assert!(msgs.contains(&"Message from pub1".to_string()));
-    assert!(msgs.contains(&"Message from pub2".to_string()));
-    assert!(msgs.contains(&"Message from pub3".to_string()));
+    {
+        let msgs = messages.lock().unwrap();
+        assert_eq!(msgs.len(), 3, "Should receive all 3 messages");
+        assert!(msgs.contains(&"Message from pub1".to_string()));
+        assert!(msgs.contains(&"Message from pub2".to_string()));
+        assert!(msgs.contains(&"Message from pub3".to_string()));
+    } // Drop the lock before awaiting
 
     pub1.disconnect().await.unwrap();
     pub2.disconnect().await.unwrap();
@@ -208,13 +210,15 @@ async fn test_qos_levels_separate_clients() {
 
     sleep(Duration::from_millis(1000)).await;
 
-    let messages = qos_messages.lock().unwrap();
-    assert_eq!(messages.len(), 3);
+    {
+        let messages = qos_messages.lock().unwrap();
+        assert_eq!(messages.len(), 3);
 
-    // Check QoS levels (may be downgraded based on subscription)
-    for (payload, qos) in messages.iter() {
-        println!("Received: {} with QoS {:?}", payload, qos);
-    }
+        // Check QoS levels (may be downgraded based on subscription)
+        for (payload, qos) in messages.iter() {
+            println!("Received: {} with QoS {:?}", payload, qos);
+        }
+    } // Drop the lock before awaiting
 
     publisher.disconnect().await.unwrap();
     subscriber.disconnect().await.unwrap();
@@ -259,15 +263,17 @@ async fn test_wildcard_subscriptions_separate_clients() {
 
     sleep(Duration::from_millis(500)).await;
 
-    let topics = topics_received.lock().unwrap();
-    assert_eq!(
-        topics.len(),
-        3,
-        "Should receive 3 messages matching the pattern"
-    );
-    assert!(topics.contains(&"test/wild/sensor1/data".to_string()));
-    assert!(topics.contains(&"test/wild/sensor2/data".to_string()));
-    assert!(topics.contains(&"test/wild/device/data".to_string()));
+    {
+        let topics = topics_received.lock().unwrap();
+        assert_eq!(
+            topics.len(),
+            3,
+            "Should receive 3 messages matching the pattern"
+        );
+        assert!(topics.contains(&"test/wild/sensor1/data".to_string()));
+        assert!(topics.contains(&"test/wild/sensor2/data".to_string()));
+        assert!(topics.contains(&"test/wild/device/data".to_string()));
+    } // Drop the lock before awaiting
 
     pub1.disconnect().await.unwrap();
     pub2.disconnect().await.unwrap();

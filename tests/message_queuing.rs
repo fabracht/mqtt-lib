@@ -35,8 +35,10 @@ async fn test_message_queuing_disabled() {
     assert!(!client.is_queue_on_disconnect().await);
 
     // Try to publish while disconnected - should fail
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
 
     let result = client
         .publish_with_options("test/topic", "message", options)
@@ -66,8 +68,10 @@ async fn test_queue_multiple_messages() {
 
     // Queue multiple messages
     for i in 0..5 {
-        let mut options = PublishOptions::default();
-        options.qos = QoS::AtLeastOnce;
+        let options = PublishOptions {
+            qos: QoS::AtLeastOnce,
+            ..Default::default()
+        };
 
         let result = client
             .publish_with_options(
@@ -104,8 +108,10 @@ async fn test_toggle_queue_on_disconnect() {
     assert!(!client.is_queue_on_disconnect().await);
 
     // Try to publish - should fail
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
     let result = client
         .publish_with_options("test/topic", "message", options)
         .await;
@@ -116,8 +122,10 @@ async fn test_toggle_queue_on_disconnect() {
     assert!(client.is_queue_on_disconnect().await);
 
     // Try to publish - should succeed
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        ..Default::default()
+    };
     let result = client
         .publish_with_options("test/topic", "message", options)
         .await;
@@ -142,8 +150,10 @@ async fn test_message_replay_on_reconnect() {
     let mut packet_ids = Vec::new();
 
     for (topic, payload, qos) in messages {
-        let mut options = PublishOptions::default();
-        options.qos = qos;
+        let options = PublishOptions {
+            qos,
+            ..Default::default()
+        };
 
         let result = client.publish_with_options(topic, payload, options).await;
         assert!(result.is_ok());
@@ -166,9 +176,11 @@ async fn test_message_replay_on_reconnect() {
 async fn test_retained_message_queuing() {
     let client = MqttClient::new("test-client");
 
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
-    options.retain = true;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        retain: true,
+        ..Default::default()
+    };
 
     let result = client
         .publish_with_options("test/retained", "retained message", options)

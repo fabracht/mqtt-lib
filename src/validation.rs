@@ -103,7 +103,6 @@ pub fn is_valid_client_id(client_id: &str) -> bool {
     client_id.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
-#[must_use]
 /// Validates a topic name and returns an error if invalid
 ///
 /// # Errors
@@ -120,7 +119,6 @@ pub fn validate_topic_name(topic: &str) -> Result<()> {
     Ok(())
 }
 
-#[must_use]
 /// Validates a topic filter and returns an error if invalid
 ///
 /// # Errors
@@ -137,7 +135,6 @@ pub fn validate_topic_filter(filter: &str) -> Result<()> {
     Ok(())
 }
 
-#[must_use]
 /// Validates a client ID and returns an error if invalid
 ///
 /// # Errors

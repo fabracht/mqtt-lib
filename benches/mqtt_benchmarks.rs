@@ -21,7 +21,8 @@ fn benchmark_packet_encoding(c: &mut Criterion) {
         let packet = ConnectPacket::new(options);
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(1024);
-            black_box(packet.encode(&mut buf).unwrap());
+            packet.encode(&mut buf).unwrap();
+            black_box(&buf);
         });
     });
 
@@ -40,7 +41,8 @@ fn benchmark_packet_encoding(c: &mut Criterion) {
             };
             b.iter(|| {
                 let mut buf = BytesMut::with_capacity(size + 128);
-                black_box(packet.encode(&mut buf).unwrap());
+                packet.encode(&mut buf).unwrap();
+            black_box(&buf);
             });
         });
     }
@@ -63,7 +65,8 @@ fn benchmark_packet_encoding(c: &mut Criterion) {
         };
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(256);
-            black_box(packet.encode(&mut buf).unwrap());
+            packet.encode(&mut buf).unwrap();
+            black_box(&buf);
         });
     });
 
@@ -102,7 +105,8 @@ fn benchmark_packet_decoding(c: &mut Criterion) {
         b.iter(|| {
             let mut buf = BytesMut::from(connect_bytes.as_ref());
             let header = FixedHeader::decode(&mut buf).unwrap();
-            black_box(ConnectPacket::decode_body(&mut buf, &header).unwrap());
+            let packet = ConnectPacket::decode_body(&mut buf, &header).unwrap();
+            black_box(packet);
         });
     });
 
@@ -111,7 +115,8 @@ fn benchmark_packet_decoding(c: &mut Criterion) {
         b.iter(|| {
             let mut buf = BytesMut::from(publish_bytes.as_ref());
             let header = FixedHeader::decode(&mut buf).unwrap();
-            black_box(PublishPacket::decode_body(&mut buf, &header).unwrap());
+            let packet = PublishPacket::decode_body(&mut buf, &header).unwrap();
+            black_box(packet);
         });
     });
 
@@ -157,7 +162,8 @@ fn benchmark_properties(c: &mut Criterion) {
 
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(256);
-            black_box(props.encode(&mut buf).unwrap());
+            props.encode(&mut buf).unwrap();
+            black_box(&buf);
         });
     });
 
@@ -203,7 +209,8 @@ fn benchmark_properties(c: &mut Criterion) {
 
         b.iter(|| {
             let mut buf = BytesMut::from(encoded.as_ref());
-            black_box(Properties::decode(&mut buf).unwrap());
+            let props = Properties::decode(&mut buf).unwrap();
+            black_box(props);
         });
     });
 
@@ -218,7 +225,8 @@ fn benchmark_encoding_primitives(c: &mut Criterion) {
         let s = "test/topic";
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(32);
-            black_box(encode_string(&mut buf, s).unwrap());
+            encode_string(&mut buf, s).unwrap();
+            black_box(&buf);
         });
     });
 
@@ -226,7 +234,8 @@ fn benchmark_encoding_primitives(c: &mut Criterion) {
         let s = "test/very/long/topic/name/that/represents/a/complex/hierarchy/in/mqtt";
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(128);
-            black_box(encode_string(&mut buf, s).unwrap());
+            encode_string(&mut buf, s).unwrap();
+            black_box(&buf);
         });
     });
 
@@ -234,14 +243,16 @@ fn benchmark_encoding_primitives(c: &mut Criterion) {
     group.bench_function("variable_int_small", |b| {
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(8);
-            black_box(encode_variable_int(&mut buf, 127).unwrap());
+            encode_variable_int(&mut buf, 127).unwrap();
+            black_box(&buf);
         });
     });
 
     group.bench_function("variable_int_large", |b| {
         b.iter(|| {
             let mut buf = BytesMut::with_capacity(8);
-            black_box(encode_variable_int(&mut buf, 268435455).unwrap()); // Max 4-byte value
+            encode_variable_int(&mut buf, 268435455).unwrap(); // Max 4-byte value
+            black_box(&buf);
         });
     });
 
@@ -254,21 +265,24 @@ fn benchmark_topic_validation(c: &mut Criterion) {
     group.bench_function("simple", |b| {
         let topic = "test/topic";
         b.iter(|| {
-            black_box(validate_topic_name(topic).unwrap());
+            let result = validate_topic_name(topic).unwrap();
+            black_box(result);
         });
     });
 
     group.bench_function("complex", |b| {
         let topic = "test/very/long/topic/name/with/many/levels/that/needs/validation";
         b.iter(|| {
-            black_box(validate_topic_name(topic).unwrap());
+            let result = validate_topic_name(topic).unwrap();
+            black_box(result);
         });
     });
 
     group.bench_function("unicode", |b| {
         let topic = "test/topic/with/émojis/🚀/and/special/characters/测试";
         b.iter(|| {
-            black_box(validate_topic_name(topic).unwrap());
+            let result = validate_topic_name(topic).unwrap();
+            black_box(result);
         });
     });
 
@@ -357,7 +371,8 @@ fn benchmark_session_operations(c: &mut Criterion) {
                     retain: false,
                     packet_id: Some(1),
                 };
-                black_box(session.queue_message(msg).await.unwrap());
+                let result = session.queue_message(msg).await.unwrap();
+                black_box(result);
             });
         });
     });

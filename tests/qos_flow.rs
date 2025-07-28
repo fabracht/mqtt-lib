@@ -405,9 +405,11 @@ async fn test_qos_with_retain() {
     // Publisher sends retained message and disconnects
     pub_client.connect("mqtt://localhost:1883").await.unwrap();
 
-    let mut options = PublishOptions::default();
-    options.qos = QoS::AtLeastOnce;
-    options.retain = true;
+    let options = PublishOptions {
+        qos: QoS::AtLeastOnce,
+        retain: true,
+        ..Default::default()
+    };
 
     let _ = pub_client
         .publish_with_options("test/qos/retain", "Retained QoS 1", options)

@@ -48,7 +48,7 @@ fn benchmark_callback_dispatch(c: &mut Criterion) {
 
                 b.iter(|| {
                     runtime.block_on(async {
-                        black_box(callback_manager.dispatch(&message).await.unwrap());
+                        callback_manager.dispatch(&message).await.unwrap();
                     });
                 });
             },

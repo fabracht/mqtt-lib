@@ -181,8 +181,10 @@ async fn test_qos2_timeout() {
     client.subscribe("test/qos2/timeout", |_| {}).await.unwrap();
 
     // Publish QoS 2 message
-    let mut options = PublishOptions::default();
-    options.qos = QoS::ExactlyOnce;
+    let options = PublishOptions {
+        qos: QoS::ExactlyOnce,
+        ..Default::default()
+    };
 
     // This should complete normally
     let result = client
