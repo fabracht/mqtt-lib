@@ -18,7 +18,7 @@ pub struct RetainedMessage {
     pub topic: String,
     /// The message payload (empty means clear retained message)
     pub payload: Vec<u8>,
-    /// QoS level
+    /// `QoS` level
     pub qos: QoS,
     /// Message properties
     pub properties: crate::protocol::v5::properties::Properties,

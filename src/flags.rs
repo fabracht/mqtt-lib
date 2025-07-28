@@ -12,9 +12,9 @@ pub enum ConnectFlags {
     CleanStart = 0x02,
     /// Will Flag
     WillFlag = 0x04,
-    /// Will QoS bit 0
+    /// Will `QoS` bit 0
     WillQoS0 = 0x08,
-    /// Will QoS bit 1  
+    /// Will `QoS` bit 1  
     WillQoS1 = 0x10,
     /// Will Retain flag
     WillRetain = 0x20,
@@ -25,12 +25,12 @@ pub enum ConnectFlags {
 }
 
 impl ConnectFlags {
-    /// Extract Will QoS value from flags
+    /// Extract Will `QoS` value from flags
     pub fn extract_will_qos(flags: u8) -> u8 {
         (flags >> 3) & 0x03
     }
 
-    /// Create flags byte with Will QoS value
+    /// Create flags byte with Will `QoS` value
     pub fn with_will_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits
         flags &= !0x18; // Clear bits 3 and 4
@@ -46,21 +46,21 @@ impl ConnectFlags {
 pub enum PublishFlags {
     /// Retain flag
     Retain = 0x01,
-    /// QoS bit 0
+    /// `QoS` bit 0
     QoS0 = 0x02,
-    /// QoS bit 1
+    /// `QoS` bit 1
     QoS1 = 0x04,
     /// Duplicate delivery flag
     Dup = 0x08,
 }
 
 impl PublishFlags {
-    /// Extract QoS value from flags
+    /// Extract `QoS` value from flags
     pub fn extract_qos(flags: u8) -> u8 {
         (flags >> 1) & 0x03
     }
 
-    /// Create flags byte with QoS value
+    /// Create flags byte with `QoS` value
     pub fn with_qos(mut flags: u8, qos: u8) -> u8 {
         // Clear existing QoS bits
         flags &= !0x06; // Clear bits 1 and 2

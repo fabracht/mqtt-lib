@@ -27,6 +27,10 @@ impl SubscriptionManager {
     }
 
     /// Adds a subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn add(&mut self, topic_filter: String, subscription: Subscription) -> Result<()> {
         // Validate topic filter
         if !is_valid_topic_filter(&topic_filter) {
@@ -41,6 +45,10 @@ impl SubscriptionManager {
     ///
     /// Returns `Ok(true)` if the subscription existed and was removed,
     /// `Ok(false)` if the subscription did not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn remove(&mut self, topic_filter: &str) -> Result<bool> {
         Ok(self.subscriptions.remove(topic_filter).is_some())
     }

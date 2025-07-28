@@ -118,6 +118,10 @@ impl DirectClientInner {
     }
 
     /// Send a packet to the broker
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn send_packet(&mut self, packet: Packet) -> Result<()> {
         if let Some(writer) = &self.writer {
             let mut writer_guard = writer.write().await;
@@ -132,6 +136,10 @@ impl DirectClientInner {
 /// Direct async implementation of MQTT operations
 impl DirectClientInner {
     /// Connect to broker - DIRECT async method, NO event loop
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn connect(&mut self, mut transport: TransportType) -> Result<ConnectResult> {
         // Build CONNECT packet
         let connect_packet = self.build_connect_packet().await;
@@ -191,7 +199,11 @@ impl DirectClientInner {
     ///
     /// # Errors
     ///
-    /// Returns `MqttError::NotConnected` if the client is not connected
+    /// Returns ``MqttError`::NotConnected` if the client is not connected
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn disconnect(&mut self) -> Result<()> {
         self.disconnect_with_packet(true).await
     }
@@ -200,7 +212,11 @@ impl DirectClientInner {
     ///
     /// # Errors
     ///
-    /// Returns `MqttError::NotConnected` if the client is not connected
+    /// Returns ``MqttError`::NotConnected` if the client is not connected
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn disconnect_with_packet(&mut self, send_disconnect: bool) -> Result<()> {
         if !self.is_connected() {
             return Err(MqttError::NotConnected);
@@ -232,6 +248,10 @@ impl DirectClientInner {
     }
 
     /// Queue a publish message when disconnected
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn queue_publish_message(
         &self,
         topic: String,
@@ -279,6 +299,10 @@ impl DirectClientInner {
     }
 
     /// Wait for acknowledgment with timeout
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn wait_for_acknowledgment(
         &self,
         rx: oneshot::Receiver<()>,
@@ -320,11 +344,15 @@ impl DirectClientInner {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - `MqttError::NotConnected` - The client is not connected
-    /// - `MqttError::InvalidTopicName` - The topic name is invalid
-    /// - `MqttError::PacketIdExhausted` - No packet IDs available for `QoS` 1/2
-    /// - `MqttError::FlowControlExceeded` - Flow control limit reached
-    /// - `MqttError::Io` - Transport write error
+    /// - ``MqttError`::NotConnected` - The client is not connected
+    /// - ``MqttError`::InvalidTopicName` - The topic name is invalid
+    /// - ``MqttError`::PacketIdExhausted` - No packet IDs available for `QoS` 1/2
+    /// - ``MqttError`::FlowControlExceeded` - Flow control limit reached
+    /// - ``MqttError`::Io` - Transport write error
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn publish(
         &self,
         topic: String,
@@ -446,6 +474,10 @@ impl DirectClientInner {
     }
 
     /// Wait for SUBACK with timeout
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn wait_for_suback(
         &self,
         rx: oneshot::Receiver<SubAckPacket>,
@@ -469,6 +501,10 @@ impl DirectClientInner {
     }
 
     /// Subscribe to topics with callback ID - DIRECT async method
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn subscribe_with_callback(
         &self,
         packet: SubscribePacket,
@@ -539,6 +575,10 @@ impl DirectClientInner {
     }
 
     /// Unsubscribe from topics - DIRECT async method
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn unsubscribe(&self, packet: UnsubscribePacket) -> Result<()> {
         if !self.is_connected() {
             return Err(MqttError::NotConnected);
@@ -698,6 +738,10 @@ impl DirectClientInner {
     }
 
     /// Start background tasks (NOT event loops)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn start_background_tasks(&mut self, reader: OwnedReadHalf) -> Result<()> {
         // Start packet reader task
         let reader_session = self.session.clone();

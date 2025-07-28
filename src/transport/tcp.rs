@@ -89,6 +89,10 @@ impl TcpTransport {
     ///
     /// This consumes the transport and returns owned halves that can be used
     /// in separate tasks without mutex contention.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn into_split(self) -> Result<(OwnedReadHalf, OwnedWriteHalf)> {
         match self.stream {
             Some(stream) => {

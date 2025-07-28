@@ -8,7 +8,7 @@ use bytes::{Buf, BufMut};
 /// Subscription options (v5.0)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SubscriptionOptions {
-    /// Maximum QoS level the client will accept
+    /// Maximum `QoS` level the client will accept
     pub qos: QoS,
     /// No Local option - if true, Application Messages MUST NOT be forwarded to this connection
     pub no_local: bool,
@@ -42,7 +42,7 @@ impl Default for SubscriptionOptions {
 }
 
 impl SubscriptionOptions {
-    /// Creates subscription options with the specified QoS
+    /// Creates subscription options with the specified `QoS`
     #[must_use]
     pub fn new(qos: QoS) -> Self {
         Self {
@@ -51,7 +51,7 @@ impl SubscriptionOptions {
         }
     }
 
-    /// Sets the QoS level
+    /// Sets the `QoS` level
     #[must_use]
     pub fn with_qos(mut self, qos: QoS) -> Self {
         self.qos = qos;
@@ -134,7 +134,7 @@ pub struct TopicFilter {
 }
 
 impl TopicFilter {
-    /// Creates a new topic filter with the specified QoS
+    /// Creates a new topic filter with the specified `QoS`
     #[must_use]
     pub fn new(filter: impl Into<String>, qos: QoS) -> Self {
         Self {

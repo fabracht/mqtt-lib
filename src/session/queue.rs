@@ -4,7 +4,7 @@ use crate::QoS;
 use std::collections::VecDeque;
 use std::time::Instant;
 
-/// Result of queueing a message
+/// `Result` of queueing a message
 #[derive(Debug, Clone)]
 pub struct QueueResult {
     /// Whether the message was successfully queued
@@ -28,7 +28,7 @@ pub struct QueuedMessage {
     pub qos: QoS,
     /// Retain flag
     pub retain: bool,
-    /// Packet identifier (for QoS > 0)
+    /// Packet identifier (for `QoS` > 0)
     pub packet_id: Option<u16>,
 }
 
@@ -86,6 +86,10 @@ impl MessageQueue {
     ///
     /// Returns information about the queue operation including whether the message
     /// was queued and how many messages were dropped to make room.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn enqueue(&mut self, message: ExpiringMessage) -> Result<QueueResult> {
         let size = message.topic.len() + message.payload.len();
 

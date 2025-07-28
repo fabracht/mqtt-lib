@@ -44,11 +44,11 @@ pub struct SessionState {
     config: SessionConfig,
     /// Subscriptions
     subscriptions: Arc<RwLock<SubscriptionManager>>,
-    /// QoS 1 and 2 message queue
+    /// `QoS` 1 and 2 message queue
     message_queue: Arc<RwLock<MessageQueue>>,
-    /// Unacknowledged PUBLISH packets (packet_id -> packet)
+    /// Unacknowledged PUBLISH packets (`packet_id` -> packet)
     unacked_publishes: Arc<RwLock<HashMap<u16, PublishPacket>>>,
-    /// Unacknowledged PUBREL packets (packet_id -> timestamp)
+    /// Unacknowledged PUBREL packets (`packet_id` -> timestamp)
     unacked_pubrels: Arc<RwLock<HashMap<u16, Instant>>>,
     /// Session creation time
     created_at: Instant,
@@ -126,6 +126,10 @@ impl SessionState {
     }
 
     /// Adds a subscription
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn add_subscription(
         &self,
         topic_filter: String,
@@ -142,6 +146,10 @@ impl SessionState {
     ///
     /// Returns `Ok(true)` if the subscription existed and was removed,
     /// `Ok(false)` if the subscription did not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn remove_subscription(&self, topic_filter: &str) -> Result<bool> {
         self.touch().await;
         self.subscriptions.write().await.remove(topic_filter)
@@ -164,6 +172,10 @@ impl SessionState {
     ///
     /// Returns information about the queue operation including whether the message
     /// was queued and how many messages were dropped to make room.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn queue_message(
         &self,
         message: QueuedMessage,
@@ -199,6 +211,10 @@ impl SessionState {
     }
 
     /// Stores an unacknowledged PUBLISH packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn store_unacked_publish(&self, packet: PublishPacket) -> Result<()> {
         if let Some(packet_id) = packet.packet_id {
             self.touch().await;
@@ -292,12 +308,16 @@ impl SessionState {
         *topic_alias = TopicAliasManager::new(max);
     }
 
-    /// Checks if we can send a QoS 1/2 message according to flow control
+    /// Checks if we can send a `QoS` 1/2 message according to flow control
     pub async fn can_send_qos_message(&self) -> bool {
         self.flow_control.read().await.can_send().await
     }
 
-    /// Registers a QoS 1/2 message as in-flight for flow control
+    /// Registers a `QoS` 1/2 message as in-flight for flow control
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn register_in_flight(&self, packet_id: u16) -> Result<()> {
         self.flow_control
             .write()
@@ -306,7 +326,11 @@ impl SessionState {
             .await
     }
 
-    /// Acknowledges a QoS 1/2 message for flow control
+    /// Acknowledges a `QoS` 1/2 message for flow control
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn acknowledge_in_flight(&self, packet_id: u16) -> Result<()> {
         self.flow_control.write().await.acknowledge(packet_id).await
     }
@@ -339,6 +363,10 @@ impl SessionState {
     }
 
     /// Checks if a packet size is within limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn check_packet_size(&self, size: usize) -> Result<()> {
         self.limits.read().await.check_packet_size(size)
     }
@@ -357,6 +385,10 @@ impl SessionState {
     }
 
     /// Registers a topic alias from incoming messages
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn register_incoming_topic_alias(&self, alias: u16, topic: &str) -> Result<()> {
         self.topic_alias_in
             .write()
@@ -467,13 +499,13 @@ impl SessionState {
         }
     }
 
-    /// Complete a publish (QoS 1 - after PUBACK received)
+    /// Complete a publish (`QoS` 1 - after PUBACK received)
     pub async fn complete_publish(&self, packet_id: u16) {
         self.touch().await;
         self.unacked_publishes.write().await.remove(&packet_id);
     }
 
-    /// Store PUBREC for QoS 2 flow
+    /// Store PUBREC for `QoS` 2 flow
     pub async fn store_pubrec(&self, packet_id: u16) {
         self.touch().await;
         // For incoming QoS 2 messages, we need to track that we've sent PUBREC
@@ -498,7 +530,7 @@ impl SessionState {
         self.unacked_pubrels.write().await.remove(&packet_id);
     }
 
-    /// Store PUBREL for QoS 2 flow
+    /// Store PUBREL for `QoS` 2 flow
     pub async fn store_pubrel(&self, packet_id: u16) {
         self.touch().await;
         self.unacked_pubrels

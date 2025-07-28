@@ -14,13 +14,13 @@ use crate::error::{MqttError, Result};
 /// * `false` otherwise
 ///
 /// # Examples
-/// ```
+/// ``
 /// # use mqtt_v5::topic_matching::matches;
 /// assert!(matches("sport/tennis", "sport/tennis"));
 /// assert!(matches("sport/tennis", "sport/+"));
 /// assert!(matches("sport/tennis/player1", "sport/#"));
 /// assert!(!matches("sport/tennis", "sport/+/player1"));
-/// ```
+/// ``
 #[must_use]
 pub fn matches(topic: &str, filter: &str) -> bool {
     // Empty topic doesn't match anything
@@ -106,7 +106,7 @@ pub fn is_valid_filter(filter: &str) -> bool {
 /// Validates a topic and returns an error if invalid
 ///
 /// # Errors
-/// Returns `MqttError::InvalidTopicName` if the topic is invalid
+/// Returns ``MqttError`::InvalidTopicName` if the topic is invalid
 pub fn validate_topic(topic: &str) -> Result<()> {
     if !is_valid_topic(topic) {
         return Err(MqttError::InvalidTopicName(format!(
@@ -130,7 +130,7 @@ pub fn validate_topic(topic: &str) -> Result<()> {
 /// Validates a topic filter and returns an error if invalid
 ///
 /// # Errors
-/// Returns `MqttError::InvalidTopicFilter` if the filter is invalid
+/// Returns ``MqttError`::InvalidTopicFilter` if the filter is invalid
 pub fn validate_filter(filter: &str) -> Result<()> {
     if !is_valid_filter(filter) {
         return Err(MqttError::InvalidTopicFilter(format!(

@@ -14,7 +14,7 @@ pub const VARIABLE_BYTE_INT_MAX: u32 = 268_435_455;
 ///
 /// # Errors
 ///
-/// Returns `MqttError::ProtocolError` if the value exceeds the maximum
+/// Returns ``MqttError`::ProtocolError` if the value exceeds the maximum
 pub fn encode_variable_int<B: BufMut>(buf: &mut B, value: u32) -> Result<()> {
     if value > VARIABLE_BYTE_INT_MAX {
         return Err(MqttError::ProtocolError(format!(

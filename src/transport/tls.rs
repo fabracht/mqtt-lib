@@ -168,6 +168,10 @@ impl TlsConfig {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or parsed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn load_client_cert_pem(&mut self, cert_path: &str) -> Result<()> {
         let cert_pem = std::fs::read(cert_path)?;
         let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &cert_pem[..])
@@ -187,6 +191,10 @@ impl TlsConfig {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or parsed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn load_client_key_pem(&mut self, key_path: &str) -> Result<()> {
         let key_pem = std::fs::read(key_path)?;
         let mut keys: Vec<PrivateKeyDer<'static>> =
@@ -219,6 +227,10 @@ impl TlsConfig {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or parsed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn load_ca_cert_pem(&mut self, ca_path: &str) -> Result<()> {
         let ca_pem = std::fs::read(ca_path)?;
         let ca_certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &ca_pem[..])
@@ -258,6 +270,10 @@ impl TlsTransport {
     }
 
     /// Builds the rustls client configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn build_tls_config(&mut self) -> Result<ClientConfig> {
         let mut root_store = RootCertStore::empty();
 

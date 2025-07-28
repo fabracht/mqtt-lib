@@ -77,6 +77,10 @@ impl FixedHeader {
     /// # Errors
     ///
     /// Returns an error if the remaining length is too large
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn encode<B: BufMut>(&self, buf: &mut B) -> Result<()> {
         let byte1 = (u8::from(self.packet_type) << 4) | (self.flags & 0x0F);
         buf.put_u8(byte1);
@@ -92,6 +96,10 @@ impl FixedHeader {
     /// - Insufficient bytes in buffer
     /// - Invalid packet type
     /// - Invalid remaining length
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn decode<B: Buf>(buf: &mut B) -> Result<Self> {
         if !buf.has_remaining() {
             return Err(MqttError::MalformedPacket(
@@ -170,6 +178,10 @@ pub trait MqttPacket: Sized {
     /// # Errors
     ///
     /// Returns an error if encoding fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn encode_body<B: BufMut>(&self, buf: &mut B) -> Result<()>;
 
     /// Decodes the packet body (without fixed header)

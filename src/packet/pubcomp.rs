@@ -4,7 +4,7 @@ use crate::protocol::v5::properties::Properties;
 use crate::types::ReasonCode;
 use bytes::{Buf, BufMut};
 
-/// MQTT PUBCOMP packet (QoS 2 publish complete, part 3)
+/// MQTT PUBCOMP packet (`QoS` 2 publish complete, part 3)
 #[derive(Debug, Clone)]
 pub struct PubCompPacket {
     /// Packet identifier

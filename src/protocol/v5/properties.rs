@@ -201,6 +201,10 @@ impl Properties {
     /// Returns an error if:
     /// - The value type doesn't match the property's expected type
     /// - The property doesn't allow multiple values and already exists
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn add(&mut self, id: PropertyId, value: PropertyValue) -> Result<()> {
         // Validate value type
         if !value.matches_type(id.value_type()) {
@@ -263,6 +267,10 @@ impl Properties {
     /// # Errors
     ///
     /// Returns an error if encoding fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn encode<B: BufMut>(&self, buf: &mut B) -> Result<()> {
         // First calculate the total properties length
         let mut props_buf = Vec::new();
@@ -286,6 +294,10 @@ impl Properties {
     }
 
     /// Encodes properties without the length prefix
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn encode_properties<B: BufMut>(&self, buf: &mut B) -> Result<()> {
         // Sort properties by ID for consistent encoding
         let mut sorted_props: Vec<_> = self.properties.iter().collect();
@@ -323,6 +335,10 @@ impl Properties {
     /// - Invalid property ID
     /// - Type mismatch
     /// - Duplicate property that doesn't allow multiples
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn decode<B: Buf>(buf: &mut B) -> Result<Self> {
         // Read properties length
         let props_len = decode_variable_int(buf)? as usize;
@@ -591,7 +607,7 @@ impl Properties {
             .push(PropertyValue::TwoByteInteger(max));
     }
 
-    /// Sets the maximum QoS
+    /// Sets the maximum `QoS`
     pub fn set_maximum_qos(&mut self, qos: u8) {
         self.properties
             .entry(PropertyId::MaximumQoS)

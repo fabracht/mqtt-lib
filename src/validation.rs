@@ -107,7 +107,7 @@ pub fn is_valid_client_id(client_id: &str) -> bool {
 ///
 /// # Errors
 ///
-/// Returns `MqttError::InvalidTopicName` if the topic name:
+/// Returns ``MqttError`::InvalidTopicName` if the topic name:
 /// - Is empty
 /// - Exceeds 65,535 bytes
 /// - Contains null characters
@@ -123,7 +123,7 @@ pub fn validate_topic_name(topic: &str) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns `MqttError::InvalidTopicFilter` if the topic filter:
+/// Returns ``MqttError`::InvalidTopicFilter` if the topic filter:
 /// - Is empty
 /// - Exceeds 65,535 bytes
 /// - Contains null characters
@@ -139,7 +139,7 @@ pub fn validate_topic_filter(filter: &str) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns `MqttError::InvalidClientId` if the client ID:
+/// Returns ``MqttError`::InvalidClientId` if the client ID:
 /// - Contains non-alphanumeric characters
 /// - Exceeds 128 bytes (reasonable limit)
 pub fn validate_client_id(client_id: &str) -> Result<()> {

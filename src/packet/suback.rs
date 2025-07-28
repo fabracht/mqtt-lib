@@ -19,11 +19,11 @@ pub struct SubAckPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SubAckReasonCode {
-    /// Maximum QoS 0
+    /// Maximum `QoS` 0
     GrantedQoS0 = 0x00,
-    /// Maximum QoS 1
+    /// Maximum `QoS` 1
     GrantedQoS1 = 0x01,
-    /// Maximum QoS 2
+    /// Maximum `QoS` 2
     GrantedQoS2 = 0x02,
     /// Unspecified error
     UnspecifiedError = 0x80,
@@ -46,7 +46,7 @@ pub enum SubAckReasonCode {
 }
 
 impl SubAckReasonCode {
-    /// Creates a reason code from a granted QoS level
+    /// Creates a reason code from a granted `QoS` level
     #[must_use]
     pub fn from_qos(qos: QoS) -> Self {
         match qos {
@@ -85,7 +85,7 @@ impl SubAckReasonCode {
         )
     }
 
-    /// Returns the granted QoS level if this is a success code
+    /// Returns the granted `QoS` level if this is a success code
     #[must_use]
     pub fn granted_qos(&self) -> Option<QoS> {
         match self {
@@ -115,7 +115,7 @@ impl SubAckPacket {
         self
     }
 
-    /// Adds a reason code for a granted QoS
+    /// Adds a reason code for a granted `QoS`
     #[must_use]
     pub fn add_granted_qos(mut self, qos: QoS) -> Self {
         self.reason_codes.push(SubAckReasonCode::from_qos(qos));

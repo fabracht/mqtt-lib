@@ -4,7 +4,7 @@ use crate::protocol::v5::properties::Properties;
 use crate::types::ReasonCode;
 use bytes::{Buf, BufMut};
 
-/// MQTT PUBREC packet (QoS 2 publish received, part 1)
+/// MQTT PUBREC packet (`QoS` 2 publish received, part 1)
 #[derive(Debug, Clone)]
 pub struct PubRecPacket {
     /// Packet identifier

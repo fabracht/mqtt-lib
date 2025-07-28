@@ -4,7 +4,7 @@ use crate::protocol::v5::properties::Properties;
 use crate::types::ReasonCode;
 use bytes::{Buf, BufMut};
 
-/// MQTT PUBACK packet (QoS 1 publish acknowledgment)
+/// MQTT PUBACK packet (`QoS` 1 publish acknowledgment)
 #[derive(Debug, Clone)]
 pub struct PubAckPacket {
     /// Packet identifier

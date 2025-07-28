@@ -48,6 +48,10 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Returns an error if a callback with the same ID is already registered
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn register_with_id(
         &self,
         topic_filter: String,
@@ -79,12 +83,20 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Returns an error if a callback with the same ID is already registered
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn register(&self, topic_filter: String, callback: PublishCallback) -> Result<()> {
         self.register_with_id(topic_filter, callback).await?;
         Ok(())
     }
 
     /// Internal registration logic
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     async fn register_internal(&self, topic_filter: String, entry: CallbackEntry) -> Result<()> {
         // Check if it's a shared subscription
         let actual_filter = if let Some(stripped) = Self::strip_shared_prefix(&topic_filter) {
@@ -119,6 +131,10 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Returns an error if the callback cannot be registered
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn restore_callback(&self, id: CallbackId) -> Result<bool> {
         if let Some(entry) = self.get_callback(id).await {
             // Check if callback is already registered
@@ -157,6 +173,10 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Returns an error if the topic filter is invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn unregister(&self, topic_filter: &str) -> Result<bool> {
         // Check if it's a shared subscription
         let actual_filter = if let Some(stripped) = Self::strip_shared_prefix(topic_filter) {
@@ -190,6 +210,10 @@ impl CallbackManager {
     /// # Errors
     ///
     /// Currently always returns Ok, but may return errors in future versions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn dispatch(&self, message: &PublishPacket) -> Result<()> {
         let mut callbacks_to_call = Vec::new();
 

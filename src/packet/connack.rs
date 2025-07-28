@@ -55,7 +55,7 @@ impl ConnAckPacket {
         self
     }
 
-    /// Sets the maximum QoS
+    /// Sets the maximum `QoS`
     #[must_use]
     pub fn with_maximum_qos(mut self, qos: u8) -> Self {
         self.properties.set_maximum_qos(qos);

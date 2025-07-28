@@ -11,7 +11,7 @@ use bytes::{Buf, BufMut};
 pub struct PublishPacket {
     /// Topic name
     pub topic_name: String,
-    /// Packet identifier (required for QoS > 0)
+    /// Packet identifier (required for `QoS` > 0)
     pub packet_id: Option<u16>,
     /// Message payload
     pub payload: Vec<u8>,

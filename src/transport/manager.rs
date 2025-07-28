@@ -115,6 +115,10 @@ impl<T: Transport + 'static> TransportManager<T> {
     /// # Errors
     ///
     /// Returns an error if connection fails or is already in progress
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn connect(&self) -> Result<()> {
         // Check current state
         let current_state = *self.state.read().await;
@@ -165,6 +169,10 @@ impl<T: Transport + 'static> TransportManager<T> {
     /// # Errors
     ///
     /// Returns an error if the transport fails to close
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn disconnect(&self) -> Result<()> {
         // Set state to closing
         *self.state.write().await = ConnectionState::Closing;
@@ -187,6 +195,10 @@ impl<T: Transport + 'static> TransportManager<T> {
     /// # Errors
     ///
     /// Returns an error if not connected or read fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn read(&self, buf: &mut [u8]) -> Result<usize> {
         // Check state
         if *self.state.read().await != ConnectionState::Connected {
@@ -216,6 +228,10 @@ impl<T: Transport + 'static> TransportManager<T> {
     /// # Errors
     ///
     /// Returns an error if not connected or write fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn write(&self, buf: &[u8]) -> Result<()> {
         // Check state
         if *self.state.read().await != ConnectionState::Connected {

@@ -31,6 +31,10 @@ impl AuthPacket {
     }
 
     /// Creates an AUTH packet for continuing authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn continue_authentication(
         auth_method: String,
         auth_data: Option<Vec<u8>>,
@@ -58,6 +62,10 @@ impl AuthPacket {
     }
 
     /// Creates an AUTH packet for re-authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn re_authenticate(auth_method: String, auth_data: Option<Vec<u8>>) -> Result<Self> {
         let mut properties = Properties::new();
 
@@ -82,6 +90,10 @@ impl AuthPacket {
     }
 
     /// Creates a successful authentication response
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn success(auth_method: String) -> Result<Self> {
         let mut properties = Properties::new();
 
@@ -94,6 +106,10 @@ impl AuthPacket {
     }
 
     /// Creates an authentication failure response
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn failure(reason_code: ReasonCode, reason_string: Option<String>) -> Result<Self> {
         if reason_code.is_success() {
             return Err(MqttError::ProtocolError(
@@ -150,6 +166,10 @@ impl AuthPacket {
     }
 
     /// Validates the AUTH packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn validate(&self) -> Result<()> {
         // For AUTH packets, authentication method is required for Continue and ReAuth
         if self.authentication_method().is_none()

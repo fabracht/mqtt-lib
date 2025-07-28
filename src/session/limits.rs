@@ -64,6 +64,10 @@ impl LimitsManager {
     }
 
     /// Checks if a packet size is within limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn check_packet_size(&self, size: usize) -> Result<()> {
         let max_size = self.effective_maximum_packet_size();
         if max_size > 0 && size > max_size as usize {

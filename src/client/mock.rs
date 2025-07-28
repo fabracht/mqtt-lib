@@ -165,6 +165,10 @@ impl MockMqttClient {
     /// # Errors
     ///
     /// Returns an error if no callback is found for the given topic
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn simulate_message(&self, topic: &str, payload: Vec<u8>, qos: QoS) -> Result<()> {
         let subscriptions = self.state.subscriptions.read().await;
 

@@ -15,6 +15,10 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 /// Extension trait for Transport to add packet I/O methods
 pub trait PacketIo: Transport {
     /// Read a complete MQTT packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn read_packet(&mut self) -> impl Future<Output = Result<Packet>> + Send + '_ {
         async move {
             // Read fixed header bytes
@@ -149,6 +153,10 @@ pub trait PacketIo: Transport {
     }
 
     /// Write a complete MQTT packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn write_packet(&mut self, packet: Packet) -> impl Future<Output = Result<()>> + Send + '_ {
         async move {
             let mut buf = BytesMut::with_capacity(1024);
@@ -245,12 +253,20 @@ impl<T: Transport> PacketIo for T {}
 /// Packet reader trait for split read halves
 pub trait PacketReader {
     /// Read a complete MQTT packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn read_packet(&mut self) -> impl Future<Output = Result<Packet>> + Send + '_;
 }
 
 /// Packet writer trait for split write halves  
 pub trait PacketWriter {
     /// Write a complete MQTT packet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     fn write_packet(&mut self, packet: Packet) -> impl Future<Output = Result<()>> + Send + '_;
 }
 

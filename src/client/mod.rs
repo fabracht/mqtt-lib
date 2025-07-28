@@ -48,7 +48,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///
 /// ## Basic usage
 ///
-/// ```no_run
+/// ````no_run
 /// use mqtt_v5::MqttClient;
 ///
 /// #[tokio::main]
@@ -77,8 +77,8 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///
 /// ## Advanced usage with options
 ///
-/// ```no_run
-/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, `QoS`};
+/// ````no_run
+/// use mqtt_v5::{`MqttClient`, ConnectOptions, PublishOptions, `QoS`};
 /// use std::time::Duration;
 ///
 /// #[tokio::main]
@@ -140,7 +140,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```
-    /// use mqtt_v5::{MqttClient, ConnectOptions};
+    /// use mqtt_v5::{`MqttClient`, ConnectOptions};
     /// use std::time::Duration;
     ///
     /// let options = ConnectOptions::new("client-001")
@@ -183,8 +183,8 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
+    /// ````no_run
+    /// use mqtt_v5::{`MqttClient`, ConnectionEvent, DisconnectReason};
     ///
     /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
@@ -247,7 +247,7 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ````no_run
     /// # use mqtt_v5::MqttClient;
     /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
@@ -450,7 +450,7 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ````no_run
     /// # use mqtt_v5::MqttClient;
     /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
@@ -468,7 +468,7 @@ impl MqttClient {
     /// client.publish("sensors/json", json).await?;
     /// # Ok(())
     /// # }
-    /// ```
+    /// ````
     ///
     /// # Errors
     ///
@@ -524,7 +524,7 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ````no_run
     /// # use mqtt_v5::MqttClient;
     /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");

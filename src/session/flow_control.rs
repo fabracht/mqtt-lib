@@ -7,9 +7,9 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 /// Flow control manager for handling Receive Maximum
 #[derive(Debug, Clone)]
 pub struct FlowControlManager {
-    /// Receive Maximum value (max in-flight QoS 1/2 messages)
+    /// Receive Maximum value (max in-flight `QoS` 1/2 messages)
     receive_maximum: u16,
-    /// Currently in-flight messages (packet_id -> timestamp)
+    /// Currently in-flight messages (`packet_id` -> timestamp)
     in_flight: Arc<RwLock<HashMap<u16, Instant>>>,
     /// Semaphore for flow control quota
     quota_semaphore: Arc<Semaphore>,
@@ -80,7 +80,7 @@ impl FlowControlManager {
         }
     }
 
-    /// Checks if we can send a new QoS 1/2 message
+    /// Checks if we can send a new `QoS` 1/2 message
     pub async fn can_send(&self) -> bool {
         if self.receive_maximum == 0 {
             return true; // 0 means unlimited
@@ -91,6 +91,10 @@ impl FlowControlManager {
     }
 
     /// Waits for quota to become available and reserves it for sending
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn acquire_send_quota(&self, packet_id: u16) -> Result<()> {
         if self.receive_maximum == 0 {
             return Ok(()); // Unlimited
@@ -120,6 +124,10 @@ impl FlowControlManager {
     }
 
     /// Tries to acquire quota immediately (non-blocking)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn try_acquire_send_quota(&self, packet_id: u16) -> Result<()> {
         if self.receive_maximum == 0 {
             return Ok(()); // Unlimited
@@ -144,11 +152,19 @@ impl FlowControlManager {
     }
 
     /// Registers a new in-flight message (legacy method)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn register_send(&self, packet_id: u16) -> Result<()> {
         self.try_acquire_send_quota(packet_id).await
     }
 
     /// Marks a message as acknowledged and releases quota
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub async fn acknowledge(&self, packet_id: u16) -> Result<()> {
         if self.receive_maximum > 0 {
             let mut in_flight = self.in_flight.write().await;
@@ -372,6 +388,10 @@ impl TopicAliasManager {
     }
 
     /// Registers a topic alias received from peer
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
     pub fn register_alias(&mut self, alias: u16, topic: &str) -> Result<()> {
         if alias == 0 || alias > self.topic_alias_maximum {
             return Err(MqttError::TopicAliasInvalid(alias));
