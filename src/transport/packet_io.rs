@@ -312,10 +312,11 @@ mod tests {
     #[tokio::test]
     async fn test_read_packet_connack() {
         let mut transport = MockTransport::new();
+        use crate::packet::connack::ConnAckPacket;
+        
         transport.connect().await.unwrap();
 
         // Create a CONNACK packet using proper encoding
-        use crate::packet::connack::ConnAckPacket;
         let connack = ConnAckPacket {
             protocol_version: 5,
             session_present: false,
@@ -511,8 +512,7 @@ mod tests {
 
             // Basic type check
             match (&packet, &read_packet) {
-                (Packet::PingReq, Packet::PingReq) => {}
-                (Packet::PingResp, Packet::PingResp) => {}
+                (Packet::PingReq, Packet::PingReq) | (Packet::PingResp, Packet::PingResp) => {}
                 (Packet::ConnAck(a), Packet::ConnAck(b)) => {
                     assert_eq!(a.session_present, b.session_present);
                     assert_eq!(a.reason_code, b.reason_code);

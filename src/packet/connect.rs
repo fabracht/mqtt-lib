@@ -38,120 +38,18 @@ impl ConnectPacket {
     /// Creates a new CONNECT packet from options
     #[must_use]
     pub fn new(options: ConnectOptions) -> Self {
-        let mut properties = Properties::default();
-        let mut will_properties = Properties::default();
-
-        // Add CONNECT properties
-        if let Some(val) = options.properties.session_expiry_interval {
-            let _ = properties.add(
-                PropertyId::SessionExpiryInterval,
-                PropertyValue::FourByteInteger(val),
-            );
-        }
-        if let Some(val) = options.properties.receive_maximum {
-            let _ = properties.add(
-                PropertyId::ReceiveMaximum,
-                PropertyValue::TwoByteInteger(val),
-            );
-        }
-        if let Some(val) = options.properties.maximum_packet_size {
-            let _ = properties.add(
-                PropertyId::MaximumPacketSize,
-                PropertyValue::FourByteInteger(val),
-            );
-        }
-        if let Some(val) = options.properties.topic_alias_maximum {
-            let _ = properties.add(
-                PropertyId::TopicAliasMaximum,
-                PropertyValue::TwoByteInteger(val),
-            );
-        }
-        if let Some(val) = options.properties.request_response_information {
-            let _ = properties.add(
-                PropertyId::RequestResponseInformation,
-                PropertyValue::Byte(u8::from(val)),
-            );
-        }
-        if let Some(val) = options.properties.request_problem_information {
-            let _ = properties.add(
-                PropertyId::RequestProblemInformation,
-                PropertyValue::Byte(u8::from(val)),
-            );
-        }
-        if let Some(ref val) = options.properties.authentication_method {
-            let _ = properties.add(
-                PropertyId::AuthenticationMethod,
-                PropertyValue::Utf8String(val.clone()),
-            );
-        }
-        if let Some(ref val) = options.properties.authentication_data {
-            let _ = properties.add(
-                PropertyId::AuthenticationData,
-                PropertyValue::BinaryData(val.clone().into()),
-            );
-        }
-        for (key, value) in &options.properties.user_properties {
-            let _ = properties.add(
-                PropertyId::UserProperty,
-                PropertyValue::Utf8StringPair(key.clone(), value.clone()),
-            );
-        }
-
-        // Add will properties if will is present
-        if let Some(ref will) = options.will {
-            if let Some(val) = will.properties.will_delay_interval {
-                let _ = will_properties.add(
-                    PropertyId::WillDelayInterval,
-                    PropertyValue::FourByteInteger(val),
-                );
-            }
-            if let Some(val) = will.properties.payload_format_indicator {
-                let _ = will_properties.add(
-                    PropertyId::PayloadFormatIndicator,
-                    PropertyValue::Byte(u8::from(val)),
-                );
-            }
-            if let Some(val) = will.properties.message_expiry_interval {
-                let _ = will_properties.add(
-                    PropertyId::MessageExpiryInterval,
-                    PropertyValue::FourByteInteger(val),
-                );
-            }
-            if let Some(ref val) = will.properties.content_type {
-                let _ = will_properties.add(
-                    PropertyId::ContentType,
-                    PropertyValue::Utf8String(val.clone()),
-                );
-            }
-            if let Some(ref val) = will.properties.response_topic {
-                let _ = will_properties.add(
-                    PropertyId::ResponseTopic,
-                    PropertyValue::Utf8String(val.clone()),
-                );
-            }
-            if let Some(ref val) = will.properties.correlation_data {
-                let _ = will_properties.add(
-                    PropertyId::CorrelationData,
-                    PropertyValue::BinaryData(val.clone().into()),
-                );
-            }
-            for (key, value) in &will.properties.user_properties {
-                let _ = will_properties.add(
-                    PropertyId::UserProperty,
-                    PropertyValue::Utf8StringPair(key.clone(), value.clone()),
-                );
-            }
-        }
+        let properties = Self::build_connect_properties(&options.properties);
+        let will_properties = options
+            .will
+            .as_ref()
+            .map_or_else(Properties::default, |will| {
+                Self::build_will_properties(&will.properties)
+            });
 
         Self {
             protocol_version: PROTOCOL_VERSION_V5,
             clean_start: options.clean_start,
-            keep_alive: options
-                .keep_alive
-                .as_secs()
-                .min(u64::from(u16::MAX))
-                .try_into()
-                .unwrap_or(u16::MAX),
+            keep_alive: Self::calculate_keep_alive(options.keep_alive),
             client_id: options.client_id,
             username: options.username,
             password: options.password,
@@ -161,18 +59,86 @@ impl ConnectPacket {
         }
     }
 
+    /// Builds CONNECT properties from options
+    fn build_connect_properties(props: &crate::types::ConnectProperties) -> Properties {
+        let mut properties = Properties::default();
+        
+        if let Some(val) = props.session_expiry_interval {
+            let _ = properties.add(PropertyId::SessionExpiryInterval, PropertyValue::FourByteInteger(val));
+        }
+        if let Some(val) = props.receive_maximum {
+            let _ = properties.add(PropertyId::ReceiveMaximum, PropertyValue::TwoByteInteger(val));
+        }
+        if let Some(val) = props.maximum_packet_size {
+            let _ = properties.add(PropertyId::MaximumPacketSize, PropertyValue::FourByteInteger(val));
+        }
+        if let Some(val) = props.topic_alias_maximum {
+            let _ = properties.add(PropertyId::TopicAliasMaximum, PropertyValue::TwoByteInteger(val));
+        }
+        if let Some(val) = props.request_response_information {
+            let _ = properties.add(PropertyId::RequestResponseInformation, PropertyValue::Byte(u8::from(val)));
+        }
+        if let Some(val) = props.request_problem_information {
+            let _ = properties.add(PropertyId::RequestProblemInformation, PropertyValue::Byte(u8::from(val)));
+        }
+        if let Some(val) = &props.authentication_method {
+            let _ = properties.add(PropertyId::AuthenticationMethod, PropertyValue::Utf8String(val.clone()));
+        }
+        if let Some(val) = &props.authentication_data {
+            let _ = properties.add(PropertyId::AuthenticationData, PropertyValue::BinaryData(val.clone().into()));
+        }
+        for (key, value) in &props.user_properties {
+            let _ = properties.add(PropertyId::UserProperty, PropertyValue::Utf8StringPair(key.clone(), value.clone()));
+        }
+        
+        properties
+    }
+
+    /// Builds will properties from will options
+    fn build_will_properties(will_props: &crate::types::WillProperties) -> Properties {
+        let mut properties = Properties::default();
+        
+        if let Some(val) = will_props.will_delay_interval {
+            let _ = properties.add(PropertyId::WillDelayInterval, PropertyValue::FourByteInteger(val));
+        }
+        if let Some(val) = will_props.payload_format_indicator {
+            let _ = properties.add(PropertyId::PayloadFormatIndicator, PropertyValue::Byte(u8::from(val)));
+        }
+        if let Some(val) = will_props.message_expiry_interval {
+            let _ = properties.add(PropertyId::MessageExpiryInterval, PropertyValue::FourByteInteger(val));
+        }
+        if let Some(val) = &will_props.content_type {
+            let _ = properties.add(PropertyId::ContentType, PropertyValue::Utf8String(val.clone()));
+        }
+        if let Some(val) = &will_props.response_topic {
+            let _ = properties.add(PropertyId::ResponseTopic, PropertyValue::Utf8String(val.clone()));
+        }
+        if let Some(val) = &will_props.correlation_data {
+            let _ = properties.add(PropertyId::CorrelationData, PropertyValue::BinaryData(val.clone().into()));
+        }
+        for (key, value) in &will_props.user_properties {
+            let _ = properties.add(PropertyId::UserProperty, PropertyValue::Utf8StringPair(key.clone(), value.clone()));
+        }
+        
+        properties
+    }
+
+    /// Calculates keep alive value, clamping to u16 range
+    fn calculate_keep_alive(keep_alive: std::time::Duration) -> u16 {
+        keep_alive
+            .as_secs()
+            .min(u64::from(u16::MAX))
+            .try_into()
+            .unwrap_or(u16::MAX)
+    }
+
     /// Creates a v3.1.1 compatible CONNECT packet
     #[must_use]
     pub fn new_v311(options: ConnectOptions) -> Self {
         Self {
             protocol_version: PROTOCOL_VERSION_V311,
             clean_start: options.clean_start,
-            keep_alive: options
-                .keep_alive
-                .as_secs()
-                .min(u64::from(u16::MAX))
-                .try_into()
-                .unwrap_or(u16::MAX),
+            keep_alive: Self::calculate_keep_alive(options.keep_alive),
             client_id: options.client_id,
             username: options.username,
             password: options.password,
@@ -289,6 +255,10 @@ struct DecodedConnectFlags {
     will_flag: bool,
     will_qos: u8,
     will_retain: bool,
+    credentials: CredentialFlags,
+}
+
+struct CredentialFlags {
     username_flag: bool,
     password_flag: bool,
 }
@@ -338,13 +308,17 @@ impl ConnectPacket {
             ));
         }
 
+        let credentials = CredentialFlags {
+            username_flag: decomposed_flags.contains(&ConnectFlags::UsernameFlag),
+            password_flag: decomposed_flags.contains(&ConnectFlags::PasswordFlag),
+        };
+        
         let decoded_flags = DecodedConnectFlags {
             clean_start: decomposed_flags.contains(&ConnectFlags::CleanStart),
             will_flag: decomposed_flags.contains(&ConnectFlags::WillFlag),
             will_qos: ConnectFlags::extract_will_qos(flags),
             will_retain: decomposed_flags.contains(&ConnectFlags::WillRetain),
-            username_flag: decomposed_flags.contains(&ConnectFlags::UsernameFlag),
-            password_flag: decomposed_flags.contains(&ConnectFlags::PasswordFlag),
+            credentials,
         };
 
         // Keep alive
@@ -398,13 +372,13 @@ impl ConnectPacket {
         buf: &mut B, 
         flags: &DecodedConnectFlags
     ) -> Result<(Option<String>, Option<Bytes>)> {
-        let username = if flags.username_flag {
+        let username = if flags.credentials.username_flag {
             Some(decode_string(buf)?)
         } else {
             None
         };
 
-        let password = if flags.password_flag {
+        let password = if flags.credentials.password_flag {
             Some(decode_binary(buf)?)
         } else {
             None
