@@ -65,6 +65,7 @@ impl RecoverableError {
     }
 
     /// Checks if an error is recoverable based on the configuration
+    #[must_use]
     pub fn is_recoverable(error: &MqttError, config: &ErrorRecoveryConfig) -> Option<Self> {
         if !config.auto_retry {
             return None;
@@ -131,6 +132,7 @@ impl RecoverableError {
     }
 
     /// Gets the recommended retry delay for this error type
+    #[must_use]
     pub fn retry_delay(&self, attempt: u32, config: &ErrorRecoveryConfig) -> Duration {
         let base_delay = match self {
             Self::QuotaExceeded => config.initial_retry_delay * 10, // Longer delay for quota
@@ -158,14 +160,21 @@ pub struct RetryState {
     pub error_type: Option<RecoverableError>,
 }
 
-impl RetryState {
-    /// Creates a new retry state
-    pub fn new() -> Self {
+impl Default for RetryState {
+    fn default() -> Self {
         Self {
             attempts: 0,
             last_error: None,
             error_type: None,
         }
+    }
+}
+
+impl RetryState {
+    /// Creates a new retry state
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Records a retry attempt
