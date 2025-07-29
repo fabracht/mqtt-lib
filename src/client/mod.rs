@@ -614,10 +614,11 @@ impl MqttClient {
     /// ```rust,no_run
     /// # use mqtt_v5::{MqttClient, ConnectOptions, transport::tls::TlsConfig};
     /// # use std::net::SocketAddr;
+    /// # use std::time::Duration;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut options = ConnectOptions::new("aws-iot-client")
     ///     .with_clean_start(false)
-    ///     .with_keep_alive(30);
+    ///     .with_keep_alive(Duration::from_secs(30));
     /// options.properties.maximum_packet_size = Some(131072); // 128KB for AWS IoT
     ///
     /// let mut tls_config = TlsConfig::new(

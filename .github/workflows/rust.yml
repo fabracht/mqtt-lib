@@ -94,7 +94,8 @@ jobs:
           
           # Wait for it to start and verify
           sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
+          nc -zv localhost 8883 || (echo "Mosquitto failed to start on TLS port 8883" && exit 1)
       
       - name: Build
         run: cargo build --verbose --all-features
@@ -157,7 +158,8 @@ jobs:
           
           # Wait for it to start and verify
           sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
+          nc -zv localhost 8883 || (echo "Mosquitto failed to start on TLS port 8883" && exit 1)
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
       - name: Generate coverage
@@ -222,7 +224,8 @@ jobs:
           
           # Wait for it to start and verify
           sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
+          nc -zv localhost 8883 || (echo "Mosquitto failed to start on TLS port 8883" && exit 1)
       
       - name: Run integration tests
         run: |
@@ -240,6 +243,7 @@ jobs:
             --test qos_flow \
             --test message_queuing \
             --test common_scenarios_demo \
+            --test tls_integration \
             -- --test-threads=1
         env:
           MQTT_BROKER_AVAILABLE: "true"

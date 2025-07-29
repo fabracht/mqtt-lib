@@ -24,14 +24,45 @@ use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
+use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
 use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};
 use crate::QoS;
 
+/// Unified reader type that can handle both TCP and TLS
+pub enum UnifiedReader {
+    Tcp(OwnedReadHalf),
+    Tls(TlsReadHalf),
+}
+
+impl PacketReader for UnifiedReader {
+    async fn read_packet(&mut self) -> Result<Packet> {
+        match self {
+            Self::Tcp(reader) => reader.read_packet().await,
+            Self::Tls(reader) => reader.read_packet().await,
+        }
+    }
+}
+
+/// Unified writer type that can handle both TCP and TLS
+pub enum UnifiedWriter {
+    Tcp(OwnedWriteHalf),
+    Tls(TlsWriteHalf),
+}
+
+impl PacketWriter for UnifiedWriter {
+    async fn write_packet(&mut self, packet: Packet) -> Result<()> {
+        match self {
+            Self::Tcp(writer) => writer.write_packet(packet).await,
+            Self::Tls(writer) => writer.write_packet(packet).await,
+        }
+    }
+}
+
 /// Internal client state - NO event loop, NO command channels
 pub struct DirectClientInner {
     /// Write half of the transport for client operations
-    pub writer: Option<Arc<tokio::sync::RwLock<OwnedWriteHalf>>>,
+    pub writer: Option<Arc<tokio::sync::RwLock<UnifiedWriter>>>,
     /// Session state
     pub session: Arc<RwLock<SessionState>>,
     /// Connection status
@@ -161,11 +192,13 @@ impl DirectClientInner {
 
                 // Split the transport for concurrent access
                 let (reader, writer) = match transport {
-                    TransportType::Tcp(tcp) => tcp.into_split()?,
-                    TransportType::Tls(_) => {
-                        return Err(MqttError::ProtocolError(
-                            "TLS split not implemented".to_string(),
-                        ))
+                    TransportType::Tcp(tcp) => {
+                        let (r, w) = tcp.into_split()?;
+                        (UnifiedReader::Tcp(r), UnifiedWriter::Tcp(w))
+                    }
+                    TransportType::Tls(tls) => {
+                        let (r, w) = (*tls).into_split()?;
+                        (UnifiedReader::Tls(r), UnifiedWriter::Tls(w))
                     }
                 };
 
@@ -750,7 +783,7 @@ impl DirectClientInner {
     /// # Errors
     ///
     /// Returns an error if the operation fails
-    fn start_background_tasks(&mut self, reader: OwnedReadHalf) -> Result<()> {
+    fn start_background_tasks(&mut self, reader: UnifiedReader) -> Result<()> {
         // Start packet reader task
         let reader_session = self.session.clone();
         let reader_callbacks = self.callback_manager.clone();
@@ -808,12 +841,12 @@ struct PacketReaderContext {
     unsuback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<UnsubAckPacket>>>>,
     puback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
     pubrec_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
-    writer: Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: Arc<tokio::sync::RwLock<UnifiedWriter>>,
     connected: Arc<AtomicBool>,
 }
 
 /// Packet reader task that handles response channels
-async fn packet_reader_task_with_responses(mut reader: OwnedReadHalf, ctx: PacketReaderContext) {
+async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: PacketReaderContext) {
     loop {
         // Read packet directly from reader - no mutex needed!
         let packet = reader.read_packet().await;
@@ -887,7 +920,7 @@ async fn packet_reader_task_with_responses(mut reader: OwnedReadHalf, ctx: Packe
 
 /// Keepalive task that uses the write half
 async fn keepalive_task_with_writer(
-    writer: Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: Arc<tokio::sync::RwLock<UnifiedWriter>>,
     keepalive_interval: Duration,
 ) {
     let mut interval = tokio::time::interval(keepalive_interval);
@@ -910,7 +943,7 @@ async fn keepalive_task_with_writer(
 /// Handle incoming packet with writer access for acknowledgments
 async fn handle_incoming_packet_with_writer(
     packet: Packet,
-    writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: &Arc<tokio::sync::RwLock<UnifiedWriter>>,
     session: &Arc<RwLock<SessionState>>,
     callback_manager: &Arc<CallbackManager>,
 ) -> Result<()> {
@@ -950,7 +983,7 @@ async fn handle_incoming_packet_with_writer(
 /// Handle PUBLISH packet with proper `QoS` acknowledgments
 async fn handle_publish_with_ack(
     publish: crate::packet::publish::PublishPacket,
-    writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: &Arc<tokio::sync::RwLock<UnifiedWriter>>,
     session: &Arc<RwLock<SessionState>>,
     callback_manager: &Arc<CallbackManager>,
 ) -> Result<()> {
@@ -1009,7 +1042,7 @@ async fn handle_publish_with_ack(
 /// Handle PUBREC packet for outgoing `QoS` 2 messages
 async fn handle_pubrec_outgoing(
     pubrec: crate::packet::pubrec::PubRecPacket,
-    writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: &Arc<tokio::sync::RwLock<UnifiedWriter>>,
     session: &Arc<RwLock<SessionState>>,
 ) -> Result<()> {
     // Move from unacked publish to unacked pubrel
@@ -1056,7 +1089,7 @@ async fn handle_pubcomp_outgoing(
 /// Handle PUBREL packet for `QoS` 2 flow
 async fn handle_pubrel(
     pubrel: crate::packet::pubrel::PubRelPacket,
-    writer: &Arc<tokio::sync::RwLock<OwnedWriteHalf>>,
+    writer: &Arc<tokio::sync::RwLock<UnifiedWriter>>,
     session: &Arc<RwLock<SessionState>>,
 ) -> Result<()> {
     // Check if we have a stored PUBREC for this packet ID

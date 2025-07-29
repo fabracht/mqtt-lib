@@ -6,10 +6,16 @@ use rustls::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_rustls::{client::TlsStream, TlsConnector};
+
+/// Type alias for TLS read half
+pub type TlsReadHalf = ReadHalf<TlsStream<TcpStream>>;
+
+/// Type alias for TLS write half
+pub type TlsWriteHalf = WriteHalf<TlsStream<TcpStream>>;
 
 /// Certificate verifier that accepts all certificates (for testing only)
 #[derive(Debug)]
@@ -299,6 +305,18 @@ impl TlsTransport {
     #[must_use]
     pub fn is_connected(&self) -> bool {
         self.stream.is_some()
+    }
+
+    /// Splits the TLS transport into read and write halves
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transport is not connected
+    pub fn into_split(self) -> Result<(TlsReadHalf, TlsWriteHalf)> {
+        match self.stream {
+            Some(stream) => Ok(tokio::io::split(stream)),
+            None => Err(MqttError::NotConnected),
+        }
     }
 
     /// Builds the rustls client configuration

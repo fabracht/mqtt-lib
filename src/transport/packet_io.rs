@@ -6,6 +6,7 @@
 use crate::encoding::encode_variable_int;
 use crate::error::{MqttError, Result};
 use crate::packet::{FixedHeader, MqttPacket, Packet, PacketType};
+use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
 use crate::transport::Transport;
 use bytes::{BufMut, BytesMut};
 use std::future::Future;
@@ -257,6 +258,73 @@ fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
 
 /// Implementation for TCP write half
 impl PacketWriter for OwnedWriteHalf {
+    async fn write_packet(&mut self, packet: Packet) -> Result<()> {
+        let mut buf = BytesMut::with_capacity(1024);
+        encode_packet_to_buffer(&packet, &mut buf)?;
+        self.write_all(&buf).await?;
+        self.flush().await?;
+        Ok(())
+    }
+}
+
+/// Implementation for TLS read half
+impl PacketReader for TlsReadHalf {
+    async fn read_packet(&mut self) -> Result<Packet> {
+        // Read fixed header bytes
+        let mut header_buf = BytesMut::with_capacity(5);
+
+        // Read first byte (packet type and flags)
+        let mut byte = [0u8; 1];
+        let n = self.read(&mut byte).await?;
+        if n == 0 {
+            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+        }
+        header_buf.put_u8(byte[0]);
+
+        // Read remaining length (variable length encoding)
+        loop {
+            let n = self.read(&mut byte).await?;
+            if n == 0 {
+                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+            }
+            header_buf.put_u8(byte[0]);
+
+            if (byte[0] & crate::constants::masks::CONTINUATION_BIT) == 0 {
+                break;
+            }
+
+            if header_buf.len() > 4 {
+                return Err(MqttError::MalformedPacket(
+                    "Invalid remaining length encoding".to_string(),
+                ));
+            }
+        }
+
+        // Parse the complete fixed header
+        let mut header_buf = header_buf.freeze();
+        let fixed_header = FixedHeader::decode(&mut header_buf)?;
+
+        // Read remaining bytes
+        let mut payload = vec![0u8; fixed_header.remaining_length as usize];
+        let mut bytes_read = 0;
+        while bytes_read < payload.len() {
+            let n = self.read(&mut payload[bytes_read..]).await?;
+            if n == 0 {
+                return Err(MqttError::ConnectionError(
+                    "Connection closed while reading packet".to_string(),
+                ));
+            }
+            bytes_read += n;
+        }
+
+        // Parse packet based on type
+        let mut payload_buf = BytesMut::from(&payload[..]);
+        Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
+    }
+}
+
+/// Implementation for TLS write half
+impl PacketWriter for TlsWriteHalf {
     async fn write_packet(&mut self, packet: Packet) -> Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
         encode_packet_to_buffer(&packet, &mut buf)?;
