@@ -83,34 +83,25 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Start Mosquitto (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          # Install mosquitto
-          sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients
-          
-          # Stop any existing mosquitto service
-          sudo systemctl stop mosquitto || true
-          
-          # Create a simple config
-          cat > mosquitto.conf << EOF
-          listener 1883
-          allow_anonymous true
-          EOF
-          
-          # Start mosquitto in background
-          mosquitto -c mosquitto.conf -d
-          
-          # Wait for it to start and verify
-          sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
       
       - name: Build
         run: cargo build --verbose --all-features
       
-      - name: Run tests
-        run: cargo test --verbose --all-features
+      - name: Run unit tests
+        run: |
+          # Run library unit tests
+          cargo test --verbose --all-features --lib
+          # Run broker-independent test files
+          cargo test --verbose --all-features \
+            --test flow_control \
+            --test packet_size_limits \
+            --test enhanced_auth \
+            --test will_messages \
+            --test retained_messages \
+            --test topic_aliases \
+            --test error_recovery
+        env:
+          MQTT_BROKER_AVAILABLE: "false"
       
       - name: Run doc tests
         run: cargo test --doc --all-features
@@ -176,7 +167,16 @@ jobs:
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
       - name: Generate coverage
-        run: cargo tarpaulin --out Xml --all-features --ignore-tests
+        run: |
+          cargo tarpaulin --out Xml --all-features \
+            --exclude-files 'tests/persistence.rs' \
+            --exclude-files 'tests/keepalive_handling.rs' \
+            --exclude-files 'tests/integration_*.rs' \
+            --exclude-files 'tests/client_*.rs' \
+            --exclude-files 'tests/connection_*.rs' \
+            --exclude-files 'tests/qos_*.rs' \
+            --exclude-files 'tests/message_*.rs' \
+            --exclude-files 'tests/common_scenarios_demo.rs'
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v3
         with:
@@ -237,8 +237,22 @@ jobs:
       
       - name: Run integration tests
         run: |
-          # Run integration tests
-          cargo test --test '*' -- --test-threads=1
+          # Run integration tests that require a broker
+          cargo test \
+            --test persistence \
+            --test keepalive_handling \
+            --test integration_complete_flow \
+            --test integration_mqtt5_features \
+            --test integration_reconnection \
+            --test client_publish \
+            --test client_subscribe \
+            --test client_connection \
+            --test connection_events \
+            --test qos_flow \
+            --test message_queuing \
+            --test common_scenarios_demo \
+            -- --test-threads=1
         env:
+          MQTT_BROKER_AVAILABLE: "true"
           MQTT_BROKER_HOST: localhost
           MQTT_BROKER_PORT: 1883
