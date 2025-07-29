@@ -37,16 +37,37 @@ openssl req -new -key "$CERT_DIR/client.key" -out "$CERT_DIR/client.csr" \
 # Sign client certificate with CA
 openssl x509 -req -days "$DAYS_VALID" -in "$CERT_DIR/client.csr" \
     -CA "$CERT_DIR/ca.pem" -CAkey "$CERT_DIR/ca.key" \
-    -CAcreateserial -out "$CERT_DIR/client.pem"
+    -CAcreateserial -out "$CERT_DIR/client.pem" \
+    -sha256
 
-# Clean up CSR file (optional)
-rm -f "$CERT_DIR/client.csr"
+# Generate server private key
+openssl genrsa -out "$CERT_DIR/server.key" 2048
+
+# Generate server certificate request
+openssl req -new -key "$CERT_DIR/server.key" -out "$CERT_DIR/server.csr" \
+    -subj "/C=$COUNTRY/ST=$STATE/L=$CITY/O=$ORG/CN=localhost"
+
+# Create extensions file for server certificate with SAN
+cat > "$CERT_DIR/server_ext.cnf" <<EOF
+subjectAltName = DNS:localhost,IP:127.0.0.1
+EOF
+
+# Sign server certificate with CA including SAN extension
+openssl x509 -req -days "$DAYS_VALID" -in "$CERT_DIR/server.csr" \
+    -CA "$CERT_DIR/ca.pem" -CAkey "$CERT_DIR/ca.key" \
+    -CAcreateserial -out "$CERT_DIR/server.pem" \
+    -sha256 -extfile "$CERT_DIR/server_ext.cnf"
+
+# Clean up CSR and extension files
+rm -f "$CERT_DIR/client.csr" "$CERT_DIR/server.csr" "$CERT_DIR/server_ext.cnf"
 
 echo "Test certificates generated successfully!"
 echo "Files created:"
 echo "  - $CERT_DIR/ca.key     (CA private key)"
 echo "  - $CERT_DIR/ca.pem     (CA certificate)"
 echo "  - $CERT_DIR/ca.srl     (CA serial number file)"
+echo "  - $CERT_DIR/server.key (Server private key)"
+echo "  - $CERT_DIR/server.pem (Server certificate)"
 echo "  - $CERT_DIR/client.key (Client private key)"
 echo "  - $CERT_DIR/client.pem (Client certificate)"
 echo ""
