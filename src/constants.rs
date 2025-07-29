@@ -112,13 +112,13 @@ pub mod connect_flags {
 pub mod limits {
     /// Maximum string length in MQTT (65535)
     pub const MAX_STRING_LENGTH: u16 = u16::MAX;
-    
+
     /// Maximum client ID length (128 characters)
     pub const MAX_CLIENT_ID_LENGTH: usize = 128;
-    
+
     /// Maximum packet size (256 MB)
     pub const MAX_PACKET_SIZE: u32 = 268_435_456;
-    
+
     /// Maximum binary data length (65536)
     pub const MAX_BINARY_LENGTH: u32 = 65_536;
 }
@@ -126,10 +126,10 @@ pub mod limits {
 /// Time-related constants
 pub mod time {
     use std::time::Duration;
-    
+
     /// Default session expiry interval (1 hour)
     pub const DEFAULT_SESSION_EXPIRY: Duration = Duration::from_secs(3600);
-    
+
     /// Default keep alive interval (60 seconds)
     pub const DEFAULT_KEEP_ALIVE: Duration = Duration::from_secs(60);
 }
@@ -138,19 +138,19 @@ pub mod time {
 pub mod buffer {
     /// Default buffer capacity (1024 bytes)
     pub const DEFAULT_CAPACITY: usize = 1024;
-    
+
     /// Default buffer size for encoding/decoding (2048 bytes)
     pub const DEFAULT_BUFFER_SIZE: usize = 2048;
-    
+
     /// Large buffer size for bulk operations (4096 bytes)
     pub const LARGE_BUFFER_SIZE: usize = 4096;
-    
+
     /// Maximum buffer size (8192 bytes)
     pub const MAX_BUFFER_SIZE: usize = 8192;
-    
+
     /// Very large buffer for high-throughput scenarios (16384 bytes)
     pub const VERY_LARGE_BUFFER_SIZE: usize = 16384;
-    
+
     /// Huge buffer for maximum performance (32768 bytes)
     pub const HUGE_BUFFER_SIZE: usize = 32768;
 }
@@ -159,7 +159,7 @@ pub mod buffer {
 pub mod variable_byte {
     /// Maximum value for single byte (127)
     pub const SINGLE_BYTE_MAX: u8 = 127;
-    
+
     /// Maximum value for variable byte integer (268435455)
     pub const MAX_VALUE: u32 = 268_435_455;
 }

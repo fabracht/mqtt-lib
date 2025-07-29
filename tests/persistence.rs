@@ -4,10 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-
 #[tokio::test]
 async fn test_clean_start_true() {
-    
     let options = ConnectOptions::new("clean-start-true").with_clean_start(true);
 
     let client = MqttClient::with_options(options);
@@ -50,7 +48,6 @@ async fn test_clean_start_true() {
 
 #[tokio::test]
 async fn test_clean_start_false() {
-    
     let client_id = "persist-test-1";
 
     // First connection with clean_start=true to ensure clean slate
@@ -110,7 +107,6 @@ async fn test_clean_start_false() {
 
 #[tokio::test]
 async fn test_session_expiry_interval() {
-    
     let client_id = "session-expiry-test";
 
     // Connect with session expiry interval
@@ -166,7 +162,6 @@ async fn test_session_expiry_interval() {
 
 #[tokio::test]
 async fn test_qos1_message_persistence() {
-    
     let pub_client = MqttClient::new("persist-pub");
     let sub_client_id = "persist-sub-qos1";
 
@@ -258,7 +253,6 @@ async fn test_qos1_message_persistence() {
 
 #[tokio::test]
 async fn test_qos2_message_persistence() {
-    
     let pub_client = MqttClient::new("persist-pub-qos2");
     let sub_client_id = "persist-sub-qos2";
 
@@ -341,7 +335,6 @@ async fn test_qos2_message_persistence() {
 
 #[tokio::test]
 async fn test_subscription_persistence() {
-    
     let client_id = "sub-persist-test";
 
     // First connection - subscribe to multiple topics
@@ -411,7 +404,6 @@ async fn test_subscription_persistence() {
 
 #[tokio::test]
 async fn test_will_message_persistence() {
-    
     let will_client_id = "will-persist-test";
     let sub_client = MqttClient::new("will-sub");
 
@@ -463,7 +455,6 @@ async fn test_will_message_persistence() {
 
 #[tokio::test]
 async fn test_packet_id_persistence() {
-    
     // Test that packet IDs are managed correctly across reconnections
     let client_id = "packet-id-persist";
 
@@ -507,7 +498,6 @@ async fn test_packet_id_persistence() {
 
 #[tokio::test]
 async fn test_inflight_message_persistence() {
-    
     // Test that in-flight QoS 1/2 messages are retransmitted after reconnection
     let pub_client_id = "inflight-pub";
     let sub_client_id = "inflight-sub";

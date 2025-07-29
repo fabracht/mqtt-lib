@@ -213,7 +213,10 @@ mod tests {
     #[test]
     fn test_limits_manager_creation() {
         let limits = LimitsManager::with_defaults();
-        assert_eq!(limits.client_maximum_packet_size(), crate::constants::limits::MAX_PACKET_SIZE);
+        assert_eq!(
+            limits.client_maximum_packet_size(),
+            crate::constants::limits::MAX_PACKET_SIZE
+        );
         assert_eq!(limits.server_maximum_packet_size(), None);
     }
 
@@ -222,7 +225,10 @@ mod tests {
         let mut limits = LimitsManager::with_defaults();
 
         // Only client limit
-        assert_eq!(limits.effective_maximum_packet_size(), crate::constants::limits::MAX_PACKET_SIZE);
+        assert_eq!(
+            limits.effective_maximum_packet_size(),
+            crate::constants::limits::MAX_PACKET_SIZE
+        );
 
         // Server limit lower than client
         limits.set_server_maximum_packet_size(1_048_576); // 1 MB
@@ -342,6 +348,8 @@ mod tests {
 
         let remaining = limits.get_remaining_expiry(expiry_time);
         assert!(remaining.is_some());
-        assert!(remaining.unwrap() <= crate::constants::time::DEFAULT_SESSION_EXPIRY.as_secs() as u32);
+        assert!(
+            remaining.unwrap() <= crate::constants::time::DEFAULT_SESSION_EXPIRY.as_secs() as u32
+        );
     }
 }
