@@ -279,7 +279,7 @@ impl MqttClient {
     /// Connects to the MQTT broker with custom options
     ///
     /// This is a DIRECT async method - no event loops!
-    /// Returns session_present flag from CONNACK
+    /// Returns `session_present` flag from CONNACK
     ///
     /// # Errors
     ///
@@ -485,7 +485,7 @@ impl MqttClient {
         self.publish_with_options(topic, payload, options).await
     }
 
-    /// Publishes a message to a topic with specific QoS (compatibility method)
+    /// Publishes a message to a topic with specific `QoS` (compatibility method)
     ///
     /// # Errors
     ///
@@ -596,7 +596,7 @@ impl MqttClient {
             .await
     }
 
-    /// Internal method that accepts PublishPacket callbacks
+    /// Internal method that accepts `PublishPacket` callbacks
     ///
     /// # Errors
     ///
@@ -762,7 +762,7 @@ impl MqttClient {
         self.publish_with_options(topic, payload, opts).await
     }
 
-    /// Publish with QoS 0 (convenience method)
+    /// Publish with `QoS` 0 (convenience method)
     ///
     /// # Errors
     ///
@@ -775,7 +775,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtMostOnce).await
     }
 
-    /// Publish with QoS 1 (convenience method)
+    /// Publish with `QoS` 1 (convenience method)
     ///
     /// # Errors
     ///
@@ -788,7 +788,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtLeastOnce).await
     }
 
-    /// Publish with QoS 2 (convenience method)
+    /// Publish with `QoS` 2 (convenience method)
     ///
     /// # Errors
     ///
@@ -840,7 +840,7 @@ impl MqttClient {
     }
 }
 
-/// Implementation of MqttClientTrait for MqttClient
+/// Implementation of `MqttClientTrait` for `MqttClient`
 #[allow(clippy::manual_async_fn)]
 impl MqttClientTrait for MqttClient {
     fn is_connected(&self) -> impl Future<Output = bool> + Send + '_ {

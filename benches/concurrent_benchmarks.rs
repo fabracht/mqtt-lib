@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use mqtt_v5::callback::CallbackManager;
 use mqtt_v5::packet::publish::PublishPacket;
 use mqtt_v5::protocol::v5::properties::Properties;

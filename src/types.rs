@@ -19,14 +19,14 @@ pub use crate::protocol::v5::reason_codes::ReasonCode;
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PublishResult {
-    /// QoS 0 publish completed (no packet ID)
+    /// `QoS` 0 publish completed (no packet ID)
     QoS0,
-    /// QoS 1 or 2 publish initiated with packet ID
+    /// `QoS` 1 or 2 publish initiated with packet ID
     QoS1Or2 { packet_id: u16 },
 }
 
 impl PublishResult {
-    /// Get the packet ID if this was a QoS 1 or 2 publish
+    /// Get the packet ID if this was a `QoS` 1 or 2 publish
     #[must_use]
     pub fn packet_id(&self) -> Option<u16> {
         match self {

@@ -1,5 +1,6 @@
 use bytes::BytesMut;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use std::hint::black_box;
 use mqtt_v5::encoding::{encode_string, encode_variable_int};
 use mqtt_v5::packet::{
     connect::ConnectPacket, publish::PublishPacket, subscribe::*, FixedHeader, MqttPacket,
