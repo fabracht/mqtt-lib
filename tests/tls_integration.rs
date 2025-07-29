@@ -53,10 +53,12 @@ async fn test_tls_connection() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Check received messages
-    let msgs = received_msgs.lock().unwrap();
-    assert_eq!(msgs.len(), 1, "Expected 1 message, got {}", msgs.len());
-    assert_eq!(msgs[0].topic, "test/tls/topic");
-    assert_eq!(msgs[0].payload, b"TLS test message");
+    {
+        let msgs = received_msgs.lock().unwrap();
+        assert_eq!(msgs.len(), 1, "Expected 1 message, got {}", msgs.len());
+        assert_eq!(msgs[0].topic, "test/tls/topic");
+        assert_eq!(msgs[0].payload, b"TLS test message");
+    }
 
     // Disconnect
     client.disconnect().await.unwrap();
@@ -120,10 +122,12 @@ async fn test_mtls_connection() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Check received messages
-    let msgs = received_msgs.lock().unwrap();
-    assert_eq!(msgs.len(), 1, "Expected 1 message, got {}", msgs.len());
-    assert_eq!(msgs[0].topic, "test/mtls/topic");
-    assert_eq!(msgs[0].payload, b"mTLS test message");
+    {
+        let msgs = received_msgs.lock().unwrap();
+        assert_eq!(msgs.len(), 1, "Expected 1 message, got {}", msgs.len());
+        assert_eq!(msgs[0].topic, "test/mtls/topic");
+        assert_eq!(msgs[0].payload, b"mTLS test message");
+    }
 
     // Disconnect
     client.disconnect().await.unwrap();

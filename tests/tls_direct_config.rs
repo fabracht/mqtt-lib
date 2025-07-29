@@ -216,7 +216,7 @@ fn test_alpn_protocol_validation() {
 #[should_panic(expected = "ALPN protocol cannot be empty")]
 fn test_alpn_empty_protocol_validation() {
     // This will panic due to empty protocol validation
-    TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
+    let _ = TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
         .with_alpn_protocols(&["mqtt", ""]);
 }
 
@@ -225,6 +225,6 @@ fn test_alpn_empty_protocol_validation() {
 fn test_alpn_long_protocol_validation() {
     let long_protocol = "a".repeat(256);
     // This will panic due to protocol length validation
-    TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
+    let _ = TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
         .with_alpn_protocols(&[&long_protocol]);
 }
