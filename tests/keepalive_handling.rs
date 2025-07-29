@@ -4,31 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Helper to check if MQTT broker is available
-async fn broker_available() -> bool {
-    let client = MqttClient::new("test-availability");
-    match client.connect("mqtt://127.0.0.1:1883").await {
-        Ok(()) => {
-            let _ = client.disconnect().await;
-            true
-        }
-        Err(_) => false,
-    }
-}
-
-/// Macro to skip test if broker is not available
-macro_rules! skip_if_no_broker {
-    () => {
-        if !broker_available().await {
-            println!("Skipping test - no MQTT broker available at 127.0.0.1:1883");
-            return;
-        }
-    };
-}
 
 #[tokio::test]
 async fn test_keepalive_ping_sent() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-1");
     options.keep_alive = Duration::from_secs(2); // 2 second keep-alive
@@ -50,7 +28,6 @@ async fn test_keepalive_ping_sent() {
 
 #[tokio::test]
 async fn test_keepalive_activity_resets_timer() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-2");
     options.keep_alive = Duration::from_secs(3);
@@ -76,7 +53,6 @@ async fn test_keepalive_activity_resets_timer() {
 
 #[tokio::test]
 async fn test_keepalive_zero_disables() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-3");
     options.keep_alive = Duration::from_secs(0); // Disabled
@@ -97,7 +73,6 @@ async fn test_keepalive_zero_disables() {
 
 #[tokio::test]
 async fn test_keepalive_minimum_interval() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-4");
     options.keep_alive = Duration::from_secs(1); // Very short interval
@@ -116,7 +91,6 @@ async fn test_keepalive_minimum_interval() {
 
 #[tokio::test]
 async fn test_keepalive_with_qos_messages() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-5");
     options.keep_alive = Duration::from_secs(2);
@@ -157,7 +131,6 @@ async fn test_keepalive_with_qos_messages() {
 
 #[tokio::test]
 async fn test_keepalive_during_idle_subscription() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-6");
     options.keep_alive = Duration::from_secs(2);
@@ -185,7 +158,6 @@ async fn test_keepalive_during_idle_subscription() {
 
 #[tokio::test]
 async fn test_keepalive_ping_response_tracking() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-7");
     options.keep_alive = Duration::from_secs(2);
@@ -203,7 +175,6 @@ async fn test_keepalive_ping_response_tracking() {
 
 #[tokio::test]
 async fn test_keepalive_with_connection_loss_detection() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-8");
     options.keep_alive = Duration::from_secs(2);
@@ -226,7 +197,6 @@ async fn test_keepalive_with_connection_loss_detection() {
 
 #[tokio::test]
 async fn test_keepalive_boundary_conditions() {
-    skip_if_no_broker!();
     
     // Test with maximum allowed keep-alive (18 hours, 12 minutes, 15 seconds)
     let mut options = ConnectOptions::new("keepalive-test-9");
@@ -246,7 +216,6 @@ async fn test_keepalive_boundary_conditions() {
 
 #[tokio::test]
 async fn test_keepalive_with_rapid_reconnect() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-10");
     options.keep_alive = Duration::from_secs(2);
@@ -272,7 +241,6 @@ async fn test_keepalive_with_rapid_reconnect() {
 
 #[tokio::test]
 async fn test_keepalive_stats_accuracy() {
-    skip_if_no_broker!();
     
     let mut options = ConnectOptions::new("keepalive-test-11");
     options.keep_alive = Duration::from_secs(1); // Fast interval for testing

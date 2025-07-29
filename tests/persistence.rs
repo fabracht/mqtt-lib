@@ -4,31 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Helper to check if MQTT broker is available
-async fn broker_available() -> bool {
-    let client = MqttClient::new("test-availability");
-    match client.connect("mqtt://127.0.0.1:1883").await {
-        Ok(()) => {
-            let _ = client.disconnect().await;
-            true
-        }
-        Err(_) => false,
-    }
-}
-
-/// Macro to skip test if broker is not available
-macro_rules! skip_if_no_broker {
-    () => {
-        if !broker_available().await {
-            println!("Skipping test - no MQTT broker available at 127.0.0.1:1883");
-            return;
-        }
-    };
-}
 
 #[tokio::test]
 async fn test_clean_start_true() {
-    skip_if_no_broker!();
     
     let options = ConnectOptions::new("clean-start-true").with_clean_start(true);
 
@@ -72,7 +50,6 @@ async fn test_clean_start_true() {
 
 #[tokio::test]
 async fn test_clean_start_false() {
-    skip_if_no_broker!();
     
     let client_id = "persist-test-1";
 
@@ -133,7 +110,6 @@ async fn test_clean_start_false() {
 
 #[tokio::test]
 async fn test_session_expiry_interval() {
-    skip_if_no_broker!();
     
     let client_id = "session-expiry-test";
 
@@ -190,7 +166,6 @@ async fn test_session_expiry_interval() {
 
 #[tokio::test]
 async fn test_qos1_message_persistence() {
-    skip_if_no_broker!();
     
     let pub_client = MqttClient::new("persist-pub");
     let sub_client_id = "persist-sub-qos1";
@@ -283,7 +258,6 @@ async fn test_qos1_message_persistence() {
 
 #[tokio::test]
 async fn test_qos2_message_persistence() {
-    skip_if_no_broker!();
     
     let pub_client = MqttClient::new("persist-pub-qos2");
     let sub_client_id = "persist-sub-qos2";
@@ -367,7 +341,6 @@ async fn test_qos2_message_persistence() {
 
 #[tokio::test]
 async fn test_subscription_persistence() {
-    skip_if_no_broker!();
     
     let client_id = "sub-persist-test";
 
@@ -438,7 +411,6 @@ async fn test_subscription_persistence() {
 
 #[tokio::test]
 async fn test_will_message_persistence() {
-    skip_if_no_broker!();
     
     let will_client_id = "will-persist-test";
     let sub_client = MqttClient::new("will-sub");
@@ -491,7 +463,6 @@ async fn test_will_message_persistence() {
 
 #[tokio::test]
 async fn test_packet_id_persistence() {
-    skip_if_no_broker!();
     
     // Test that packet IDs are managed correctly across reconnections
     let client_id = "packet-id-persist";
@@ -536,7 +507,6 @@ async fn test_packet_id_persistence() {
 
 #[tokio::test]
 async fn test_inflight_message_persistence() {
-    skip_if_no_broker!();
     
     // Test that in-flight QoS 1/2 messages are retransmitted after reconnection
     let pub_client_id = "inflight-pub";

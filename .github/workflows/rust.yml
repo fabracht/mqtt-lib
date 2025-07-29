@@ -83,6 +83,29 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
+      - name: Start Mosquitto (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Install mosquitto
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          
+          # Stop any existing mosquitto service
+          sudo systemctl stop mosquitto || true
+          
+          # Create a simple config
+          cat > mosquitto.conf << EOF
+          listener 1883
+          allow_anonymous true
+          EOF
+          
+          # Start mosquitto in background
+          mosquitto -c mosquitto.conf -d
+          
+          # Wait for it to start and verify
+          sleep 2
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
+      
       - name: Build
         run: cargo build --verbose --all-features
       
@@ -125,6 +148,31 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Generate test certificates
+        run: |
+          chmod +x scripts/generate_test_certs.sh
+          ./scripts/generate_test_certs.sh
+      - name: Start Mosquitto
+        run: |
+          # Install mosquitto
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          
+          # Stop any existing mosquitto service
+          sudo systemctl stop mosquitto || true
+          
+          # Create a simple config
+          cat > mosquitto.conf << EOF
+          listener 1883
+          allow_anonymous true
+          EOF
+          
+          # Start mosquitto in background
+          mosquitto -c mosquitto.conf -d
+          
+          # Wait for it to start and verify
+          sleep 2
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start" && exit 1)
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
       - name: Generate coverage
