@@ -270,8 +270,8 @@ impl MqttPacket for ConnAckPacket {
 
     fn decode_body<B: Buf>(buf: &mut B, _fixed_header: &FixedHeader) -> Result<Self> {
         // Validate reserved bits - only bit 0 (session present) is valid
-        const RESERVED_BITS_MASK: u8 = 0xFE;  // All bits except bit 0
-        
+        const RESERVED_BITS_MASK: u8 = 0xFE; // All bits except bit 0
+
         // Acknowledge flags
         if !buf.has_remaining() {
             return Err(MqttError::MalformedPacket(
@@ -279,7 +279,7 @@ impl MqttPacket for ConnAckPacket {
             ));
         }
         let flags = buf.get_u8();
-        
+
         // Use BeBytes decomposition to parse flags
         let decomposed_flags = ConnAckFlags::decompose(flags);
         let session_present = decomposed_flags.contains(&ConnAckFlags::SessionPresent);

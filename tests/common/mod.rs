@@ -22,7 +22,10 @@ pub fn test_client_id(test_name: &str) -> String {
 /// Create a connected test client with default settings
 pub async fn create_test_client(name: &str) -> MqttClient {
     let client = MqttClient::new(test_client_id(name));
-    client.connect(TEST_BROKER).await.expect("Failed to connect");
+    client
+        .connect(TEST_BROKER)
+        .await
+        .expect("Failed to connect");
     client
 }
 
@@ -69,7 +72,7 @@ impl MessageCollector {
                 qos: msg.qos,
                 retain: msg.retain,
             };
-            
+
             // Use spawn to avoid blocking the callback
             let messages = messages.clone();
             tokio::spawn(async move {
@@ -153,42 +156,51 @@ impl EventCounter {
 
 /// Test scenario: Basic publish/subscribe
 #[allow(dead_code)]
-pub async fn test_basic_pubsub(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn test_basic_pubsub(
+    client: &MqttClient,
+    topic: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let collector = MessageCollector::new();
-    
+
     // Subscribe
     client.subscribe(topic, collector.callback()).await?;
-    
+
     // Publish test message
     let test_payload = b"test message";
     client.publish(topic, test_payload).await?;
-    
+
     // Wait for message
     if !collector.wait_for_messages(1, Duration::from_secs(1)).await {
         return Err("Timeout waiting for message".into());
     }
-    
+
     // Verify message
     let messages = collector.get_messages().await;
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].topic, topic);
     assert_eq!(messages[0].payload, test_payload);
-    
+
     Ok(())
 }
 
 /// Test scenario: QoS flow validation
 #[allow(dead_code)]
-pub async fn test_qos_flow(client: &MqttClient, topic: &str, qos: QoS) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn test_qos_flow(
+    client: &MqttClient,
+    topic: &str,
+    qos: QoS,
+) -> Result<(), Box<dyn std::error::Error>> {
     let collector = MessageCollector::new();
-    
+
     // Subscribe with specified QoS
     let sub_opts = mqtt_v5::SubscribeOptions {
         qos,
         ..Default::default()
     };
-    client.subscribe_with_options(topic, sub_opts, collector.callback()).await?;
-    
+    client
+        .subscribe_with_options(topic, sub_opts, collector.callback())
+        .await?;
+
     // Publish with specified QoS
     let pub_opts = PublishOptions {
         qos,
@@ -196,70 +208,84 @@ pub async fn test_qos_flow(client: &MqttClient, topic: &str, qos: QoS) -> Result
         properties: Default::default(),
     };
     let test_payload = format!("QoS {} test", qos as u8);
-    client.publish_with_options(topic, test_payload.as_bytes(), pub_opts).await?;
-    
+    client
+        .publish_with_options(topic, test_payload.as_bytes(), pub_opts)
+        .await?;
+
     // Wait and verify
     if !collector.wait_for_messages(1, Duration::from_secs(2)).await {
         return Err("Timeout waiting for QoS message".into());
     }
-    
+
     let messages = collector.get_messages().await;
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].qos, qos);
-    
+
     Ok(())
 }
 
 /// Test scenario: Multiple subscriptions
 #[allow(dead_code)]
-pub async fn test_multiple_subscriptions(client: &MqttClient) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn test_multiple_subscriptions(
+    client: &MqttClient,
+) -> Result<(), Box<dyn std::error::Error>> {
     let collector1 = MessageCollector::new();
     let collector2 = MessageCollector::new();
     let collector3 = MessageCollector::new();
-    
+
     // Subscribe to different topics
-    client.subscribe("test/topic1", collector1.callback()).await?;
-    client.subscribe("test/topic2", collector2.callback()).await?;
+    client
+        .subscribe("test/topic1", collector1.callback())
+        .await?;
+    client
+        .subscribe("test/topic2", collector2.callback())
+        .await?;
     client.subscribe("test/+", collector3.callback()).await?; // Wildcard
-    
+
     // Publish to both topics
     client.publish("test/topic1", b"message1").await?;
     client.publish("test/topic2", b"message2").await?;
-    
+
     // Wait for messages
     tokio::time::sleep(Duration::from_millis(200)).await;
-    
+
     // Verify
     assert_eq!(collector1.count().await, 1);
     assert_eq!(collector2.count().await, 1);
     assert_eq!(collector3.count().await, 2); // Should receive both
-    
+
     Ok(())
 }
 
 /// Test scenario: Retained message handling
 #[allow(dead_code)]
-pub async fn test_retained_messages(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn test_retained_messages(
+    client: &MqttClient,
+    topic: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     // First, publish a retained message
     client.publish_retain(topic, b"retained message").await?;
-    
+
     // Create new subscriber
     let collector = MessageCollector::new();
     client.subscribe(topic, collector.callback()).await?;
-    
+
     // Should immediately receive the retained message
-    if !collector.wait_for_messages(1, Duration::from_millis(500)).await {
+    if !collector
+        .wait_for_messages(1, Duration::from_millis(500))
+        .await
+    {
         return Err("Timeout waiting for retained message".into());
     }
-    
+
     let messages = collector.get_messages().await;
     assert_eq!(messages.len(), 1);
     assert!(messages[0].retain);
     assert_eq!(messages[0].payload, b"retained message");
-    
+
     // Clear retained message
     client.publish_retain(topic, b"").await?;
-    
+
     Ok(())
 }
 
@@ -272,7 +298,10 @@ pub async fn wait_with_message(duration: Duration, message: &str) {
 
 /// Ensure a topic is clean (no retained messages)
 #[allow(dead_code)]
-pub async fn cleanup_topic(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn cleanup_topic(
+    client: &MqttClient,
+    topic: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Clear any retained messages
     client.publish_retain(topic, b"").await?;
     Ok(())
@@ -303,7 +332,7 @@ mod tests {
     #[tokio::test]
     async fn test_message_collector() {
         let collector = MessageCollector::new();
-        
+
         // Simulate receiving messages
         let callback = collector.callback();
         let message = mqtt_v5::types::Message {
@@ -314,10 +343,10 @@ mod tests {
             properties: Default::default(),
         };
         callback(message);
-        
+
         // Wait a bit for async processing
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         assert_eq!(collector.count().await, 1);
         let messages = collector.get_messages().await;
         assert_eq!(messages[0].topic, "test/topic");
@@ -327,7 +356,7 @@ mod tests {
     async fn test_event_counter() {
         let counter = EventCounter::new();
         assert_eq!(counter.get(), 0);
-        
+
         let callback = counter.callback();
         // Simulate events
         for _ in 0..5 {
@@ -339,7 +368,7 @@ mod tests {
                 properties: Default::default(),
             });
         }
-        
+
         assert_eq!(counter.get(), 5);
         counter.reset();
         assert_eq!(counter.get(), 0);

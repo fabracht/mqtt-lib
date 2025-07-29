@@ -16,7 +16,7 @@ async fn test_complete_mqtt_flow() {
 
     // Test single subscription and publish using EventCounter
     let counter = EventCounter::new();
-    
+
     let sub_opts = SubscribeOptions {
         qos: QoS::AtLeastOnce,
         ..Default::default()
@@ -407,7 +407,7 @@ async fn test_publish_options_and_properties() {
         ("key1".to_string(), "value1".to_string()),
         ("key2".to_string(), "value2".to_string()),
     ];
-    
+
     let properties = mqtt_v5::types::PublishProperties {
         message_expiry_interval: Some(300),
         content_type: Some("text/plain".to_string()),
@@ -416,7 +416,7 @@ async fn test_publish_options_and_properties() {
         user_properties,
         ..Default::default()
     };
-    
+
     let opts = PublishOptions {
         qos: QoS::AtLeastOnce,
         retain: true,

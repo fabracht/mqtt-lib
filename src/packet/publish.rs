@@ -334,7 +334,10 @@ mod tests {
 
         let fixed_header = FixedHeader::decode(&mut buf).unwrap();
         assert_eq!(fixed_header.packet_type, PacketType::Publish);
-        assert_eq!(fixed_header.flags & crate::flags::PublishFlags::Retain as u8, crate::flags::PublishFlags::Retain as u8); // Retain flag
+        assert_eq!(
+            fixed_header.flags & crate::flags::PublishFlags::Retain as u8,
+            crate::flags::PublishFlags::Retain as u8
+        ); // Retain flag
 
         let decoded = PublishPacket::decode_body(&mut buf, &fixed_header).unwrap();
         assert_eq!(decoded.topic_name, "sensor/temperature");
@@ -396,7 +399,8 @@ mod tests {
         encode_string(&mut buf, "topic").unwrap();
         // No packet ID for QoS > 0 - buffer ends here
 
-        let fixed_header = FixedHeader::new(PacketType::Publish, 0x02, u32::try_from(buf.len()).unwrap()); // QoS 1
+        let fixed_header =
+            FixedHeader::new(PacketType::Publish, 0x02, u32::try_from(buf.len()).unwrap()); // QoS 1
         let result = PublishPacket::decode_body(&mut buf, &fixed_header);
         assert!(result.is_err());
     }

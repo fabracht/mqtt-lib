@@ -627,7 +627,7 @@ impl DirectClientInner {
                 return Err(MqttError::Timeout);
             }
         };
-        
+
         // Validate UNSUBACK packet ID matches
         if unsuback.packet_id != packet_id {
             return Err(MqttError::ProtocolError(format!(

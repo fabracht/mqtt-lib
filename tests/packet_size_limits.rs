@@ -178,7 +178,7 @@ fn test_remaining_expiry_interval() {
 #[test]
 fn test_zero_packet_size_limit() {
     let config = LimitsConfig {
-        client_maximum_packet_size: 0, // No limit
+        client_maximum_packet_size: 0,       // No limit
         server_maximum_packet_size: Some(0), // No limit
         ..Default::default()
     };

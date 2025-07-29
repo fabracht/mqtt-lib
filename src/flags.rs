@@ -28,7 +28,8 @@ impl ConnectFlags {
     /// Extract Will `QoS` value from flags
     #[must_use]
     pub fn extract_will_qos(flags: u8) -> u8 {
-        (flags >> crate::constants::connect_flags::WILL_QOS_SHIFT) & crate::constants::connect_flags::WILL_QOS_MASK
+        (flags >> crate::constants::connect_flags::WILL_QOS_SHIFT)
+            & crate::constants::connect_flags::WILL_QOS_MASK
     }
 
     #[must_use]
@@ -37,7 +38,8 @@ impl ConnectFlags {
         // Clear existing QoS bits
         flags &= crate::constants::connect_flags::WILL_QOS_CLEAR_MASK;
         // Set new QoS bits
-        flags |= (qos & crate::constants::connect_flags::WILL_QOS_MASK) << crate::constants::connect_flags::WILL_QOS_SHIFT;
+        flags |= (qos & crate::constants::connect_flags::WILL_QOS_MASK)
+            << crate::constants::connect_flags::WILL_QOS_SHIFT;
         flags
     }
 }
@@ -60,7 +62,8 @@ impl PublishFlags {
     /// Extract `QoS` value from flags
     #[must_use]
     pub fn extract_qos(flags: u8) -> u8 {
-        (flags >> crate::constants::publish_flags::QOS_SHIFT) & crate::constants::publish_flags::QOS_MASK
+        (flags >> crate::constants::publish_flags::QOS_SHIFT)
+            & crate::constants::publish_flags::QOS_MASK
     }
 
     #[must_use]
@@ -69,7 +72,8 @@ impl PublishFlags {
         // Clear existing QoS bits
         flags &= crate::constants::publish_flags::QOS_CLEAR_MASK;
         // Set new QoS bits
-        flags |= (qos & crate::constants::publish_flags::QOS_MASK) << crate::constants::publish_flags::QOS_SHIFT;
+        flags |= (qos & crate::constants::publish_flags::QOS_MASK)
+            << crate::constants::publish_flags::QOS_SHIFT;
         flags
     }
 }

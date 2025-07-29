@@ -3,17 +3,17 @@
 //! CRITICAL: NO EVENT LOOPS
 //! These are utilities for testing the async MQTT implementation.
 
-use crate::packet::connack::{ConnAckPacket};
-use crate::packet::connect::{ConnectPacket};
-use crate::packet::publish::{PublishPacket};
+use crate::packet::connack::ConnAckPacket;
+use crate::packet::connect::ConnectPacket;
+use crate::packet::publish::PublishPacket;
 use crate::packet::suback::{SubAckPacket, SubAckReasonCode};
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::{MqttPacket, Packet};
 use crate::protocol::v5::properties::Properties;
-use crate::protocol::v5::reason_codes::{ReasonCode};
-use crate::{MqttClient, Result, QoS};
+use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::session::limits::{ExpiringMessage, LimitsManager};
 use crate::session::retained::RetainedMessage;
+use crate::{MqttClient, QoS, Result};
 use bytes::BytesMut;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -156,7 +156,7 @@ pub fn create_test_subscribe(topics: Vec<(&str, QoS)>) -> Packet {
 /// Returns `MqttError` if packet encoding fails
 pub fn encode_packet(packet: &Packet) -> std::result::Result<Vec<u8>, crate::error::MqttError> {
     let mut buf = BytesMut::with_capacity(1024);
-    
+
     // Use the packet's own encode method which handles fixed header + body
     match packet {
         Packet::Connect(p) => p.encode(&mut buf)?,
@@ -274,14 +274,14 @@ impl TestClientBuilder {
             connect_url: None,
         }
     }
-    
+
     /// Sets the connection URL for automatic connection
     #[must_use]
     pub fn with_connection(mut self, url: &str) -> Self {
         self.connect_url = Some(url.to_string());
         self
     }
-    
+
     /// Builds the test client, optionally connecting if URL was provided
     ///
     /// # Errors
@@ -338,55 +338,57 @@ impl TestMessageBuilder {
             retain: false,
         }
     }
-    
+
     /// Sets the topic prefix for generated messages
     #[must_use]
     pub fn with_topic_prefix(mut self, prefix: &str) -> Self {
         self.topic_prefix = prefix.to_string();
         self
     }
-    
+
     /// Sets the `QoS` level for generated messages
     #[must_use]
     pub fn with_qos(mut self, qos: QoS) -> Self {
         self.qos = qos;
         self
     }
-    
+
     /// Sets the retain flag for generated messages
     #[must_use]
     pub fn with_retain(mut self, retain: bool) -> Self {
         self.retain = retain;
         self
     }
-    
+
     /// Builds a batch of expiring messages
     #[must_use]
     pub fn build_expiring_batch(self, count: u8) -> Vec<ExpiringMessage> {
-        (0..count).map(|i| {
-            ExpiringMessage::new(
-                format!("{}/{i}", self.topic_prefix),
-                vec![i],
-                self.qos,
-                self.retain,
-                None,
-                None,
-                &LimitsManager::with_defaults(),
-            )
-        }).collect()
+        (0..count)
+            .map(|i| {
+                ExpiringMessage::new(
+                    format!("{}/{i}", self.topic_prefix),
+                    vec![i],
+                    self.qos,
+                    self.retain,
+                    None,
+                    None,
+                    &LimitsManager::with_defaults(),
+                )
+            })
+            .collect()
     }
-    
+
     /// Builds a batch of retained messages
     #[must_use]
     pub fn build_retained_batch(self, count: u8) -> Vec<RetainedMessage> {
-        (0..count).map(|i| {
-            RetainedMessage {
+        (0..count)
+            .map(|i| RetainedMessage {
                 topic: format!("{}/{i}", self.topic_prefix),
                 payload: vec![i],
                 qos: self.qos,
                 properties: Properties::default(),
-            }
-        }).collect()
+            })
+            .collect()
     }
 }
 
@@ -406,7 +408,11 @@ pub async fn connect_with_retry(client: &MqttClient, url: &str, max_retries: u32
         match client.connect(url).await {
             Ok(()) => return Ok(()),
             Err(e) if attempt < max_retries - 1 => {
-                tracing::debug!("Connection attempt {} failed: {:?}, retrying...", attempt, e);
+                tracing::debug!(
+                    "Connection attempt {} failed: {:?}, retrying...",
+                    attempt,
+                    e
+                );
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
             Err(e) => return Err(e),
@@ -424,19 +430,19 @@ impl TestData {
     pub fn topics(count: usize, prefix: &str) -> Vec<String> {
         (0..count).map(|i| format!("{prefix}/{i}")).collect()
     }
-    
+
     /// Generates a list of test payloads
     #[must_use]
     pub fn payloads(count: u8) -> Vec<Vec<u8>> {
         (0..count).map(|i| vec![i]).collect()
     }
-    
+
     /// Generates a list of topic-payload pairs
     #[must_use]
     pub fn messages(count: u8, topic_prefix: &str) -> Vec<(String, Vec<u8>)> {
-        (0..count).map(|i| {
-            (format!("{topic_prefix}/{i}"), vec![i])
-        }).collect()
+        (0..count)
+            .map(|i| (format!("{topic_prefix}/{i}"), vec![i]))
+            .collect()
     }
 }
 #[cfg(test)]
@@ -498,4 +504,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

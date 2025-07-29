@@ -95,9 +95,11 @@ impl SubscriptionOptions {
         };
 
         let no_local = (byte & crate::constants::subscription::NO_LOCAL_MASK) != 0;
-        let retain_as_published = (byte & crate::constants::subscription::RETAIN_AS_PUBLISHED_MASK) != 0;
+        let retain_as_published =
+            (byte & crate::constants::subscription::RETAIN_AS_PUBLISHED_MASK) != 0;
 
-        let retain_handling_val = (byte >> crate::constants::subscription::RETAIN_HANDLING_SHIFT) & crate::constants::subscription::QOS_MASK;
+        let retain_handling_val = (byte >> crate::constants::subscription::RETAIN_HANDLING_SHIFT)
+            & crate::constants::subscription::QOS_MASK;
         let retain_handling = match retain_handling_val {
             0 => RetainHandling::SendAtSubscribe,
             1 => RetainHandling::SendAtSubscribeIfNew,

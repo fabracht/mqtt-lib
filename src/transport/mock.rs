@@ -353,7 +353,12 @@ mod tests {
         transport.connect().await.unwrap();
 
         // Inject a packet (PUBLISH with QoS 1)
-        transport.inject_packet(vec![crate::constants::fixed_header::PUBLISH_BASE | 0x02, 0x0A]).await;
+        transport
+            .inject_packet(vec![
+                crate::constants::fixed_header::PUBLISH_BASE | 0x02,
+                0x0A,
+            ])
+            .await;
 
         // Read it
         let mut buf = [0u8; 2];

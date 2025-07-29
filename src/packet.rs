@@ -82,7 +82,8 @@ impl FixedHeader {
     ///
     /// Returns an error if the operation fails
     pub fn encode<B: BufMut>(&self, buf: &mut B) -> Result<()> {
-        let byte1 = (u8::from(self.packet_type) << 4) | (self.flags & crate::constants::masks::FLAGS);
+        let byte1 =
+            (u8::from(self.packet_type) << 4) | (self.flags & crate::constants::masks::FLAGS);
         buf.put_u8(byte1);
         encode_variable_int(buf, self.remaining_length)?;
         Ok(())
@@ -129,7 +130,7 @@ impl FixedHeader {
         match self.packet_type {
             PacketType::Publish => true, // Publish has variable flags
             PacketType::PubRel | PacketType::Subscribe | PacketType::Unsubscribe => {
-                self.flags == 0x02  // Required flags for these packet types
+                self.flags == 0x02 // Required flags for these packet types
             }
             _ => self.flags == 0,
         }
@@ -167,7 +168,7 @@ impl Packet {
     /// Decode a packet body based on the packet type
     ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if decoding fails
     pub fn decode_from_body<B: Buf>(
         packet_type: PacketType,

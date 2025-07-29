@@ -382,7 +382,7 @@ mod tests {
         let messages = TestMessageBuilder::new()
             .with_topic_prefix("test")
             .build_expiring_batch(5);
-        
+
         for msg in messages {
             let result = queue.enqueue(msg).unwrap();
             assert!(result.was_queued);
@@ -436,7 +436,9 @@ mod tests {
             // Manually adjust the timestamp of the last enqueued message
             if let Some(last) = queue.queue.back_mut() {
                 // Set timestamps: 30ms, 20ms, 10ms ago
-                last.queued_at = now.checked_sub(std::time::Duration::from_millis((3 - u64::from(i)) * 10)).unwrap();
+                last.queued_at = now
+                    .checked_sub(std::time::Duration::from_millis((3 - u64::from(i)) * 10))
+                    .unwrap();
             }
         }
 

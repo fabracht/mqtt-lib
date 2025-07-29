@@ -200,7 +200,7 @@ mod tests {
         let messages = TestMessageBuilder::new()
             .with_topic_prefix("topic")
             .build_retained_batch(5);
-        
+
         for (i, msg) in messages.into_iter().enumerate() {
             store.store(format!("topic/{i}"), Some(msg)).await;
         }

@@ -280,7 +280,11 @@ mod tests {
         assert!(n > 0, "Expected to read some bytes but got 0");
 
         // Basic validation - should be a CONNACK
-        assert_eq!(buf[0] & crate::constants::masks::PACKET_TYPE, crate::constants::fixed_header::CONNACK, "Expected CONNACK packet type");
+        assert_eq!(
+            buf[0] & crate::constants::masks::PACKET_TYPE,
+            crate::constants::fixed_header::CONNACK,
+            "Expected CONNACK packet type"
+        );
 
         // Close connection
         let result = transport.close().await;

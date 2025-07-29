@@ -78,11 +78,11 @@ pub trait PacketIo: Transport {
 
             // Parse packet based on type
             let mut payload_buf = BytesMut::from(&payload[..]);
-            
+
             if fixed_header.packet_type == PacketType::PubAck {
                 tracing::trace!(payload_len = payload.len(), "Decoding PUBACK packet");
             }
-            
+
             Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
         }
     }
@@ -217,9 +217,7 @@ fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
         }
         Packet::Publish(p) => {
             let flags = p.flags();
-            encode_packet(buf, PacketType::Publish, flags, |buf| {
-                p.encode_body(buf)
-            })?;
+            encode_packet(buf, PacketType::Publish, flags, |buf| p.encode_body(buf))?;
         }
         Packet::PubAck(p) => {
             encode_packet(buf, PacketType::PubAck, 0, |buf| p.encode_body(buf))?;
@@ -234,17 +232,13 @@ fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
             encode_packet(buf, PacketType::PubComp, 0, |buf| p.encode_body(buf))?;
         }
         Packet::Subscribe(p) => {
-            encode_packet(buf, PacketType::Subscribe, 0x02, |buf| {
-                p.encode_body(buf)
-            })?;
+            encode_packet(buf, PacketType::Subscribe, 0x02, |buf| p.encode_body(buf))?;
         }
         Packet::SubAck(p) => {
             encode_packet(buf, PacketType::SubAck, 0, |buf| p.encode_body(buf))?;
         }
         Packet::Unsubscribe(p) => {
-            encode_packet(buf, PacketType::Unsubscribe, 0x02, |buf| {
-                p.encode_body(buf)
-            })?;
+            encode_packet(buf, PacketType::Unsubscribe, 0x02, |buf| p.encode_body(buf))?;
         }
         Packet::UnsubAck(p) => {
             encode_packet(buf, PacketType::UnsubAck, 0, |buf| p.encode_body(buf))?;
@@ -252,9 +246,7 @@ fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
         Packet::PingReq => encode_packet(buf, PacketType::PingReq, 0, |_| Ok(()))?,
         Packet::PingResp => encode_packet(buf, PacketType::PingResp, 0, |_| Ok(()))?,
         Packet::Disconnect(p) => {
-            encode_packet(buf, PacketType::Disconnect, 0, |buf| {
-                p.encode_body(buf)
-            })?;
+            encode_packet(buf, PacketType::Disconnect, 0, |buf| p.encode_body(buf))?;
         }
         Packet::Auth(p) => {
             encode_packet(buf, PacketType::Auth, 0, |buf| p.encode_body(buf))?;
@@ -291,7 +283,9 @@ mod tests {
         transport.connect().await.unwrap();
 
         // Inject a PINGRESP packet
-        transport.add_incoming_data(&crate::constants::packets::PINGRESP_BYTES).await;
+        transport
+            .add_incoming_data(&crate::constants::packets::PINGRESP_BYTES)
+            .await;
 
         let packet = transport.read_packet().await.unwrap();
         assert!(matches!(packet, Packet::PingResp));
@@ -303,7 +297,9 @@ mod tests {
         transport.connect().await.unwrap();
 
         // Inject a PINGREQ packet
-        transport.add_incoming_data(&crate::constants::packets::PINGREQ_BYTES).await;
+        transport
+            .add_incoming_data(&crate::constants::packets::PINGREQ_BYTES)
+            .await;
 
         let packet = transport.read_packet().await.unwrap();
         assert!(matches!(packet, Packet::PingReq));
@@ -312,7 +308,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_packet_connack() {
         use crate::packet::connack::ConnAckPacket;
-        
+
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
 
@@ -323,7 +319,7 @@ mod tests {
             reason_code: ReasonCode::Success,
             properties: Properties::new(),
         };
-        
+
         let mut data = BytesMut::new();
         connack.encode(&mut data).unwrap();
         transport.add_incoming_data(&data).await;
@@ -349,16 +345,16 @@ mod tests {
 
         // Use proper encoding
         let mut buf = BytesMut::new();
-        
+
         // Encode topic string using the proper function
         crate::encoding::encode_string(&mut buf, topic).unwrap();
-        
+
         // Properties length (0 for no properties)
         buf.put_u8(0x00);
-        
+
         // Payload
         buf.extend_from_slice(payload);
-        
+
         // Now create the full packet with fixed header
         let mut data = BytesMut::new();
         data.put_u8(0x30); // PUBLISH with QoS 0

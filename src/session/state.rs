@@ -1,13 +1,13 @@
 use crate::error::{MqttError, Result};
 use crate::packet::publish::PublishPacket;
-#[allow(unused_imports)]
-use crate::{Properties};
 use crate::session::flow_control::{FlowControlManager, TopicAliasManager};
 use crate::session::limits::LimitsManager;
 use crate::session::queue::{MessageQueue, QueuedMessage};
 use crate::session::retained::{RetainedMessage, RetainedMessageStore};
 use crate::session::subscription::{Subscription, SubscriptionManager};
 use crate::types::WillMessage;
+#[allow(unused_imports)]
+use crate::Properties;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -608,7 +608,8 @@ mod tests {
         assert!(!session.is_expired().await);
 
         // Update last activity to past
-        *session.last_activity.write().await = Instant::now().checked_sub(Duration::from_secs(2)).unwrap();
+        *session.last_activity.write().await =
+            Instant::now().checked_sub(Duration::from_secs(2)).unwrap();
 
         // Now should be expired
         assert!(session.is_expired().await);
@@ -836,7 +837,9 @@ mod tests {
         let session = SessionState::new("test-client".to_string(), config, false);
 
         // Update last activity to past
-        *session.last_activity.write().await = Instant::now().checked_sub(Duration::from_secs(100)).unwrap();
+        *session.last_activity.write().await = Instant::now()
+            .checked_sub(Duration::from_secs(100))
+            .unwrap();
 
         // Should not be expired
         assert!(!session.is_expired().await);

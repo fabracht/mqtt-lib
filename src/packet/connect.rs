@@ -62,64 +62,112 @@ impl ConnectPacket {
     /// Builds CONNECT properties from options
     fn build_connect_properties(props: &crate::types::ConnectProperties) -> Properties {
         let mut properties = Properties::default();
-        
+
         if let Some(val) = props.session_expiry_interval {
-            let _ = properties.add(PropertyId::SessionExpiryInterval, PropertyValue::FourByteInteger(val));
+            let _ = properties.add(
+                PropertyId::SessionExpiryInterval,
+                PropertyValue::FourByteInteger(val),
+            );
         }
         if let Some(val) = props.receive_maximum {
-            let _ = properties.add(PropertyId::ReceiveMaximum, PropertyValue::TwoByteInteger(val));
+            let _ = properties.add(
+                PropertyId::ReceiveMaximum,
+                PropertyValue::TwoByteInteger(val),
+            );
         }
         if let Some(val) = props.maximum_packet_size {
-            let _ = properties.add(PropertyId::MaximumPacketSize, PropertyValue::FourByteInteger(val));
+            let _ = properties.add(
+                PropertyId::MaximumPacketSize,
+                PropertyValue::FourByteInteger(val),
+            );
         }
         if let Some(val) = props.topic_alias_maximum {
-            let _ = properties.add(PropertyId::TopicAliasMaximum, PropertyValue::TwoByteInteger(val));
+            let _ = properties.add(
+                PropertyId::TopicAliasMaximum,
+                PropertyValue::TwoByteInteger(val),
+            );
         }
         if let Some(val) = props.request_response_information {
-            let _ = properties.add(PropertyId::RequestResponseInformation, PropertyValue::Byte(u8::from(val)));
+            let _ = properties.add(
+                PropertyId::RequestResponseInformation,
+                PropertyValue::Byte(u8::from(val)),
+            );
         }
         if let Some(val) = props.request_problem_information {
-            let _ = properties.add(PropertyId::RequestProblemInformation, PropertyValue::Byte(u8::from(val)));
+            let _ = properties.add(
+                PropertyId::RequestProblemInformation,
+                PropertyValue::Byte(u8::from(val)),
+            );
         }
         if let Some(val) = &props.authentication_method {
-            let _ = properties.add(PropertyId::AuthenticationMethod, PropertyValue::Utf8String(val.clone()));
+            let _ = properties.add(
+                PropertyId::AuthenticationMethod,
+                PropertyValue::Utf8String(val.clone()),
+            );
         }
         if let Some(val) = &props.authentication_data {
-            let _ = properties.add(PropertyId::AuthenticationData, PropertyValue::BinaryData(val.clone().into()));
+            let _ = properties.add(
+                PropertyId::AuthenticationData,
+                PropertyValue::BinaryData(val.clone().into()),
+            );
         }
         for (key, value) in &props.user_properties {
-            let _ = properties.add(PropertyId::UserProperty, PropertyValue::Utf8StringPair(key.clone(), value.clone()));
+            let _ = properties.add(
+                PropertyId::UserProperty,
+                PropertyValue::Utf8StringPair(key.clone(), value.clone()),
+            );
         }
-        
+
         properties
     }
 
     /// Builds will properties from will options
     fn build_will_properties(will_props: &crate::types::WillProperties) -> Properties {
         let mut properties = Properties::default();
-        
+
         if let Some(val) = will_props.will_delay_interval {
-            let _ = properties.add(PropertyId::WillDelayInterval, PropertyValue::FourByteInteger(val));
+            let _ = properties.add(
+                PropertyId::WillDelayInterval,
+                PropertyValue::FourByteInteger(val),
+            );
         }
         if let Some(val) = will_props.payload_format_indicator {
-            let _ = properties.add(PropertyId::PayloadFormatIndicator, PropertyValue::Byte(u8::from(val)));
+            let _ = properties.add(
+                PropertyId::PayloadFormatIndicator,
+                PropertyValue::Byte(u8::from(val)),
+            );
         }
         if let Some(val) = will_props.message_expiry_interval {
-            let _ = properties.add(PropertyId::MessageExpiryInterval, PropertyValue::FourByteInteger(val));
+            let _ = properties.add(
+                PropertyId::MessageExpiryInterval,
+                PropertyValue::FourByteInteger(val),
+            );
         }
         if let Some(val) = &will_props.content_type {
-            let _ = properties.add(PropertyId::ContentType, PropertyValue::Utf8String(val.clone()));
+            let _ = properties.add(
+                PropertyId::ContentType,
+                PropertyValue::Utf8String(val.clone()),
+            );
         }
         if let Some(val) = &will_props.response_topic {
-            let _ = properties.add(PropertyId::ResponseTopic, PropertyValue::Utf8String(val.clone()));
+            let _ = properties.add(
+                PropertyId::ResponseTopic,
+                PropertyValue::Utf8String(val.clone()),
+            );
         }
         if let Some(val) = &will_props.correlation_data {
-            let _ = properties.add(PropertyId::CorrelationData, PropertyValue::BinaryData(val.clone().into()));
+            let _ = properties.add(
+                PropertyId::CorrelationData,
+                PropertyValue::BinaryData(val.clone().into()),
+            );
         }
         for (key, value) in &will_props.user_properties {
-            let _ = properties.add(PropertyId::UserProperty, PropertyValue::Utf8StringPair(key.clone(), value.clone()));
+            let _ = properties.add(
+                PropertyId::UserProperty,
+                PropertyValue::Utf8StringPair(key.clone(), value.clone()),
+            );
         }
-        
+
         properties
     }
 
@@ -222,7 +270,7 @@ impl MqttPacket for ConnectPacket {
         // Decode variable header
         let protocol_version = Self::decode_protocol_header(buf)?;
         let (flags, keep_alive) = Self::decode_connect_flags_and_keepalive(buf)?;
-        
+
         // Properties (v5.0 only)
         let properties = if protocol_version == PROTOCOL_VERSION_V5 {
             Properties::decode(buf)?
@@ -289,7 +337,9 @@ impl ConnectPacket {
     }
 
     /// Decode connect flags and keep alive
-    fn decode_connect_flags_and_keepalive<B: Buf>(buf: &mut B) -> Result<(DecodedConnectFlags, u16)> {
+    fn decode_connect_flags_and_keepalive<B: Buf>(
+        buf: &mut B,
+    ) -> Result<(DecodedConnectFlags, u16)> {
         // Connect flags
         if !buf.has_remaining() {
             return Err(MqttError::MalformedPacket(
@@ -300,7 +350,7 @@ impl ConnectPacket {
 
         // Parse flags using BeBytes decomposition
         let decomposed_flags = ConnectFlags::decompose(flags);
-        
+
         // Validate reserved bit
         if decomposed_flags.contains(&ConnectFlags::Reserved) {
             return Err(MqttError::MalformedPacket(
@@ -312,7 +362,7 @@ impl ConnectPacket {
             username_flag: decomposed_flags.contains(&ConnectFlags::UsernameFlag),
             password_flag: decomposed_flags.contains(&ConnectFlags::PasswordFlag),
         };
-        
+
         let decoded_flags = DecodedConnectFlags {
             clean_start: decomposed_flags.contains(&ConnectFlags::CleanStart),
             will_flag: decomposed_flags.contains(&ConnectFlags::WillFlag),
@@ -332,9 +382,9 @@ impl ConnectPacket {
 
     /// Decode will message if present
     fn decode_will<B: Buf>(
-        buf: &mut B, 
-        flags: &DecodedConnectFlags, 
-        protocol_version: u8
+        buf: &mut B,
+        flags: &DecodedConnectFlags,
+        protocol_version: u8,
     ) -> Result<(Option<WillMessage>, Properties)> {
         if !flags.will_flag {
             return Ok((None, Properties::default()));
@@ -369,8 +419,8 @@ impl ConnectPacket {
 
     /// Decode username and password if present
     fn decode_credentials<B: Buf>(
-        buf: &mut B, 
-        flags: &DecodedConnectFlags
+        buf: &mut B,
+        flags: &DecodedConnectFlags,
     ) -> Result<(Option<String>, Option<Bytes>)> {
         let username = if flags.credentials.username_flag {
             Some(decode_string(buf)?)
