@@ -351,17 +351,19 @@ impl MqttClient {
             ClientTransportType::Tcp => {
                 let config = TcpConfig::new(addr);
                 let mut tcp_transport = TcpTransport::new(config);
-                tcp_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TCP connect failed: {e}"))
-                })?;
+                tcp_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("TCP connect failed: {e}")))?;
                 Ok(TransportType::Tcp(tcp_transport))
             }
             ClientTransportType::Tls => {
                 let config = TlsConfig::new(addr, host);
                 let mut tls_transport = TlsTransport::new(config);
-                tls_transport.connect().await.map_err(|e| {
-                    MqttError::ConnectionError(format!("TLS connect failed: {e}"))
-                })?;
+                tls_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("TLS connect failed: {e}")))?;
                 Ok(TransportType::Tls(Box::new(tls_transport)))
             }
         }
@@ -391,7 +393,10 @@ impl MqttClient {
             tracing::debug!("Trying to connect to address: {}", addr);
 
             // Try to create and connect transport
-            let transport = match self.try_connect_address(*addr, client_transport_type, host).await {
+            let transport = match self
+                .try_connect_address(*addr, client_transport_type, host)
+                .await
+            {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::debug!("Failed to connect to {}: {}", addr, e);
