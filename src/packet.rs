@@ -80,7 +80,7 @@ use bebytes::BeBytes;
 use bytes::{Buf, BufMut};
 
 /// MQTT acknowledgment packet variable header using bebytes
-/// Used by PubAck, PubRec, PubRel, and PubComp packets
+/// Used by `PubAck`, `PubRec`, `PubRel`, and `PubComp` packets
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BeBytes)]
 pub struct AckPacketHeader {
     /// Packet identifier (big-endian u16)
@@ -100,7 +100,7 @@ impl AckPacketHeader {
         }
     }
 
-    /// Gets the reason code as a ReasonCode enum
+    /// Gets the reason code as a `ReasonCode` enum
     #[must_use]
     pub fn get_reason_code(&self) -> Option<crate::types::ReasonCode> {
         crate::types::ReasonCode::from_u8(self.reason_code)
@@ -116,7 +116,7 @@ pub struct MqttTypeAndFlags {
     /// DUP flag (bit 3) - for PUBLISH packets
     #[bits(1)]
     pub dup: u8,
-    /// QoS level (bits 2-1) - for PUBLISH packets
+    /// `QoS` level (bits 2-1) - for PUBLISH packets
     #[bits(2)]
     pub qos: u8,
     /// RETAIN flag (bit 0) - for PUBLISH packets  
@@ -125,7 +125,7 @@ pub struct MqttTypeAndFlags {
 }
 
 impl MqttTypeAndFlags {
-    /// Creates a new MqttTypeAndFlags for a given packet type
+    /// Creates a new `MqttTypeAndFlags` for a given packet type
     #[must_use]
     pub fn for_packet_type(packet_type: PacketType) -> Self {
         Self {
@@ -136,7 +136,7 @@ impl MqttTypeAndFlags {
         }
     }
 
-    /// Creates a new MqttTypeAndFlags for PUBLISH packets with QoS and flags
+    /// Creates a new `MqttTypeAndFlags` for PUBLISH packets with `QoS` and flags
     #[must_use]
     pub fn for_publish(qos: u8, dup: bool, retain: bool) -> Self {
         Self {

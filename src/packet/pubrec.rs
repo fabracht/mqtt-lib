@@ -73,7 +73,10 @@ impl PubRecPacket {
     }
 
     /// Creates a packet from a bebytes header and properties
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reason code in the header is invalid
     pub fn from_header(header: AckPacketHeader, properties: Properties) -> Result<Self> {
         let reason_code = header.get_reason_code().ok_or_else(|| {
             MqttError::MalformedPacket(format!(

@@ -48,13 +48,13 @@ pub struct SubscriptionOptionsBits {
     /// No Local flag (bit 2)
     #[bits(1)]
     pub no_local: u8,
-    /// QoS level (bits 1-0)
+    /// `QoS` level (bits 1-0)
     #[bits(2)]
     pub qos: u8,
 }
 
 impl SubscriptionOptionsBits {
-    /// Creates subscription options bits from high-level SubscriptionOptions
+    /// Creates subscription options bits from high-level `SubscriptionOptions`
     /// Bebytes handles bit field layout, Rust handles type safety and validation
     #[must_use]
     pub fn from_options(options: &SubscriptionOptions) -> Self {
@@ -67,8 +67,12 @@ impl SubscriptionOptionsBits {
         }
     }
 
-    /// Converts bebytes bit fields back to high-level SubscriptionOptions
+    /// Converts bebytes bit fields back to high-level `SubscriptionOptions`
     /// Bebytes provides the bits, Rust handles validation and type conversion
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reserved bits are set, or if `QoS` or retain handling values are invalid
     pub fn to_options(&self) -> Result<SubscriptionOptions> {
         // Validate reserved bits are zero
         if self.reserved_bits != 0 {
@@ -218,12 +222,12 @@ impl SubscriptionOptions {
         })
     }
 
-    /// Decodes subscription options using bebytes (hybrid approach)  
+    /// Decodes subscription options using bebytes (hybrid approach)\
     /// Bebytes handles bit field extraction, Rust handles validation and type conversion
     ///
     /// # Errors
     ///
-    /// Returns an error if the QoS value or retain handling is invalid, or reserved bits are set
+    /// Returns an error if the `QoS` value or retain handling is invalid, or reserved bits are set
     pub fn decode_with_bebytes(byte: u8) -> Result<Self> {
         let (bits, _consumed) =
             SubscriptionOptionsBits::try_from_be_bytes(&[byte]).map_err(|e| {
