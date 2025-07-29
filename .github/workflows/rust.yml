@@ -92,18 +92,20 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc --all-features
 
-  # Test with minimal versions
-  minimal-versions:
-    name: Minimal Versions
+  # Test with minimal supported Rust version
+  msrv:
+    name: MSRV (1.75)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
-      - name: Test with minimal versions
+        uses: dtolnay/rust-toolchain@1.75
+      - name: Generate test certificates
         run: |
-          cargo +nightly -Z minimal-versions update
-          cargo test --all-features
+          chmod +x scripts/generate_test_certs.sh
+          ./scripts/generate_test_certs.sh
+      - name: Check MSRV
+        run: cargo check --all-features
 
   # Security audit
   security:

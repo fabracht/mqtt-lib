@@ -2,6 +2,7 @@
 name = "mqtt-v5"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 authors = ["MQTT v5 Implementation Team"]
 description = "A complete MQTT v5.0 client library with callback-based message handling"
 license = "MIT OR Apache-2.0"
