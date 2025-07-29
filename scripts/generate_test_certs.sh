@@ -25,7 +25,8 @@ openssl genrsa -out "$CERT_DIR/ca.key" 2048
 
 # Generate CA certificate
 openssl req -new -x509 -days "$DAYS_VALID" -key "$CERT_DIR/ca.key" -out "$CERT_DIR/ca.pem" \
-    -subj "/C=$COUNTRY/ST=$STATE/L=$CITY/O=$ORG/CN=$CN_CA"
+    -subj "/C=$COUNTRY/ST=$STATE/L=$CITY/O=$ORG/CN=$CN_CA" \
+    -sha256
 
 # Generate client private key
 openssl genrsa -out "$CERT_DIR/client.key" 2048
@@ -34,11 +35,18 @@ openssl genrsa -out "$CERT_DIR/client.key" 2048
 openssl req -new -key "$CERT_DIR/client.key" -out "$CERT_DIR/client.csr" \
     -subj "/C=$COUNTRY/ST=$STATE/L=$CITY/O=$ORG/CN=$CN_CLIENT"
 
-# Sign client certificate with CA
+# Create extensions file for client certificate
+cat > "$CERT_DIR/client_ext.cnf" <<EOF
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth
+EOF
+
+# Sign client certificate with CA including extensions
 openssl x509 -req -days "$DAYS_VALID" -in "$CERT_DIR/client.csr" \
     -CA "$CERT_DIR/ca.pem" -CAkey "$CERT_DIR/ca.key" \
     -CAcreateserial -out "$CERT_DIR/client.pem" \
-    -sha256
+    -sha256 -extfile "$CERT_DIR/client_ext.cnf"
 
 # Generate server private key
 openssl genrsa -out "$CERT_DIR/server.key" 2048
@@ -59,7 +67,7 @@ openssl x509 -req -days "$DAYS_VALID" -in "$CERT_DIR/server.csr" \
     -sha256 -extfile "$CERT_DIR/server_ext.cnf"
 
 # Clean up CSR and extension files
-rm -f "$CERT_DIR/client.csr" "$CERT_DIR/server.csr" "$CERT_DIR/server_ext.cnf"
+rm -f "$CERT_DIR/client.csr" "$CERT_DIR/server.csr" "$CERT_DIR/server_ext.cnf" "$CERT_DIR/client_ext.cnf"
 
 echo "Test certificates generated successfully!"
 echo "Files created:"

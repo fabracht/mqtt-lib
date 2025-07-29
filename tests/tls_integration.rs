@@ -165,8 +165,7 @@ async fn test_tls_with_alpn() {
             let error_msg = e.to_string();
             assert!(
                 error_msg.contains("TLS") || error_msg.contains("connect"),
-                "Unexpected error: {}",
-                error_msg
+                "Unexpected error: {error_msg}"
             );
         }
         Err(_) => {
