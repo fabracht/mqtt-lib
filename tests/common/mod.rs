@@ -12,7 +12,6 @@ use ulid::Ulid;
 /// Default test broker address
 pub const TEST_BROKER: &str = "mqtt://127.0.0.1:1883";
 
-
 /// Default timeout for test operations
 #[allow(dead_code)]
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
