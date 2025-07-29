@@ -2,13 +2,16 @@ use bytes::BytesMut;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use mqtt_v5::encoding::{encode_string, encode_variable_int};
 use mqtt_v5::packet::{
-    connect::ConnectPacket, publish::PublishPacket, subscribe::*, FixedHeader, MqttPacket,
+    connect::ConnectPacket,
+    publish::PublishPacket,
+    subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter},
+    FixedHeader, MqttPacket,
 };
 use mqtt_v5::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
 use mqtt_v5::topic_matching::matches;
 use mqtt_v5::types::ConnectOptions;
 use mqtt_v5::validation::validate_topic_name;
-use mqtt_v5::*;
+use mqtt_v5::{MqttClient, QoS};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -28,7 +31,7 @@ fn benchmark_packet_encoding(c: &mut Criterion) {
     });
 
     // PUBLISH packet encoding with different payload sizes
-    for size in [64, 256, 1024, 4096, 16384].iter() {
+    for size in &[64, 256, 1024, 4096, 16384] {
         group.throughput(Throughput::Bytes(*size as u64));
         group.bench_with_input(BenchmarkId::new("publish", size), size, |b, &size| {
             let packet = PublishPacket {

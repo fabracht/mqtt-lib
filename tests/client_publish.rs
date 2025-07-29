@@ -126,7 +126,7 @@ async fn test_publish_with_options() {
             assert!(result.is_ok());
             match result.unwrap() {
                 PublishResult::QoS1Or2 { packet_id } => assert!(packet_id > 0),
-                _ => panic!("Expected QoS1Or2 result for QoS 1 publish"),
+                PublishResult::QoS0 => panic!("Expected QoS1Or2 result for QoS 1 publish"),
             }
 
             client.disconnect().await.unwrap();

@@ -205,9 +205,15 @@ async fn test_clear_callbacks() {
 #[tokio::test]
 async fn test_reconnecting_event() {
     // This test would require simulating connection loss and reconnection
-    // For now, we just verify the event structure compiles
-    let _event = ConnectionEvent::Reconnecting { attempt: 1 };
-    let _event = ConnectionEvent::ReconnectFailed {
+    // For now, we just verify the event structure compiles by creating and asserting on them
+    let event = ConnectionEvent::Reconnecting { attempt: 1 };
+    assert!(matches!(
+        event,
+        ConnectionEvent::Reconnecting { attempt: 1 }
+    ));
+
+    let event = ConnectionEvent::ReconnectFailed {
         error: mqtt_v5::MqttError::ConnectionError("Test error".to_string()),
     };
+    assert!(matches!(event, ConnectionEvent::ReconnectFailed { .. }));
 }

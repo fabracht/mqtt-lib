@@ -206,7 +206,7 @@ async fn test_unsubscribe_many() {
             let results = result.unwrap();
             assert_eq!(results.len(), 3);
             for (topic, res) in results {
-                assert!(res.is_ok(), "Failed to unsubscribe from {}", topic);
+                assert!(res.is_ok(), "Failed to unsubscribe from {topic}");
             }
 
             client.disconnect().await.unwrap();
@@ -254,7 +254,7 @@ async fn test_concurrent_subscriptions() {
             // Create multiple concurrent subscriptions
             for i in 0..5 {
                 let client_clone = client.clone();
-                let topic = format!("test/concurrent/{}", i);
+                let topic = format!("test/concurrent/{i}");
 
                 let handle = tokio::spawn(async move {
                     client_clone

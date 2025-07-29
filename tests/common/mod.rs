@@ -1,6 +1,6 @@
 //! Common test utilities and scenarios
 
-use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, QoS};
+use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishProperties, MessageProperties, QoS};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -183,7 +183,7 @@ pub async fn test_basic_pubsub(
     Ok(())
 }
 
-/// Test scenario: QoS flow validation
+/// Test scenario: `QoS` flow validation
 #[allow(dead_code)]
 pub async fn test_qos_flow(
     client: &MqttClient,
@@ -205,7 +205,7 @@ pub async fn test_qos_flow(
     let pub_opts = PublishOptions {
         qos,
         retain: false,
-        properties: Default::default(),
+        properties: PublishProperties::default(),
     };
     let test_payload = format!("QoS {} test", qos as u8);
     client
@@ -292,7 +292,7 @@ pub async fn test_retained_messages(
 /// Wait helper with custom message
 #[allow(dead_code)]
 pub async fn wait_with_message(duration: Duration, message: &str) {
-    println!("{}", message);
+    println!("{message}");
     tokio::time::sleep(duration).await;
 }
 
@@ -340,7 +340,7 @@ mod tests {
             payload: b"test".to_vec(),
             qos: QoS::AtMostOnce,
             retain: false,
-            properties: Default::default(),
+            properties: MessageProperties::default(),
         };
         callback(message);
 
@@ -365,7 +365,7 @@ mod tests {
                 payload: vec![],
                 qos: QoS::AtMostOnce,
                 retain: false,
-                properties: Default::default(),
+                properties: MessageProperties::default(),
             });
         }
 

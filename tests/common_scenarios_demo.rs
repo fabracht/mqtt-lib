@@ -54,8 +54,8 @@ async fn test_message_collector_advanced() {
     for i in 0..5 {
         client
             .publish(
-                &format!("test/collector/{}", i),
-                format!("Message {}", i).as_bytes(),
+                &format!("test/collector/{i}"),
+                format!("Message {i}").as_bytes(),
             )
             .await
             .expect("Failed to publish");
@@ -70,10 +70,10 @@ async fn test_message_collector_advanced() {
 
     // Check message contents
     for (i, msg) in messages.iter().enumerate() {
-        assert_eq!(msg.topic, format!("test/collector/{}", i));
+        assert_eq!(msg.topic, format!("test/collector/{i}"));
         assert_eq!(
             String::from_utf8_lossy(&msg.payload),
-            format!("Message {}", i)
+            format!("Message {i}")
         );
     }
 

@@ -3,7 +3,7 @@ use mqtt_v5::callback::CallbackManager;
 use mqtt_v5::packet::publish::PublishPacket;
 use mqtt_v5::protocol::v5::properties::Properties;
 use mqtt_v5::session::{SessionConfig, SessionState};
-use mqtt_v5::*;
+use mqtt_v5::{MqttClient, QoS};
 use std::hint::black_box;
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ fn benchmark_callback_dispatch(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     // Test with different numbers of callbacks
-    for num_callbacks in [1, 10, 50, 100].iter() {
+    for num_callbacks in &[1, 10, 50, 100] {
         group.bench_with_input(
             BenchmarkId::new("concurrent_callbacks", num_callbacks),
             num_callbacks,
@@ -30,7 +30,7 @@ fn benchmark_callback_dispatch(c: &mut Criterion) {
                                 counter_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                             });
                         callback_manager
-                            .register(format!("test/topic/{}", i), callback)
+                            .register(format!("test/topic/{i}"), callback)
                             .await
                             .unwrap();
                     }
@@ -62,17 +62,15 @@ fn benchmark_callback_dispatch(c: &mut Criterion) {
 
         runtime.block_on(async {
             // Register various wildcard patterns
-            for pattern in [
+            for pattern in &[
                 "test/+/data",
                 "test/#",
                 "+/topic/+",
                 "sensors/+/temperature",
-            ]
-            .iter()
-            {
+            ] {
                 let callback: Arc<dyn Fn(PublishPacket) + Send + Sync> = Arc::new(|_msg| {});
                 callback_manager
-                    .register(pattern.to_string(), callback)
+                    .register((*pattern).to_string(), callback)
                     .await
                     .unwrap();
             }
@@ -186,13 +184,13 @@ fn benchmark_topic_alias(c: &mut Criterion) {
             runtime.block_on(async {
                 // Create aliases for new topics
                 for i in 0..20 {
-                    let topic = format!("test/topic/{}", i);
+                    let topic = format!("test/topic/{i}");
                     black_box(session.get_or_create_topic_alias(&topic).await);
                 }
 
                 // Lookup existing aliases
                 for i in 0..20 {
-                    let topic = format!("test/topic/{}", i);
+                    let topic = format!("test/topic/{i}");
                     black_box(session.get_or_create_topic_alias(&topic).await);
                 }
             });
@@ -223,11 +221,11 @@ fn benchmark_message_queue_stress(c: &mut Criterion) {
                 // Queue messages
                 for i in 0..100 {
                     let msg = QueuedMessage {
-                        topic: format!("test/topic/{}", i),
+                        topic: format!("test/topic/{i}"),
                         payload: vec![0u8; 256],
                         qos: QoS::AtLeastOnce,
                         retain: false,
-                        packet_id: Some(i as u16),
+                        packet_id: Some(u16::try_from(i).unwrap()),
                     };
                     session.queue_message(msg).await.unwrap();
                 }
@@ -254,7 +252,7 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
 
                 // Simulate 10 sensors publishing data
                 for sensor_id in 0..10 {
-                    let topic = format!("sensors/{}/temperature", sensor_id);
+                    let topic = format!("sensors/{sensor_id}/temperature");
                     let payload = r#"{"temp": 23.5, "humidity": 45, "timestamp": 1234567890}"#;
 
                     let mut props = Properties::new();
@@ -273,7 +271,7 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
                         qos: QoS::AtLeastOnce,
                         retain: true,
                         dup: false,
-                        packet_id: Some(sensor_id as u16),
+                        packet_id: Some(u16::try_from(sensor_id).unwrap()),
                         properties: props,
                     };
 
@@ -288,7 +286,7 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
         let packets: Vec<PublishPacket> = (0..100)
             .map(|i| PublishPacket {
                 topic_name: "market/trades/BTCUSD".to_string(),
-                payload: format!(r#"{{"price": 50000.{}, "volume": 0.1, "side": "buy"}}"#, i)
+                payload: format!(r#"{{"price": 50000.{i}, "volume": 0.1, "side": "buy"}}"#)
                     .into_bytes(),
                 qos: QoS::AtMostOnce,
                 retain: false,
