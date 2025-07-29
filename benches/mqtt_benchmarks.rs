@@ -1,6 +1,5 @@
 use bytes::BytesMut;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::hint::black_box;
 use mqtt_v5::encoding::{encode_string, encode_variable_int};
 use mqtt_v5::packet::{
     connect::ConnectPacket, publish::PublishPacket, subscribe::*, FixedHeader, MqttPacket,
@@ -10,6 +9,7 @@ use mqtt_v5::topic_matching::matches;
 use mqtt_v5::types::ConnectOptions;
 use mqtt_v5::validation::validate_topic_name;
 use mqtt_v5::*;
+use std::hint::black_box;
 use std::time::Duration;
 
 // Packet encoding/decoding benchmarks

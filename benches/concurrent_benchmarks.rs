@@ -1,10 +1,10 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use mqtt_v5::callback::CallbackManager;
 use mqtt_v5::packet::publish::PublishPacket;
 use mqtt_v5::protocol::v5::properties::Properties;
 use mqtt_v5::session::{SessionConfig, SessionState};
 use mqtt_v5::*;
+use std::hint::black_box;
 use std::sync::Arc;
 
 // Benchmark concurrent callback dispatching
