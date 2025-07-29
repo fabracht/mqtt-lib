@@ -78,7 +78,7 @@ async fn test_subscribe_before_connect() {
 #[tokio::test]
 async fn test_invalid_topic_name_publish() {
     let client = MqttClient::new("invalid-topic-test");
-    
+
     // Test without connecting - these should be client-side validation errors
     // Topic names cannot contain wildcards
     let result = client.publish("test/+/invalid", "message").await;
@@ -90,13 +90,16 @@ async fn test_invalid_topic_name_publish() {
 
     // Topic names cannot contain null characters
     let result = client.publish("test\0topic", "message").await;
-    assert!(result.is_err(), "Topic with null character should be rejected");
+    assert!(
+        result.is_err(),
+        "Topic with null character should be rejected"
+    );
 }
 
 #[tokio::test]
 async fn test_invalid_topic_filter_subscribe() {
     let client = MqttClient::new("invalid-filter-test");
-    
+
     // Test without connecting - these should be client-side validation errors
     // Empty topic filter
     let result = client.subscribe("", |_| {}).await;
@@ -104,7 +107,10 @@ async fn test_invalid_topic_filter_subscribe() {
 
     // Topic filter with null character
     let result = client.subscribe("test\0filter", |_| {}).await;
-    assert!(result.is_err(), "Topic filter with null character should be rejected");
+    assert!(
+        result.is_err(),
+        "Topic filter with null character should be rejected"
+    );
 }
 
 #[tokio::test]
@@ -118,11 +124,11 @@ async fn test_packet_too_large() {
     let large_payload = vec![0u8; 2048]; // 2KB
     let result = client.publish("test/large", &large_payload[..]).await;
     assert!(result.is_err(), "Large packet should be rejected");
-    
+
     // Should fail because not connected (client-side validation may occur later)
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected when not connected
-        MqttError::PacketTooLarge { .. } => {}, // Also acceptable if validated client-side
+        MqttError::NotConnected => {}          // Expected when not connected
+        MqttError::PacketTooLarge { .. } => {} // Also acceptable if validated client-side
         other => panic!("Expected NotConnected or PacketTooLarge error, got: {other:?}"),
     }
 }
@@ -135,11 +141,11 @@ async fn test_duplicate_connect() {
     // Both should fail because no broker is running, but we're testing the logic
     let result1 = client.connect("mqtt://localhost:1883").await;
     let result2 = client.connect("mqtt://localhost:1883").await;
-    
+
     // Both should fail with connection errors since no broker is running
     assert!(result1.is_err(), "First connect should fail (no broker)");
     assert!(result2.is_err(), "Second connect should fail (no broker)");
-    
+
     // The specific error type depends on whether the first connect completed
     // before the second one was attempted
 }
@@ -161,7 +167,7 @@ async fn test_disconnect_not_connected() {
 #[tokio::test]
 async fn test_qos2_timeout() {
     let client = MqttClient::new("qos2-timeout-test");
-    
+
     // Test QoS 2 publish without connecting - should fail with NotConnected
     let options = PublishOptions {
         qos: QoS::ExactlyOnce,
@@ -171,11 +177,14 @@ async fn test_qos2_timeout() {
     let result = client
         .publish_with_options("test/qos2/timeout", "test", options)
         .await;
-    
-    assert!(result.is_err(), "QoS 2 publish should fail when not connected");
-    
+
+    assert!(
+        result.is_err(),
+        "QoS 2 publish should fail when not connected"
+    );
+
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected
+        MqttError::NotConnected => {} // Expected
         other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
@@ -193,13 +202,13 @@ async fn test_invalid_qos_value() {
 #[tokio::test]
 async fn test_network_disconnection_during_publish() {
     let client = MqttClient::new("network-disconnect-test");
-    
+
     // Test publish on disconnected client
     let result = client.publish("test/topic", "message").await;
     assert!(result.is_err(), "Publish should fail when not connected");
-    
+
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected
+        MqttError::NotConnected => {} // Expected
         other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
@@ -212,10 +221,10 @@ async fn test_malformed_connack_handling() {
     // Attempt connection - should fail with no broker running
     let result = client.connect("mqtt://localhost:1883").await;
     assert!(result.is_err(), "Connection should fail with no broker");
-    
+
     // The client should handle connection failures gracefully
     match result.unwrap_err() {
-        MqttError::ConnectionError(_) => {}, // Expected
+        MqttError::ConnectionError(_) => {}             // Expected
         other => println!("Got error type: {other:?}"), // Log but don't fail
     }
 }
@@ -223,7 +232,7 @@ async fn test_malformed_connack_handling() {
 #[tokio::test]
 async fn test_subscribe_with_invalid_qos() {
     let client = MqttClient::new("invalid-qos-sub");
-    
+
     // Create subscribe options with valid QoS but test without connecting
     let options = SubscribeOptions {
         qos: QoS::ExactlyOnce, // Valid QoS 2
@@ -235,9 +244,9 @@ async fn test_subscribe_with_invalid_qos() {
         .subscribe_with_options("test/topic", options, |_| {})
         .await;
     assert!(result.is_err(), "Subscribe should fail when not connected");
-    
+
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected
+        MqttError::NotConnected => {} // Expected
         other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
@@ -251,13 +260,13 @@ async fn test_connection_lost_callback() {
 
     let options = ConnectOptions::new("callback-test");
     let client = MqttClient::with_options(options);
-    
+
     // Test disconnecting when not connected - should fail
     let result = client.disconnect().await;
     assert!(result.is_err(), "Disconnect should fail when not connected");
-    
+
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected
+        MqttError::NotConnected => {} // Expected
         other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 
@@ -299,9 +308,9 @@ async fn test_flow_control_exceeded() {
         .publish_with_options("test/flow/1", "message 1", pub_options)
         .await;
     assert!(result.is_err(), "Publish should fail when not connected");
-    
+
     match result.unwrap_err() {
-        MqttError::NotConnected => {}, // Expected
+        MqttError::NotConnected => {} // Expected
         other => panic!("Expected NotConnected error, got: {other:?}"),
     }
 }
