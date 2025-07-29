@@ -1,5 +1,5 @@
 use crate::error::{MqttError, Result};
-use crate::packet::{FixedHeader, MqttPacket, PacketType};
+use crate::packet::{AckPacketHeader, FixedHeader, MqttPacket, PacketType};
 use crate::protocol::v5::properties::Properties;
 use crate::types::ReasonCode;
 use bytes::{Buf, BufMut};
@@ -64,6 +64,35 @@ impl PubRecPacket {
                 | ReasonCode::QuotaExceeded
                 | ReasonCode::PayloadFormatInvalid
         )
+    }
+
+    /// Creates a bebytes header for this packet
+    #[must_use]
+    pub fn create_header(&self) -> AckPacketHeader {
+        AckPacketHeader::create(self.packet_id, self.reason_code)
+    }
+
+    /// Creates a packet from a bebytes header and properties
+    #[must_use]
+    pub fn from_header(header: AckPacketHeader, properties: Properties) -> Result<Self> {
+        let reason_code = header.get_reason_code().ok_or_else(|| {
+            MqttError::MalformedPacket(format!(
+                "Invalid PUBREC reason code: 0x{:02X}",
+                header.reason_code
+            ))
+        })?;
+
+        if !Self::is_valid_pubrec_reason_code(reason_code) {
+            return Err(MqttError::MalformedPacket(format!(
+                "Invalid PUBREC reason code: {reason_code:?}"
+            )));
+        }
+
+        Ok(Self {
+            packet_id: header.packet_id,
+            reason_code,
+            properties,
+        })
     }
 }
 

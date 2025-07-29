@@ -505,7 +505,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires TLS MQTT broker on port 8884"]
     async fn test_tls_connect_real_broker() {
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;

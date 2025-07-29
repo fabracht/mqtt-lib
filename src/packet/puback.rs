@@ -1,5 +1,5 @@
 use crate::error::{MqttError, Result};
-use crate::packet::{FixedHeader, MqttPacket, PacketType};
+use crate::packet::{AckPacketHeader, FixedHeader, MqttPacket, PacketType};
 use crate::protocol::v5::properties::Properties;
 use crate::types::ReasonCode;
 use bytes::{Buf, BufMut};
@@ -65,6 +65,35 @@ impl PubAckPacket {
                 | ReasonCode::PayloadFormatInvalid
         )
     }
+
+    /// Creates a bebytes header for this packet
+    #[must_use]
+    pub fn create_header(&self) -> AckPacketHeader {
+        AckPacketHeader::create(self.packet_id, self.reason_code)
+    }
+
+    /// Creates a packet from a bebytes header and properties
+    #[must_use]
+    pub fn from_header(header: AckPacketHeader, properties: Properties) -> Result<Self> {
+        let reason_code = header.get_reason_code().ok_or_else(|| {
+            MqttError::MalformedPacket(format!(
+                "Invalid PUBACK reason code: 0x{:02X}",
+                header.reason_code
+            ))
+        })?;
+
+        if !Self::is_valid_puback_reason_code(reason_code) {
+            return Err(MqttError::MalformedPacket(format!(
+                "Invalid PUBACK reason code: {reason_code:?}"
+            )));
+        }
+
+        Ok(Self {
+            packet_id: header.packet_id,
+            reason_code,
+            properties,
+        })
+    }
 }
 
 impl MqttPacket for PubAckPacket {
@@ -73,10 +102,10 @@ impl MqttPacket for PubAckPacket {
     }
 
     fn encode_body<B: BufMut>(&self, buf: &mut B) -> Result<()> {
-        // Variable header
+        // Always encode packet_id (required)
         buf.put_u16(self.packet_id);
 
-        // For v5.0, always encode reason code and properties
+        // For v5.0, encode reason code and properties if not default
         // For v3.1.1, we would skip these if reason_code is Success and no properties
         if self.reason_code != ReasonCode::Success || !self.properties.is_empty() {
             buf.put_u8(u8::from(self.reason_code));
@@ -93,16 +122,7 @@ impl MqttPacket for PubAckPacket {
             "PUBACK decode started"
         );
 
-        // Debug: print first few bytes if available
-        if buf.remaining() >= 4 {
-            let bytes = buf.chunk();
-            tracing::trace!(
-                first_bytes = ?&bytes[..4.min(bytes.len())],
-                "PUBACK packet bytes"
-            );
-        }
-
-        // Packet identifier
+        // Packet identifier is always required (2 bytes minimum)
         if buf.remaining() < 2 {
             return Err(MqttError::MalformedPacket(
                 "PUBACK missing packet identifier".to_string(),
@@ -153,6 +173,65 @@ mod tests {
     use super::*;
     use crate::protocol::v5::properties::PropertyId;
     use bytes::BytesMut;
+
+    #[cfg(test)]
+    mod bebytes_tests {
+        use super::*;
+        use bebytes::BeBytes;
+        use proptest::prelude::*;
+
+        #[test]
+        fn test_ack_header_creation() {
+            let header = AckPacketHeader::create(123, ReasonCode::Success);
+            assert_eq!(header.packet_id, 123);
+            assert_eq!(header.reason_code, 0x00);
+            assert_eq!(header.get_reason_code(), Some(ReasonCode::Success));
+        }
+
+        #[test]
+        fn test_ack_header_round_trip() {
+            let header = AckPacketHeader::create(456, ReasonCode::QuotaExceeded);
+            let bytes = header.to_be_bytes();
+            assert_eq!(bytes.len(), 3); // 2 bytes packet_id + 1 byte reason_code
+
+            let (decoded, consumed) = AckPacketHeader::try_from_be_bytes(&bytes).unwrap();
+            assert_eq!(consumed, 3);
+            assert_eq!(decoded, header);
+            assert_eq!(decoded.packet_id, 456);
+            assert_eq!(decoded.get_reason_code(), Some(ReasonCode::QuotaExceeded));
+        }
+
+        #[test]
+        fn test_puback_from_header() {
+            let header = AckPacketHeader::create(789, ReasonCode::NoMatchingSubscribers);
+            let properties = Properties::default();
+
+            let packet = PubAckPacket::from_header(header, properties).unwrap();
+            assert_eq!(packet.packet_id, 789);
+            assert_eq!(packet.reason_code, ReasonCode::NoMatchingSubscribers);
+        }
+
+        proptest! {
+            #[test]
+            fn prop_ack_header_round_trip(
+                packet_id in any::<u16>(),
+                reason_code in 0u8..=255u8
+            ) {
+                let header = AckPacketHeader {
+                    packet_id,
+                    reason_code,
+                };
+
+                let bytes = header.to_be_bytes();
+                let (decoded, consumed) = AckPacketHeader::try_from_be_bytes(&bytes).unwrap();
+
+                prop_assert_eq!(consumed, 3);
+                prop_assert_eq!(decoded, header);
+                prop_assert_eq!(decoded.packet_id, packet_id);
+                prop_assert_eq!(decoded.reason_code, reason_code);
+            }
+        }
+    }
 
     #[test]
     fn test_puback_basic() {

@@ -112,6 +112,164 @@ mod tests {
     use super::*;
     use bytes::BytesMut;
 
+    #[cfg(test)]
+    mod property_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn prop_variable_int_round_trip(value in 0u32..=VARIABLE_BYTE_INT_MAX) {
+                let mut buf = BytesMut::new();
+
+                // Encode and then decode should give back original value
+                encode_variable_int(&mut buf, value).unwrap();
+                let decoded = decode_variable_int(&mut buf).unwrap();
+
+                prop_assert_eq!(decoded, value);
+            }
+
+            #[test]
+            fn prop_variable_int_length_consistency(value in 0u32..=VARIABLE_BYTE_INT_MAX) {
+                let mut buf = BytesMut::new();
+
+                // Encoded length should match predicted length
+                encode_variable_int(&mut buf, value).unwrap();
+                let actual_len = buf.len();
+                let predicted_len = variable_int_len(value);
+
+                prop_assert_eq!(actual_len, predicted_len);
+            }
+
+            #[test]
+            fn prop_variable_int_boundary_values(value in 0u32..=VARIABLE_BYTE_INT_MAX) {
+                let mut buf = BytesMut::new();
+
+                // Test encoding/decoding boundary values for each byte length
+                let expected_len = match value {
+                    0..=127 => 1,
+                    128..=16_383 => 2,
+                    16_384..=2_097_151 => 3,
+                    2_097_152..=VARIABLE_BYTE_INT_MAX => 4,
+                    _ => unreachable!(),
+                };
+
+                encode_variable_int(&mut buf, value).unwrap();
+                prop_assert_eq!(buf.len(), expected_len);
+
+                let decoded = decode_variable_int(&mut buf).unwrap();
+                prop_assert_eq!(decoded, value);
+            }
+
+            #[test]
+            fn prop_variable_int_invalid_values_rejected(value in (VARIABLE_BYTE_INT_MAX + 1)..=u32::MAX) {
+                let mut buf = BytesMut::new();
+
+                // Values exceeding maximum should be rejected
+                let result = encode_variable_int(&mut buf, value);
+                prop_assert!(result.is_err());
+            }
+
+            #[test]
+            fn prop_variable_int_monotonic_length(
+                smaller in 0u32..=VARIABLE_BYTE_INT_MAX,
+                larger in 0u32..=VARIABLE_BYTE_INT_MAX
+            ) {
+                // Larger values should require same or more bytes than smaller values
+                if smaller <= larger {
+                    let smaller_len = variable_int_len(smaller);
+                    let larger_len = variable_int_len(larger);
+
+                    prop_assert!(larger_len >= smaller_len);
+                }
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn prop_specific_boundary_tests(
+                // Test exact boundary values
+                _dummy in any::<()>()
+            ) {
+                let boundaries = [
+                    (127, 1), (128, 2),           // 1-byte to 2-byte boundary
+                    (16_383, 2), (16_384, 3),     // 2-byte to 3-byte boundary
+                    (2_097_151, 3), (2_097_152, 4), // 3-byte to 4-byte boundary
+                    (VARIABLE_BYTE_INT_MAX, 4),   // Maximum value
+                ];
+
+                for (value, expected_len) in boundaries {
+                    let mut buf = BytesMut::new();
+
+                    encode_variable_int(&mut buf, value).unwrap();
+                    prop_assert_eq!(buf.len(), expected_len);
+
+                    let decoded = decode_variable_int(&mut buf).unwrap();
+                    prop_assert_eq!(decoded, value);
+                }
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn prop_malformed_data_handling(
+                // Test various malformed byte sequences
+                bytes in prop::collection::vec(any::<u8>(), 1..=10)
+            ) {
+                // Only test sequences that would actually be malformed
+                let has_invalid_pattern = bytes.iter().enumerate().any(|(i, &byte)| {
+                    // Check for patterns that should cause decode errors:
+                    // 1. More than 4 bytes with continuation bits
+                    // 2. Incomplete sequences (continuation bit set on last byte in truncated buffer)
+                    if i >= 4 && (byte & 0x80) != 0 {
+                        return true; // More than 4 bytes with continuation
+                    }
+                    false
+                });
+
+                if has_invalid_pattern || bytes.len() > 4 && bytes.iter().all(|&b| (b & 0x80) != 0) {
+                    let mut buf = BytesMut::new();
+                    buf.extend_from_slice(&bytes);
+
+                    let result = decode_variable_int(&mut buf);
+                    // Should either succeed with valid data or fail with invalid data
+                    // We can't predict the outcome, but it shouldn't panic
+                    let _ = result;
+                }
+            }
+
+            #[test]
+            fn prop_truncated_data_handling(
+                value in 0u32..=VARIABLE_BYTE_INT_MAX,
+                truncate_at in 0usize..4
+            ) {
+                let mut buf = BytesMut::new();
+                encode_variable_int(&mut buf, value).unwrap();
+                let original_len = buf.len();
+
+                // Only test if we're actually truncating
+                if truncate_at < original_len {
+                    // Save the last byte before truncation to check continuation bit
+                    let last_byte_before_truncation = if truncate_at > 0 {
+                        Some(buf[truncate_at - 1])
+                    } else {
+                        None
+                    };
+
+                    // Truncate the encoded data
+                    buf.truncate(truncate_at);
+
+                    // Decoding truncated data should fail
+                    let result = decode_variable_int(&mut buf);
+                    if truncate_at == 0 || (last_byte_before_truncation.is_some() && last_byte_before_truncation.unwrap() & 0x80 != 0) {
+                        // Should fail if no data or if last byte has continuation bit
+                        prop_assert!(result.is_err());
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_encode_decode_single_byte() {
         let mut buf = BytesMut::new();

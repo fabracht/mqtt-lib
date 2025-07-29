@@ -17,10 +17,154 @@ pub mod unsubscribe;
 #[cfg(test)]
 mod property_tests;
 
+#[cfg(test)]
+mod bebytes_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_mqtt_type_and_flags_round_trip(
+            message_type in 1u8..=15,
+            dup in 0u8..=1,
+            qos in 0u8..=3,
+            retain in 0u8..=1
+        ) {
+            let original = MqttTypeAndFlags {
+                message_type,
+                dup,
+                qos,
+                retain,
+            };
+
+            let bytes = original.to_be_bytes();
+            let (decoded, _) = MqttTypeAndFlags::try_from_be_bytes(&bytes).unwrap();
+
+            prop_assert_eq!(original, decoded);
+        }
+
+        #[test]
+        fn prop_packet_type_round_trip(packet_type in 1u8..=15) {
+            if let Some(pt) = PacketType::from_u8(packet_type) {
+                let type_and_flags = MqttTypeAndFlags::for_packet_type(pt);
+                let bytes = type_and_flags.to_be_bytes();
+                let (decoded, _) = MqttTypeAndFlags::try_from_be_bytes(&bytes).unwrap();
+
+                prop_assert_eq!(type_and_flags, decoded);
+                prop_assert_eq!(decoded.packet_type(), Some(pt));
+            }
+        }
+
+        #[test]
+        fn prop_publish_flags_round_trip(
+            qos in 0u8..=3,
+            dup: bool,
+            retain: bool
+        ) {
+            let type_and_flags = MqttTypeAndFlags::for_publish(qos, dup, retain);
+            let bytes = type_and_flags.to_be_bytes();
+            let (decoded, _) = MqttTypeAndFlags::try_from_be_bytes(&bytes).unwrap();
+
+            prop_assert_eq!(type_and_flags, decoded);
+            prop_assert_eq!(decoded.packet_type(), Some(PacketType::Publish));
+            prop_assert_eq!(decoded.qos, qos);
+            prop_assert_eq!(decoded.is_dup(), dup);
+            prop_assert_eq!(decoded.is_retain(), retain);
+        }
+    }
+}
+
 use crate::encoding::{decode_variable_int, encode_variable_int};
 use crate::error::{MqttError, Result};
 use bebytes::BeBytes;
 use bytes::{Buf, BufMut};
+
+/// MQTT acknowledgment packet variable header using bebytes
+/// Used by PubAck, PubRec, PubRel, and PubComp packets
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BeBytes)]
+pub struct AckPacketHeader {
+    /// Packet identifier (big-endian u16)
+    #[bebytes(big_endian)]
+    pub packet_id: u16,
+    /// Reason code (single byte)
+    pub reason_code: u8,
+}
+
+impl AckPacketHeader {
+    /// Creates a new acknowledgment packet header
+    #[must_use]
+    pub fn create(packet_id: u16, reason_code: crate::types::ReasonCode) -> Self {
+        Self {
+            packet_id,
+            reason_code: u8::from(reason_code),
+        }
+    }
+
+    /// Gets the reason code as a ReasonCode enum
+    #[must_use]
+    pub fn get_reason_code(&self) -> Option<crate::types::ReasonCode> {
+        crate::types::ReasonCode::from_u8(self.reason_code)
+    }
+}
+
+/// MQTT Fixed Header Type and Flags byte using bebytes for bit field operations
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BeBytes)]
+pub struct MqttTypeAndFlags {
+    /// Message type (bits 7-4)
+    #[bits(4)]
+    pub message_type: u8,
+    /// DUP flag (bit 3) - for PUBLISH packets
+    #[bits(1)]
+    pub dup: u8,
+    /// QoS level (bits 2-1) - for PUBLISH packets
+    #[bits(2)]
+    pub qos: u8,
+    /// RETAIN flag (bit 0) - for PUBLISH packets  
+    #[bits(1)]
+    pub retain: u8,
+}
+
+impl MqttTypeAndFlags {
+    /// Creates a new MqttTypeAndFlags for a given packet type
+    #[must_use]
+    pub fn for_packet_type(packet_type: PacketType) -> Self {
+        Self {
+            message_type: packet_type as u8,
+            dup: 0,
+            qos: 0,
+            retain: 0,
+        }
+    }
+
+    /// Creates a new MqttTypeAndFlags for PUBLISH packets with QoS and flags
+    #[must_use]
+    pub fn for_publish(qos: u8, dup: bool, retain: bool) -> Self {
+        Self {
+            message_type: PacketType::Publish as u8,
+            dup: u8::from(dup),
+            qos,
+            retain: u8::from(retain),
+        }
+    }
+
+    /// Returns the packet type
+    #[must_use]
+    pub fn packet_type(&self) -> Option<PacketType> {
+        PacketType::from_u8(self.message_type)
+    }
+
+    /// Returns true if the DUP flag is set
+    #[must_use]
+    pub fn is_dup(&self) -> bool {
+        self.dup != 0
+    }
+
+    /// Returns true if the RETAIN flag is set
+    #[must_use]
+    pub fn is_retain(&self) -> bool {
+        self.retain != 0
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BeBytes)]
 pub enum PacketType {
