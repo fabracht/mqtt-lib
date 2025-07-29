@@ -141,7 +141,8 @@ pub use types::{
 };
 pub use validation::{
     is_valid_client_id, is_valid_topic_filter, is_valid_topic_name, topic_matches_filter,
-    validate_client_id, validate_topic_filter, validate_topic_name,
+    validate_client_id, validate_topic_filter, validate_topic_name, RestrictiveValidator,
+    StandardValidator, TopicValidator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

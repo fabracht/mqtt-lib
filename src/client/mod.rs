@@ -480,6 +480,211 @@ impl MqttClient {
         }))
     }
 
+    /// Internal connection method using custom TLS configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
+    async fn connect_internal_with_tls(
+        &self,
+        tls_config: crate::transport::tls::TlsConfig,
+    ) -> Result<ConnectResult> {
+        // Create TLS transport directly from config
+        let mut tls_transport = crate::transport::tls::TlsTransport::new(tls_config);
+        tls_transport
+            .connect()
+            .await
+            .map_err(|e| MqttError::ConnectionError(format!("TLS connect failed: {e}")))?;
+
+        let transport = TransportType::Tls(Box::new(tls_transport));
+
+        // Reset reconnect attempt counter
+        {
+            let mut inner = self.inner.write().await;
+            inner.reconnect_attempt = 0;
+        }
+
+        // Try to connect using direct async method - NO event loop!
+        let mut inner = self.inner.write().await;
+        match inner.connect(transport).await {
+            Ok(result) => {
+                // Get stored subscriptions before releasing the lock
+                let stored_subs = inner.stored_subscriptions.read().await.clone();
+                let session_present = result.session_present;
+                drop(inner); // Release lock before potentially resubscribing
+
+                // Trigger connected event
+                self.trigger_connection_event(ConnectionEvent::Connected { session_present })
+                    .await;
+
+                // Restore callbacks and subscriptions
+                if !stored_subs.is_empty() {
+                    if session_present {
+                        // Session was resumed - only restore callbacks
+                        tracing::info!(
+                            "Session resumed, restoring {} callbacks",
+                            stored_subs.len()
+                        );
+                        let inner = self.inner.read().await;
+                        for (topic, _, callback_id) in stored_subs {
+                            if let Err(e) =
+                                inner.callback_manager.restore_callback(callback_id).await
+                            {
+                                tracing::warn!("Failed to restore callback for {}: {}", topic, e);
+                            }
+                        }
+                    } else {
+                        // Session was not resumed - need to resubscribe and restore callbacks
+                        tracing::info!(
+                            "Session not resumed, restoring {} subscriptions",
+                            stored_subs.len()
+                        );
+                        for (topic, options, callback_id) in stored_subs {
+                            if let Err(e) = self
+                                .resubscribe_internal(&topic, options, callback_id)
+                                .await
+                            {
+                                tracing::warn!(
+                                    "Failed to restore subscription to {}: {}",
+                                    topic,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+
+                return Ok(result);
+            }
+            Err(e) => {
+                drop(inner);
+                return Err(e);
+            }
+        }
+    }
+
+    /// Connects to the MQTT broker using a custom TLS configuration
+    ///
+    /// This method allows direct configuration of TLS settings including certificates,
+    /// ALPN protocols, and other TLS-specific options. This is a DIRECT async method - no event loops!
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use mqtt_v5::{MqttClient, transport::tls::TlsConfig};
+    /// # use std::net::SocketAddr;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    ///
+    /// let mut tls_config = TlsConfig::new(
+    ///     "broker.example.com:8883".parse()?,
+    ///     "broker.example.com"
+    /// );
+    /// tls_config.load_client_cert_pem("client-cert.pem")?;
+    /// tls_config.load_client_key_pem("client-key.pem")?;
+    /// tls_config.load_ca_cert_pem("ca-cert.pem")?;
+    /// tls_config = tls_config.with_alpn_protocols(&["x-amzn-mqtt-ca"]);
+    ///
+    /// client.connect_with_tls(tls_config).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection fails or TLS configuration is invalid
+    pub async fn connect_with_tls(
+        &self,
+        tls_config: crate::transport::tls::TlsConfig,
+    ) -> Result<()> {
+        let options = self.inner.read().await.options.clone();
+        self.connect_with_tls_and_options(tls_config, options)
+            .await
+            .map(|_| ())
+    }
+
+    /// Connects to the MQTT broker using custom TLS configuration and connect options
+    ///
+    /// This method combines custom TLS settings with MQTT connection options.
+    /// This is a DIRECT async method - no event loops!
+    /// Returns `session_present` flag from CONNACK
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use mqtt_v5::{MqttClient, ConnectOptions, transport::tls::TlsConfig};
+    /// # use std::net::SocketAddr;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut options = ConnectOptions::new("aws-iot-client")
+    ///     .with_clean_start(false)
+    ///     .with_keep_alive(30);
+    /// options.properties.maximum_packet_size = Some(131072); // 128KB for AWS IoT
+    ///
+    /// let mut tls_config = TlsConfig::new(
+    ///     "your-endpoint.iot.us-east-1.amazonaws.com:443".parse()?,
+    ///     "your-endpoint.iot.us-east-1.amazonaws.com"
+    /// );
+    /// tls_config.load_client_cert_pem("device-cert.pem")?;
+    /// tls_config.load_client_key_pem("device-key.pem")?;
+    /// tls_config.load_ca_cert_pem("AmazonRootCA1.pem")?;
+    /// tls_config = tls_config.with_alpn_protocols(&["x-amzn-mqtt-ca"]);
+    ///
+    /// let client = MqttClient::with_options(options.clone());
+    /// let result = client.connect_with_tls_and_options(tls_config, options).await?;
+    /// println!("Connected! Session present: {}", result.session_present);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection fails or configuration is invalid
+    pub async fn connect_with_tls_and_options(
+        &self,
+        tls_config: crate::transport::tls::TlsConfig,
+        options: ConnectOptions,
+    ) -> Result<ConnectResult> {
+        // Check if already connected
+        if self.is_connected().await {
+            return Err(MqttError::AlreadyConnected);
+        }
+
+        // Update the inner client with new options
+        {
+            let mut inner = self.inner.write().await;
+            inner.options = options.clone();
+            // Store address for potential reconnection
+            inner.last_address = Some(format!(
+                "{}:{}",
+                tls_config.hostname,
+                tls_config.addr.port()
+            ));
+        }
+
+        // Try to connect with TLS config
+        let result = self.connect_internal_with_tls(tls_config).await;
+
+        // Handle reconnection if enabled and initial connection fails
+        if let Err(ref error) = result {
+            if options.reconnect_config.enabled {
+                // Trigger initial disconnection event
+                self.trigger_connection_event(ConnectionEvent::Disconnected {
+                    reason: DisconnectReason::NetworkError(error.to_string()),
+                })
+                .await;
+
+                // Start reconnection attempts in background
+                // Note: For TLS config reconnection, we'd need to store the TLS config
+                // This is a limitation that could be addressed in future versions
+                tracing::warn!(
+                    "Automatic reconnection with custom TLS config is not yet supported"
+                );
+            }
+        }
+
+        result
+    }
+
     /// Disconnects from the MQTT broker
     ///
     /// This is a DIRECT async method - no event loops!

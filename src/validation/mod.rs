@@ -1,5 +1,7 @@
 use crate::error::{MqttError, Result};
 
+pub mod aws_iot;
+
 /// Validates an MQTT topic name according to MQTT v5.0 specification
 ///
 /// # Rules:
@@ -191,6 +193,222 @@ pub fn topic_matches_filter(topic: &str, filter: &str) -> bool {
     }
 
     false
+}
+
+/// Trait for pluggable topic validation
+///
+/// This trait allows customization of topic validation rules beyond the standard MQTT specification.
+/// Implementations can add additional restrictions, reserved topic prefixes, or cloud provider-specific rules.
+pub trait TopicValidator: Send + Sync {
+    /// Validates a topic name for publishing
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - The topic name to validate
+    ///
+    /// # Errors
+    ///
+    /// Returns `MqttError::InvalidTopicName` if the topic is invalid
+    fn validate_topic_name(&self, topic: &str) -> Result<()>;
+
+    /// Validates a topic filter for subscriptions
+    ///
+    /// # Arguments
+    ///
+    /// * `filter` - The topic filter to validate
+    ///
+    /// # Errors
+    ///
+    /// Returns `MqttError::InvalidTopicFilter` if the filter is invalid
+    fn validate_topic_filter(&self, filter: &str) -> Result<()>;
+
+    /// Checks if a topic is reserved and should be restricted
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - The topic to check
+    ///
+    /// # Returns
+    ///
+    /// `true` if the topic is reserved and should be restricted
+    fn is_reserved_topic(&self, topic: &str) -> bool;
+
+    /// Gets a human-readable description of the validator
+    fn description(&self) -> &'static str;
+}
+
+/// Standard MQTT specification validator
+///
+/// This validator implements the basic MQTT v5.0 specification rules for topic names and filters.
+#[derive(Debug, Clone, Default)]
+pub struct StandardValidator;
+
+impl TopicValidator for StandardValidator {
+    fn validate_topic_name(&self, topic: &str) -> Result<()> {
+        validate_topic_name(topic)
+    }
+
+    fn validate_topic_filter(&self, filter: &str) -> Result<()> {
+        validate_topic_filter(filter)
+    }
+
+    fn is_reserved_topic(&self, _topic: &str) -> bool {
+        // Standard MQTT has no reserved topics
+        false
+    }
+
+    fn description(&self) -> &'static str {
+        "Standard MQTT v5.0 specification validator"
+    }
+}
+
+/// Restrictive validator with additional constraints
+///
+/// This validator extends the standard MQTT rules with additional restrictions
+/// such as reserved topic prefixes, maximum topic levels, and custom character sets.
+#[derive(Debug, Clone)]
+pub struct RestrictiveValidator {
+    /// Reserved topic prefixes that should be rejected
+    pub reserved_prefixes: Vec<String>,
+    /// Maximum number of topic levels (separated by '/')
+    pub max_levels: Option<usize>,
+    /// Maximum topic length (overrides MQTT spec if smaller)
+    pub max_topic_length: Option<usize>,
+    /// Prohibited characters beyond MQTT spec requirements
+    pub prohibited_chars: Vec<char>,
+}
+
+impl Default for RestrictiveValidator {
+    fn default() -> Self {
+        Self {
+            reserved_prefixes: Vec::new(),
+            max_levels: None,
+            max_topic_length: None,
+            prohibited_chars: Vec::new(),
+        }
+    }
+}
+
+impl RestrictiveValidator {
+    /// Creates a new restrictive validator
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a reserved topic prefix
+    #[must_use]
+    pub fn with_reserved_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.reserved_prefixes.push(prefix.into());
+        self
+    }
+
+    /// Sets the maximum number of topic levels
+    #[must_use]
+    pub fn with_max_levels(mut self, max_levels: usize) -> Self {
+        self.max_levels = Some(max_levels);
+        self
+    }
+
+    /// Sets the maximum topic length
+    #[must_use]
+    pub fn with_max_topic_length(mut self, max_length: usize) -> Self {
+        self.max_topic_length = Some(max_length);
+        self
+    }
+
+    /// Adds a prohibited character
+    #[must_use]
+    pub fn with_prohibited_char(mut self, ch: char) -> Self {
+        self.prohibited_chars.push(ch);
+        self
+    }
+
+    /// Checks if topic violates additional restrictions
+    fn check_additional_restrictions(&self, topic: &str) -> Result<()> {
+        // Check reserved prefixes
+        for prefix in &self.reserved_prefixes {
+            if topic.starts_with(prefix) {
+                return Err(MqttError::InvalidTopicName(format!(
+                    "Topic '{}' uses reserved prefix '{}'",
+                    topic, prefix
+                )));
+            }
+        }
+
+        // Check maximum levels
+        if let Some(max_levels) = self.max_levels {
+            let level_count = topic.split('/').count();
+            if level_count > max_levels {
+                return Err(MqttError::InvalidTopicName(format!(
+                    "Topic '{}' has {} levels, maximum allowed is {}",
+                    topic, level_count, max_levels
+                )));
+            }
+        }
+
+        // Check maximum length
+        if let Some(max_length) = self.max_topic_length {
+            if topic.len() > max_length {
+                return Err(MqttError::InvalidTopicName(format!(
+                    "Topic '{}' length {} exceeds maximum {}",
+                    topic,
+                    topic.len(),
+                    max_length
+                )));
+            }
+        }
+
+        // Check prohibited characters
+        for &prohibited_char in &self.prohibited_chars {
+            if topic.contains(prohibited_char) {
+                return Err(MqttError::InvalidTopicName(format!(
+                    "Topic '{}' contains prohibited character '{}'",
+                    topic, prohibited_char
+                )));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl TopicValidator for RestrictiveValidator {
+    fn validate_topic_name(&self, topic: &str) -> Result<()> {
+        // First apply standard validation
+        validate_topic_name(topic)?;
+        // Then apply additional restrictions
+        self.check_additional_restrictions(topic)
+    }
+
+    fn validate_topic_filter(&self, filter: &str) -> Result<()> {
+        // First apply standard validation
+        validate_topic_filter(filter)?;
+        // Then apply additional restrictions (but allow wildcards)
+        // Note: We don't apply all restrictions to filters since they may contain wildcards
+
+        // Check reserved prefixes
+        for prefix in &self.reserved_prefixes {
+            if filter.starts_with(prefix) && !filter.contains('+') && !filter.contains('#') {
+                return Err(MqttError::InvalidTopicFilter(format!(
+                    "Topic filter '{}' uses reserved prefix '{}'",
+                    filter, prefix
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_reserved_topic(&self, topic: &str) -> bool {
+        self.reserved_prefixes
+            .iter()
+            .any(|prefix| topic.starts_with(prefix))
+    }
+
+    fn description(&self) -> &'static str {
+        "Restrictive validator with additional constraints"
+    }
 }
 
 #[cfg(test)]

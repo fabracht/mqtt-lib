@@ -14,6 +14,9 @@ pub mod subscribe;
 pub mod unsuback;
 pub mod unsubscribe;
 
+#[cfg(test)]
+mod property_tests;
+
 use crate::encoding::{decode_variable_int, encode_variable_int};
 use crate::error::{MqttError, Result};
 use bebytes::BeBytes;
