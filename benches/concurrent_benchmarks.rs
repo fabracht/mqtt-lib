@@ -89,7 +89,8 @@ fn benchmark_callback_dispatch(c: &mut Criterion) {
 
         b.iter(|| {
             runtime.block_on(async {
-                black_box(callback_manager.dispatch(&message).await.unwrap());
+                callback_manager.dispatch(&message).await.unwrap();
+                black_box(());
             });
         });
     });
@@ -208,9 +209,11 @@ fn benchmark_message_queue_stress(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     group.bench_function("queue_dequeue_cycle", |b| {
-        let mut config = SessionConfig::default();
-        config.max_queued_messages = 1000;
-        config.max_queued_size = 1_048_576; // 1MB
+        let config = SessionConfig {
+            max_queued_messages: 1000,
+            max_queued_size: 1_048_576, // 1MB
+            ..SessionConfig::default()
+        };
 
         let session = SessionState::new("bench-client".to_string(), config, true);
 
@@ -265,7 +268,7 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
 
                     let packet = PublishPacket {
                         topic_name: topic,
-                        payload: payload.into_bytes(),
+                        payload: payload.as_bytes().to_vec(),
                         qos: QoS::AtLeastOnce,
                         retain: true,
                         dup: false,

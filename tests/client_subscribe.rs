@@ -65,6 +65,7 @@ async fn test_subscribe_with_options() {
                 no_local: true,
                 retain_as_published: true,
                 retain_handling: RetainHandling::SendIfNew,
+                subscription_identifier: None,
             };
 
             let result = client

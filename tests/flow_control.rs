@@ -8,7 +8,7 @@ async fn test_flow_control_basic_functionality() {
     let fc = FlowControlManager::new(2);
 
     // Should be able to send initially
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
     assert_eq!(fc.available_permits(), 2);
 
     // Acquire first quota
@@ -20,7 +20,7 @@ async fn test_flow_control_basic_functionality() {
     fc.acquire_send_quota(2).await.unwrap();
     assert_eq!(fc.in_flight_count().await, 2);
     assert_eq!(fc.available_permits(), 0);
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Third attempt should fail immediately
     let result = fc.try_acquire_send_quota(3).await;
@@ -38,17 +38,17 @@ async fn test_flow_control_acknowledgment() {
     // Fill up the quota
     fc.acquire_send_quota(1).await.unwrap();
     fc.acquire_send_quota(2).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Acknowledge one message
     fc.acknowledge(1).await.unwrap();
     assert_eq!(fc.in_flight_count().await, 1);
     assert_eq!(fc.available_permits(), 1);
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
 
     // Should be able to acquire quota again
     fc.acquire_send_quota(3).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Acknowledge non-existent packet should return error
     let result = fc.acknowledge(999).await;
@@ -64,7 +64,7 @@ async fn test_flow_control_unlimited() {
     let fc = FlowControlManager::new(0); // 0 means unlimited
 
     // Should always be able to send
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
 
     // Can acquire many quotas
     for i in 1..=1000 {
@@ -72,7 +72,7 @@ async fn test_flow_control_unlimited() {
     }
 
     // Still unlimited
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
     assert_eq!(fc.in_flight_count().await, 0); // Not tracked when unlimited
 }
 
@@ -89,7 +89,7 @@ async fn test_flow_control_backpressure() {
 
     // Fill up the quota
     fc.acquire_send_quota(1).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Trying to acquire another quota should timeout
     let start = std::time::Instant::now();
@@ -142,21 +142,21 @@ async fn test_flow_control_receive_maximum_adjustment() {
     // Fill up the quota
     fc.acquire_send_quota(1).await.unwrap();
     fc.acquire_send_quota(2).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Increase receive maximum
     fc.set_receive_maximum(3).await;
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
     assert_eq!(fc.available_permits(), 1);
 
     // Decrease receive maximum
     fc.set_receive_maximum(1).await;
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
     assert_eq!(fc.available_permits(), 0);
 
     // Set to unlimited
     fc.set_receive_maximum(0).await;
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
 }
 
 #[tokio::test]
@@ -269,7 +269,7 @@ async fn test_flow_control_legacy_register_send() {
     fc.register_send(2).await.unwrap();
 
     // Should be at capacity
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
     assert_eq!(fc.in_flight_count().await, 2);
 
     // Third attempt should fail
@@ -303,13 +303,13 @@ async fn test_flow_control_edge_cases() {
     let fc = FlowControlManager::new(1);
 
     fc.acquire_send_quota(1).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Acknowledge and immediately try to acquire again
     fc.acknowledge(1).await.unwrap();
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
     fc.acquire_send_quota(2).await.unwrap();
-    assert!(!fc.can_send().await);
+    assert!(!fc.can_send());
 
     // Test maximum packet ID
     let fc = FlowControlManager::new(1);
@@ -317,7 +317,7 @@ async fn test_flow_control_edge_cases() {
     fc.acknowledge(u16::MAX).await.unwrap();
 
     // Should work fine with maximum packet ID
-    assert!(fc.can_send().await);
+    assert!(fc.can_send());
 }
 
 #[tokio::test]

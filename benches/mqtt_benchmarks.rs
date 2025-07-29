@@ -345,12 +345,11 @@ fn benchmark_session_operations(c: &mut Criterion) {
                     topic_filter: "test/+/topic".to_string(),
                     options: SubscriptionOptions::default(),
                 };
-                black_box(
-                    session
-                        .add_subscription("test/+/topic".to_string(), sub)
-                        .await
-                        .unwrap(),
-                );
+                session
+                    .add_subscription("test/+/topic".to_string(), sub)
+                    .await
+                    .unwrap();
+                black_box(());
             });
         });
     });

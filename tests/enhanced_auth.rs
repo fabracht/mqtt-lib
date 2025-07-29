@@ -128,10 +128,12 @@ async fn test_auth_packet_properties_conversion() {
 
     // Test conversion from WillProperties to protocol Properties
     // This was implemented as part of the AUTH packet requirements
-    let mut will_props = WillProperties::default();
-    will_props.will_delay_interval = Some(30);
-    will_props.message_expiry_interval = Some(3600);
-    will_props.content_type = Some("application/json".to_string());
+    let will_props = WillProperties {
+        will_delay_interval: Some(30),
+        message_expiry_interval: Some(3600),
+        content_type: Some("application/json".to_string()),
+        ..WillProperties::default()
+    };
     will_props
         .user_properties
         .push(("client".to_string(), "v1.0".to_string()));

@@ -11,6 +11,7 @@ use ulid::Ulid;
 pub const TEST_BROKER: &str = "mqtt://127.0.0.1:1883";
 
 /// Default timeout for test operations
+#[allow(dead_code)]
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Generate a unique test client ID
@@ -26,6 +27,7 @@ pub async fn create_test_client(name: &str) -> MqttClient {
 }
 
 /// Create a test client with custom options
+#[allow(dead_code)]
 pub async fn create_test_client_with_options(_name: &str, options: ConnectOptions) -> MqttClient {
     let client = MqttClient::new(options.client_id.clone());
     client
@@ -42,6 +44,7 @@ pub struct MessageCollector {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ReceivedMessage {
     pub topic: String,
     pub payload: Vec<u8>,
@@ -76,6 +79,7 @@ impl MessageCollector {
     }
 
     /// Wait for a specific number of messages
+    #[allow(dead_code)]
     pub async fn wait_for_messages(&self, count: usize, timeout: Duration) -> bool {
         let start = tokio::time::Instant::now();
         while start.elapsed() < timeout {
@@ -93,6 +97,7 @@ impl MessageCollector {
     }
 
     /// Clear all messages
+    #[allow(dead_code)]
     pub async fn clear(&self) {
         self.messages.write().await.clear();
     }
@@ -147,6 +152,7 @@ impl EventCounter {
 }
 
 /// Test scenario: Basic publish/subscribe
+#[allow(dead_code)]
 pub async fn test_basic_pubsub(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
     let collector = MessageCollector::new();
     
@@ -172,6 +178,7 @@ pub async fn test_basic_pubsub(client: &MqttClient, topic: &str) -> Result<(), B
 }
 
 /// Test scenario: QoS flow validation
+#[allow(dead_code)]
 pub async fn test_qos_flow(client: &MqttClient, topic: &str, qos: QoS) -> Result<(), Box<dyn std::error::Error>> {
     let collector = MessageCollector::new();
     
@@ -204,6 +211,7 @@ pub async fn test_qos_flow(client: &MqttClient, topic: &str, qos: QoS) -> Result
 }
 
 /// Test scenario: Multiple subscriptions
+#[allow(dead_code)]
 pub async fn test_multiple_subscriptions(client: &MqttClient) -> Result<(), Box<dyn std::error::Error>> {
     let collector1 = MessageCollector::new();
     let collector2 = MessageCollector::new();
@@ -230,6 +238,7 @@ pub async fn test_multiple_subscriptions(client: &MqttClient) -> Result<(), Box<
 }
 
 /// Test scenario: Retained message handling
+#[allow(dead_code)]
 pub async fn test_retained_messages(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
     // First, publish a retained message
     client.publish_retain(topic, b"retained message").await?;
@@ -255,12 +264,14 @@ pub async fn test_retained_messages(client: &MqttClient, topic: &str) -> Result<
 }
 
 /// Wait helper with custom message
+#[allow(dead_code)]
 pub async fn wait_with_message(duration: Duration, message: &str) {
     println!("{}", message);
     tokio::time::sleep(duration).await;
 }
 
 /// Ensure a topic is clean (no retained messages)
+#[allow(dead_code)]
 pub async fn cleanup_topic(client: &MqttClient, topic: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Clear any retained messages
     client.publish_retain(topic, b"").await?;
@@ -268,6 +279,7 @@ pub async fn cleanup_topic(client: &MqttClient, topic: &str) -> Result<(), Box<d
 }
 
 /// Create multiple test clients
+#[allow(dead_code)]
 pub async fn create_test_clients(names: &[&str]) -> Vec<MqttClient> {
     let mut clients = Vec::new();
     for name in names {
@@ -277,6 +289,7 @@ pub async fn create_test_clients(names: &[&str]) -> Vec<MqttClient> {
 }
 
 /// Disconnect and cleanup multiple clients
+#[allow(dead_code)]
 pub async fn cleanup_clients(clients: Vec<MqttClient>) {
     for client in clients {
         let _ = client.disconnect().await;
