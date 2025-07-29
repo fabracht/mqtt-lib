@@ -229,6 +229,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Integration test - requires MQTT broker on port 1883"]
     async fn test_tcp_connect_real_broker() {
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
