@@ -4,7 +4,7 @@ use crate::validation::{validate_topic_filter, validate_topic_name, TopicValidat
 /// Namespace-based topic validator for hierarchical topic isolation
 ///
 /// This validator implements namespace-based topic validation patterns that enforce
-/// hierarchical isolation of topics, commonly used in cloud IoT platforms and
+/// hierarchical isolation of topics, commonly used in cloud `IoT` platforms and
 /// enterprise systems.
 ///
 /// The validator enforces:
@@ -13,8 +13,8 @@ use crate::validation::{validate_topic_filter, validate_topic_name, TopicValidat
 /// - System topics (e.g., `$SYS/`)
 ///
 /// Examples:
-/// - AWS IoT: `NamespaceValidator::new("$aws", "thing")`
-/// - Azure IoT: `NamespaceValidator::new("$azure", "device")`
+/// - AWS `IoT`: `NamespaceValidator::new("$aws", "thing")`
+/// - Azure `IoT`: `NamespaceValidator::new("$azure", "device")`
 /// - Enterprise: `NamespaceValidator::new("$company", "asset")`
 #[derive(Debug, Clone)]
 pub struct NamespaceValidator {
@@ -48,19 +48,19 @@ impl NamespaceValidator {
         }
     }
 
-    /// Creates a validator configured for AWS IoT Core
+    /// Creates a validator configured for AWS `IoT` Core
     #[must_use]
     pub fn aws_iot() -> Self {
         Self::new("$aws", "thing")
     }
 
-    /// Creates a validator configured for Azure IoT Hub
+    /// Creates a validator configured for Azure `IoT` Hub
     #[must_use]
     pub fn azure_iot() -> Self {
         Self::new("$azure", "device")
     }
 
-    /// Creates a validator configured for Google Cloud IoT
+    /// Creates a validator configured for Google Cloud `IoT`
     #[must_use]
     pub fn google_cloud_iot() -> Self {
         Self::new("$gcp", "device")
@@ -117,7 +117,7 @@ impl NamespaceValidator {
 
             // If we have a device ID, check device-specific topics
             if let Some(ref device_id) = self.device_id {
-                let device_prefix = format!("{}{}/", device_namespace_prefix, device_id);
+                let device_prefix = format!("{device_namespace_prefix}{device_id}/");
 
                 // Allow device-specific topics
                 if topic.starts_with(&device_prefix) {
@@ -191,7 +191,7 @@ impl TopicValidator for NamespaceValidator {
 
             // If we have a device ID, only topics outside our device are reserved
             if let Some(ref device_id) = self.device_id {
-                let device_prefix = format!("{}{}/", device_namespace_prefix, device_id);
+                let device_prefix = format!("{device_namespace_prefix}{device_id}/");
                 return !topic.starts_with(&device_prefix)
                     && topic.starts_with(&device_namespace_prefix);
             }
