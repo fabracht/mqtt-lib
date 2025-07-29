@@ -170,7 +170,11 @@ fn test_remaining_expiry_interval() {
     assert!(remaining.unwrap() > 55 && remaining.unwrap() <= 60);
 
     // Test expired message
-    msg.expiry_time = Some(std::time::Instant::now() - Duration::from_secs(10));
+    msg.expiry_time = Some(
+        std::time::Instant::now()
+            .checked_sub(Duration::from_secs(10))
+            .unwrap(),
+    );
     assert!(msg.is_expired());
     assert_eq!(msg.remaining_expiry_interval(), Some(0));
 }

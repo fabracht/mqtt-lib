@@ -127,8 +127,7 @@ async fn test_packet_too_large() {
 
     // Should fail because not connected (client-side validation may occur later)
     match result.unwrap_err() {
-        MqttError::NotConnected => {}          // Expected when not connected
-        MqttError::PacketTooLarge { .. } => {} // Also acceptable if validated client-side
+        MqttError::NotConnected | MqttError::PacketTooLarge { .. } => {} // Expected
         other => panic!("Expected NotConnected or PacketTooLarge error, got: {other:?}"),
     }
 }
