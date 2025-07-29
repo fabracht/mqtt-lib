@@ -362,28 +362,11 @@ async fn test_keep_alive_timeout_detection() {
     client.disconnect().await.expect("Failed to disconnect");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_subscription_restoration_after_reconnect() {
-    let client_id = test_client_id("sub-restore");
-    let client = MqttClient::new(client_id.clone());
-
-    // Use atomic counter to avoid locks in callbacks
-    let message_count = Arc::new(AtomicU32::new(0));
-
-    // Connect with session persistence
-    let opts = ConnectOptions::new(client_id.clone())
-        .with_clean_start(false)
-        .with_session_expiry_interval(300)
-        .with_automatic_reconnect(true);
-
-    client
-        .connect_with_options("127.0.0.1:1883", opts.clone())
-        .await
-        .expect("Failed to connect");
-
-    // Set up multiple subscriptions with unique prefix to avoid conflicts
-    let ulid = Ulid::new();
-    let test_prefix = format!("test-restore-{ulid}");
+async fn setup_test_subscriptions(
+    client: &MqttClient,
+    test_prefix: &str,
+    message_count: Arc<AtomicU32>,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let topics = [
         format!("{test_prefix}/exact/1"),
         format!("{test_prefix}/exact/2"),
@@ -408,21 +391,26 @@ async fn test_subscription_restoration_after_reconnect() {
                     count_clone.fetch_add(1, Ordering::SeqCst);
                 },
             )
-            .await
-            .expect("Failed to subscribe");
+            .await?;
         println!("Successfully subscribed to topic {topic}");
     }
 
-    // Verify subscriptions work
+    Ok(topics.to_vec())
+}
+
+async fn publish_test_messages(
+    client: &MqttClient,
+    test_prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Publishing test messages...");
+
     client
         .publish_qos(
             &format!("{test_prefix}/exact/1"),
             b"Message 1",
             QoS::AtLeastOnce,
         )
-        .await
-        .unwrap();
+        .await?;
     println!("Published Message 1");
 
     client
@@ -431,8 +419,7 @@ async fn test_subscription_restoration_after_reconnect() {
             b"Message 2",
             QoS::AtLeastOnce,
         )
-        .await
-        .unwrap();
+        .await?;
     println!("Published Message 2");
 
     client
@@ -441,61 +428,25 @@ async fn test_subscription_restoration_after_reconnect() {
             b"Wildcard message",
             QoS::AtLeastOnce,
         )
-        .await
-        .unwrap();
+        .await?;
     println!("Published Wildcard message");
 
-    println!("Waiting for messages to be received...");
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    Ok(())
+}
 
-    let count = message_count.load(Ordering::SeqCst);
-    println!("Received {count} messages before disconnect");
-    assert_eq!(count, 3, "Should have received exactly 3 messages");
-
-    // Simulate disconnection
-    println!("Disconnecting...");
-    client.disconnect().await.expect("Failed to disconnect");
-    println!("Disconnected successfully");
-
-    // Wait for disconnect to fully process
-    tokio::time::sleep(Duration::from_millis(1000)).await;
-
-    // Reset counter
-    message_count.store(0, Ordering::SeqCst);
-
-    // Check if client is really disconnected
-    println!(
-        "Is client connected before reconnect? {}",
-        client.is_connected().await
-    );
-
-    // Reconnect using the same client instance - subscriptions should be restored
-    println!("Reconnecting...");
-    let reconnect_result = client.connect_with_options("127.0.0.1:1883", opts).await;
-
-    match reconnect_result {
-        Ok(result) => {
-            println!(
-                "Reconnected successfully with session_present: {}",
-                result.session_present
-            );
-        }
-        Err(e) => {
-            println!("Reconnect error type: {e:?}");
-            panic!("Failed to reconnect: {e:?}");
-        }
-    }
-
+async fn publish_reconnect_messages(
+    client: &MqttClient,
+    test_prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Publishing messages after reconnect...");
-    // Publish again to verify subscriptions are still active
+
     client
         .publish_qos(
             &format!("{test_prefix}/exact/1"),
             b"After reconnect 1",
             QoS::AtLeastOnce,
         )
-        .await
-        .unwrap();
+        .await?;
     println!("Published to {test_prefix}/exact/1");
 
     client
@@ -504,13 +455,69 @@ async fn test_subscription_restoration_after_reconnect() {
             b"After reconnect 2",
             QoS::AtLeastOnce,
         )
-        .await
-        .unwrap();
+        .await?;
     println!("Published to {test_prefix}/exact/2");
 
-    println!("Waiting for messages...");
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    Ok(())
+}
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_subscription_restoration_after_reconnect() {
+    let client_id = test_client_id("sub-restore");
+    let client = MqttClient::new(client_id.clone());
+    let message_count = Arc::new(AtomicU32::new(0));
+
+    // Connect with session persistence
+    let opts = ConnectOptions::new(client_id.clone())
+        .with_clean_start(false)
+        .with_session_expiry_interval(300)
+        .with_automatic_reconnect(true);
+
+    client
+        .connect_with_options("127.0.0.1:1883", opts.clone())
+        .await
+        .expect("Failed to connect");
+
+    // Set up subscriptions and test publishing
+    let ulid = Ulid::new();
+    let test_prefix = format!("test-restore-{ulid}");
+
+    setup_test_subscriptions(&client, &test_prefix, Arc::clone(&message_count))
+        .await
+        .expect("Failed to setup subscriptions");
+
+    publish_test_messages(&client, &test_prefix)
+        .await
+        .expect("Failed to publish test messages");
+
+    // Verify initial messages received
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let count = message_count.load(Ordering::SeqCst);
+    println!("Received {count} messages before disconnect");
+    assert_eq!(count, 3, "Should have received exactly 3 messages");
+
+    // Disconnect and reconnect
+    println!("Disconnecting...");
+    client.disconnect().await.expect("Failed to disconnect");
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+    message_count.store(0, Ordering::SeqCst);
+
+    println!("Reconnecting...");
+    let reconnect_result = client.connect_with_options("127.0.0.1:1883", opts).await;
+    match reconnect_result {
+        Ok(result) => println!(
+            "Reconnected with session_present: {}",
+            result.session_present
+        ),
+        Err(e) => panic!("Failed to reconnect: {e:?}"),
+    }
+
+    // Test subscription restoration
+    publish_reconnect_messages(&client, &test_prefix)
+        .await
+        .expect("Failed to publish reconnect messages");
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
     let final_count = message_count.load(Ordering::SeqCst);
     println!("Received {final_count} messages after reconnect");
     assert!(

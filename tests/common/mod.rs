@@ -1,6 +1,8 @@
 //! Common test utilities and scenarios
 
-use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishProperties, MessageProperties, QoS};
+use mqtt_v5::{
+    ConnectOptions, MessageProperties, MqttClient, PublishOptions, PublishProperties, QoS,
+};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
