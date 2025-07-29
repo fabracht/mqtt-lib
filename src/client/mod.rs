@@ -131,7 +131,7 @@ impl MqttClient {
     /// let client = MqttClient::new("my-device-001");
     /// ```
     pub fn new(client_id: impl Into<String>) -> Self {
-        let options = ConnectOptions::new(client_id).with_clean_start(false); // Default to persistent session
+        let options = ConnectOptions::new(client_id); // Use default clean_start=true
         Self::with_options(options)
     }
 
