@@ -6,7 +6,7 @@ use crate::error::{MqttError, Result};
 /// - Must be UTF-8 encoded
 /// - Must have at least one character
 /// - Must not contain null characters (U+0000)
-/// - Must not exceed 65,535 bytes when UTF-8 encoded
+/// - Must not exceed maximum string length when UTF-8 encoded
 /// - Should not contain wildcard characters (+, #) in topic names (only in filters)
 #[must_use]
 pub fn is_valid_topic_name(topic: &str) -> bool {
@@ -14,7 +14,7 @@ pub fn is_valid_topic_name(topic: &str) -> bool {
         return false;
     }
 
-    if topic.len() > 65_535 {
+    if topic.len() > crate::constants::limits::MAX_STRING_LENGTH as usize {
         return false;
     }
 
@@ -43,7 +43,7 @@ pub fn is_valid_topic_filter(filter: &str) -> bool {
         return false;
     }
 
-    if filter.len() > 65_535 {
+    if filter.len() > crate::constants::limits::MAX_STRING_LENGTH as usize {
         return false;
     }
 
@@ -94,7 +94,7 @@ pub fn is_valid_client_id(client_id: &str) -> bool {
     if client_id.len() > 23 {
         // Most servers support longer, but 23 is the spec minimum
         // We'll allow longer and let the server reject if needed
-        if client_id.len() > 128 {
+        if client_id.len() > crate::constants::limits::MAX_CLIENT_ID_LENGTH {
             return false; // Reasonable upper limit
         }
     }
@@ -109,7 +109,7 @@ pub fn is_valid_client_id(client_id: &str) -> bool {
 ///
 /// Returns `MqttError::InvalidTopicName` if the topic name:
 /// - Is empty
-/// - Exceeds 65,535 bytes
+/// - Exceeds maximum string length
 /// - Contains null characters
 /// - Contains wildcard characters (+, #)
 pub fn validate_topic_name(topic: &str) -> Result<()> {
@@ -125,7 +125,7 @@ pub fn validate_topic_name(topic: &str) -> Result<()> {
 ///
 /// Returns `MqttError::InvalidTopicFilter` if the topic filter:
 /// - Is empty
-/// - Exceeds 65,535 bytes
+/// - Exceeds maximum string length
 /// - Contains null characters
 /// - Has invalid wildcard usage
 pub fn validate_topic_filter(filter: &str) -> Result<()> {
@@ -141,7 +141,7 @@ pub fn validate_topic_filter(filter: &str) -> Result<()> {
 ///
 /// Returns `MqttError::InvalidClientId` if the client ID:
 /// - Contains non-alphanumeric characters
-/// - Exceeds 128 bytes (reasonable limit)
+/// - Exceeds maximum client ID length
 pub fn validate_client_id(client_id: &str) -> Result<()> {
     if !is_valid_client_id(client_id) {
         return Err(MqttError::InvalidClientId(client_id.to_string()));
@@ -213,7 +213,7 @@ mod tests {
         assert!(!is_valid_topic_name("sport/tennis/#"));
         assert!(!is_valid_topic_name("home\0temperature"));
 
-        let too_long = "a".repeat(65_536);
+        let too_long = "a".repeat(crate::constants::limits::MAX_BINARY_LENGTH as usize);
         assert!(!is_valid_topic_name(&too_long));
     }
 
@@ -254,7 +254,7 @@ mod tests {
         assert!(!is_valid_client_id("client 123"));
         assert!(!is_valid_client_id("client@123"));
 
-        let too_long = "a".repeat(129);
+        let too_long = "a".repeat(crate::constants::limits::MAX_CLIENT_ID_LENGTH + 1);
         assert!(!is_valid_client_id(&too_long));
     }
 

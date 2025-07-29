@@ -11,7 +11,7 @@ use bytes::{Buf, BufMut};
 ///
 /// Returns an error if:
 /// - The string contains null characters
-/// - The string length exceeds 65,535 bytes
+/// - The string length exceeds maximum string length
 pub fn encode_string<B: BufMut>(buf: &mut B, string: &str) -> Result<()> {
     // Check for null characters
     if string.contains('\0') {
@@ -21,10 +21,11 @@ pub fn encode_string<B: BufMut>(buf: &mut B, string: &str) -> Result<()> {
     }
 
     let bytes = string.as_bytes();
-    if bytes.len() > 65_535 {
+    if bytes.len() > crate::constants::limits::MAX_STRING_LENGTH as usize {
         return Err(MqttError::MalformedPacket(format!(
-            "String length {} exceeds maximum 65535",
-            bytes.len()
+            "String length {} exceeds maximum {}",
+            bytes.len(),
+            crate::constants::limits::MAX_STRING_LENGTH
         )));
     }
 
@@ -128,7 +129,7 @@ mod tests {
     #[test]
     fn test_encode_string_too_long() {
         let mut buf = BytesMut::new();
-        let long_string = "a".repeat(65_536);
+        let long_string = "a".repeat(crate::constants::limits::MAX_BINARY_LENGTH as usize);
         let result = encode_string(&mut buf, &long_string);
         assert!(result.is_err());
     }

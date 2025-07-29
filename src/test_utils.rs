@@ -155,7 +155,7 @@ pub fn create_test_subscribe(topics: Vec<(&str, QoS)>) -> Packet {
 ///
 /// Returns `MqttError` if packet encoding fails
 pub fn encode_packet(packet: &Packet) -> std::result::Result<Vec<u8>, crate::error::MqttError> {
-    let mut buf = BytesMut::with_capacity(1024);
+    let mut buf = BytesMut::with_capacity(crate::constants::buffer::DEFAULT_CAPACITY);
 
     // Use the packet's own encode method which handles fixed header + body
     match packet {

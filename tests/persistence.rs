@@ -4,8 +4,32 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+/// Helper to check if MQTT broker is available
+async fn broker_available() -> bool {
+    let client = MqttClient::new("test-availability");
+    match client.connect("mqtt://127.0.0.1:1883").await {
+        Ok(()) => {
+            let _ = client.disconnect().await;
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Macro to skip test if broker is not available
+macro_rules! skip_if_no_broker {
+    () => {
+        if !broker_available().await {
+            println!("Skipping test - no MQTT broker available at 127.0.0.1:1883");
+            return;
+        }
+    };
+}
+
 #[tokio::test]
 async fn test_clean_start_true() {
+    skip_if_no_broker!();
+    
     let options = ConnectOptions::new("clean-start-true").with_clean_start(true);
 
     let client = MqttClient::with_options(options);
@@ -13,7 +37,7 @@ async fn test_clean_start_true() {
     // First connection
     let session_present = client
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new("clean-start-true").with_clean_start(true),
         )
         .await
@@ -32,7 +56,7 @@ async fn test_clean_start_true() {
     // Second connection with clean_start=true
     let session_present = client
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new("clean-start-true").with_clean_start(true),
         )
         .await
@@ -48,11 +72,13 @@ async fn test_clean_start_true() {
 
 #[tokio::test]
 async fn test_clean_start_false() {
+    skip_if_no_broker!();
+    
     let client_id = "persist-test-1";
 
     // First connection with clean_start=true to ensure clean slate
     let client1 = MqttClient::with_options(ConnectOptions::new(client_id).with_clean_start(true));
-    client1.connect("mqtt://localhost:1883").await.unwrap();
+    client1.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Subscribe to topics
     client1.subscribe("test/persist/1", |_| {}).await.unwrap();
@@ -65,7 +91,7 @@ async fn test_clean_start_false() {
 
     let session_present = client2
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new(client_id).with_clean_start(false),
         )
         .await
@@ -107,6 +133,8 @@ async fn test_clean_start_false() {
 
 #[tokio::test]
 async fn test_session_expiry_interval() {
+    skip_if_no_broker!();
+    
     let client_id = "session-expiry-test";
 
     // Connect with session expiry interval
@@ -115,7 +143,7 @@ async fn test_session_expiry_interval() {
         .with_session_expiry_interval(5); // 5 seconds
 
     let client1 = MqttClient::with_options(options.clone());
-    client1.connect("mqtt://localhost:1883").await.unwrap();
+    client1.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Subscribe to a topic
     client1.subscribe("test/expiry", |_| {}).await.unwrap();
@@ -128,7 +156,7 @@ async fn test_session_expiry_interval() {
     // Reconnect - session should still exist
     let client2 = MqttClient::with_options(options.clone());
     let session_present = client2
-        .connect_with_options("mqtt://localhost:1883", options.clone())
+        .connect_with_options("mqtt://127.0.0.1:1883", options.clone())
         .await
         .unwrap();
 
@@ -145,7 +173,7 @@ async fn test_session_expiry_interval() {
     let client3 = MqttClient::with_options(options);
     let session_present = client3
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new(client_id).with_clean_start(false),
         )
         .await
@@ -162,6 +190,8 @@ async fn test_session_expiry_interval() {
 
 #[tokio::test]
 async fn test_qos1_message_persistence() {
+    skip_if_no_broker!();
+    
     let pub_client = MqttClient::new("persist-pub");
     let sub_client_id = "persist-sub-qos1";
 
@@ -169,7 +199,7 @@ async fn test_qos1_message_persistence() {
     let sub_options = ConnectOptions::new(sub_client_id).with_clean_start(false);
     let sub_client = MqttClient::with_options(sub_options);
 
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
     sub_client
         .subscribe_with_options(
             "test/persist/qos1",
@@ -186,7 +216,7 @@ async fn test_qos1_message_persistence() {
     sub_client.disconnect().await.unwrap();
 
     // Publisher sends QoS 1 messages while subscriber is offline
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     for i in 0..5 {
         pub_client
@@ -206,7 +236,7 @@ async fn test_qos1_message_persistence() {
 
     let session_present = sub_client2
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new(sub_client_id).with_clean_start(false),
         )
         .await
@@ -253,6 +283,8 @@ async fn test_qos1_message_persistence() {
 
 #[tokio::test]
 async fn test_qos2_message_persistence() {
+    skip_if_no_broker!();
+    
     let pub_client = MqttClient::new("persist-pub-qos2");
     let sub_client_id = "persist-sub-qos2";
 
@@ -260,7 +292,7 @@ async fn test_qos2_message_persistence() {
     let sub_options = ConnectOptions::new(sub_client_id).with_clean_start(false);
     let sub_client = MqttClient::with_options(sub_options);
 
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
     sub_client
         .subscribe_with_options(
             "test/persist/qos2",
@@ -277,7 +309,7 @@ async fn test_qos2_message_persistence() {
     sub_client.disconnect().await.unwrap();
 
     // Publisher sends QoS 2 messages while subscriber is offline
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     for i in 0..3 {
         pub_client
@@ -295,7 +327,7 @@ async fn test_qos2_message_persistence() {
     let sub_client2 =
         MqttClient::with_options(ConnectOptions::new(sub_client_id).with_clean_start(false));
 
-    sub_client2.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client2.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Re-subscribe to set callback
     sub_client2
@@ -335,11 +367,13 @@ async fn test_qos2_message_persistence() {
 
 #[tokio::test]
 async fn test_subscription_persistence() {
+    skip_if_no_broker!();
+    
     let client_id = "sub-persist-test";
 
     // First connection - subscribe to multiple topics
     let client1 = MqttClient::with_options(ConnectOptions::new(client_id).with_clean_start(true));
-    client1.connect("mqtt://localhost:1883").await.unwrap();
+    client1.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     client1.subscribe("test/sub/1", |_| {}).await.unwrap();
     client1.subscribe("test/sub/2", |_| {}).await.unwrap();
@@ -355,7 +389,7 @@ async fn test_subscription_persistence() {
 
     let session_present = client2
         .connect_with_options(
-            "mqtt://localhost:1883",
+            "mqtt://127.0.0.1:1883",
             ConnectOptions::new(client_id).with_clean_start(false),
         )
         .await
@@ -404,11 +438,13 @@ async fn test_subscription_persistence() {
 
 #[tokio::test]
 async fn test_will_message_persistence() {
+    skip_if_no_broker!();
+    
     let will_client_id = "will-persist-test";
     let sub_client = MqttClient::new("will-sub");
 
     // Subscribe to will topic
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     let will_received = Arc::new(AtomicBool::new(false));
     let will_received_clone = will_received.clone();
@@ -434,7 +470,7 @@ async fn test_will_message_persistence() {
         .with_will(will_msg);
 
     let will_client = MqttClient::with_options(will_options);
-    will_client.connect("mqtt://localhost:1883").await.unwrap();
+    will_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Simulate abnormal disconnection by dropping the client
     // This causes the TCP connection to close without sending DISCONNECT
@@ -455,13 +491,15 @@ async fn test_will_message_persistence() {
 
 #[tokio::test]
 async fn test_packet_id_persistence() {
+    skip_if_no_broker!();
+    
     // Test that packet IDs are managed correctly across reconnections
     let client_id = "packet-id-persist";
 
     let options = ConnectOptions::new(client_id).with_clean_start(false);
     let client1 = MqttClient::with_options(options.clone());
 
-    client1.connect("mqtt://localhost:1883").await.unwrap();
+    client1.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Send some QoS 1 messages to allocate packet IDs
     let mut first_ids = Vec::new();
@@ -477,7 +515,7 @@ async fn test_packet_id_persistence() {
 
     // Reconnect and send more messages
     let client2 = MqttClient::with_options(options);
-    client2.connect("mqtt://localhost:1883").await.unwrap();
+    client2.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     let mut second_ids = Vec::new();
     for i in 5..10 {
@@ -498,6 +536,8 @@ async fn test_packet_id_persistence() {
 
 #[tokio::test]
 async fn test_inflight_message_persistence() {
+    skip_if_no_broker!();
+    
     // Test that in-flight QoS 1/2 messages are retransmitted after reconnection
     let pub_client_id = "inflight-pub";
     let sub_client_id = "inflight-sub";
@@ -505,7 +545,7 @@ async fn test_inflight_message_persistence() {
     // Set up subscriber
     let sub_client =
         MqttClient::with_options(ConnectOptions::new(sub_client_id).with_clean_start(false));
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -527,7 +567,7 @@ async fn test_inflight_message_persistence() {
     // Publisher sends messages
     let pub_client =
         MqttClient::with_options(ConnectOptions::new(pub_client_id).with_clean_start(false));
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Send QoS 1 messages rapidly then disconnect
     // Some might still be in-flight
@@ -549,7 +589,7 @@ async fn test_inflight_message_persistence() {
     // Reconnect publisher - any in-flight messages should be retransmitted
     let pub_client2 =
         MqttClient::with_options(ConnectOptions::new(pub_client_id).with_clean_start(false));
-    pub_client2.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client2.connect("mqtt://127.0.0.1:1883").await.unwrap();
 
     // Wait for potential retransmissions
     sleep(Duration::from_secs(1)).await;

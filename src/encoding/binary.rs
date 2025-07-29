@@ -9,12 +9,13 @@ use bytes::{Buf, BufMut, Bytes};
 ///
 /// # Errors
 ///
-/// Returns an error if the data length exceeds 65,535 bytes
+/// Returns an error if the data length exceeds maximum string length
 pub fn encode_binary<B: BufMut>(buf: &mut B, data: &[u8]) -> Result<()> {
-    if data.len() > 65_535 {
+    if data.len() > crate::constants::limits::MAX_STRING_LENGTH as usize {
         return Err(MqttError::MalformedPacket(format!(
-            "Binary data length {} exceeds maximum 65535",
-            data.len()
+            "Binary data length {} exceeds maximum {}",
+            data.len(),
+            crate::constants::limits::MAX_STRING_LENGTH
         )));
     }
 
@@ -59,7 +60,7 @@ pub fn decode_binary<B: Buf>(buf: &mut B) -> Result<Bytes> {
 ///
 /// # Errors
 ///
-/// Returns an error if the data length exceeds 65,535 bytes
+/// Returns an error if the data length exceeds maximum string length
 pub fn encode_optional_binary<B: BufMut>(buf: &mut B, data: Option<&[u8]>) -> Result<()> {
     if let Some(data) = data {
         encode_binary(buf, data)?;
@@ -109,7 +110,7 @@ mod tests {
     #[test]
     fn test_encode_binary_too_long() {
         let mut buf = BytesMut::new();
-        let data = vec![0u8; 65_536];
+        let data = vec![0u8; crate::constants::limits::MAX_BINARY_LENGTH as usize];
         let result = encode_binary(&mut buf, &data);
         assert!(result.is_err());
     }
