@@ -85,14 +85,12 @@ jobs:
           # Stop any existing mosquitto service
           sudo systemctl stop mosquitto || true
           
-          # Create a simple config
-          cat > mosquitto.conf << EOF
-          listener 1883
-          allow_anonymous true
-          EOF
+          # Create persistence directory
+          mkdir -p /tmp/mosquitto
           
+          # Use the CI-specific mosquitto config
           # Start mosquitto in background
-          mosquitto -c mosquitto.conf -d
+          mosquitto -c mosquitto-ci.conf -d
           
           # Wait for it to start and verify
           sleep 2
@@ -150,14 +148,12 @@ jobs:
           # Stop any existing mosquitto service
           sudo systemctl stop mosquitto || true
           
-          # Create a simple config
-          cat > mosquitto.conf << EOF
-          listener 1883
-          allow_anonymous true
-          EOF
+          # Create persistence directory
+          mkdir -p /tmp/mosquitto
           
+          # Use the CI-specific mosquitto config
           # Start mosquitto in background
-          mosquitto -c mosquitto.conf -d
+          mosquitto -c mosquitto-ci.conf -d
           
           # Wait for it to start and verify
           sleep 2
@@ -217,17 +213,12 @@ jobs:
           # Stop any existing mosquitto service
           sudo systemctl stop mosquitto || true
           
-          # Create a simple config if it doesn't exist
-          if [ ! -f mosquitto.conf ]; then
-            echo "Creating mosquitto.conf"
-            cat > mosquitto.conf << EOF
-          listener 1883
-          allow_anonymous true
-          EOF
-          fi
+          # Create persistence directory
+          mkdir -p /tmp/mosquitto
           
+          # Use the CI-specific mosquitto config
           # Start mosquitto in background
-          mosquitto -c mosquitto.conf -d
+          mosquitto -c mosquitto-ci.conf -d
           
           # Wait for it to start and verify
           sleep 2
