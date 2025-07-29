@@ -30,7 +30,7 @@ fn client_id_strategy() -> impl Strategy<Value = String> {
     prop::string::string_regex("[^\x00]{0,23}").unwrap()
 }
 
-/// Property test strategy for generating QoS values
+/// Property test strategy for generating `QoS` values
 fn qos_strategy() -> impl Strategy<Value = QoS> {
     prop_oneof![
         Just(QoS::AtMostOnce),
@@ -243,7 +243,6 @@ proptest! {
 #[cfg(test)]
 mod property_invariant_tests {
     use super::*;
-    use proptest::prelude::*;
 
     proptest! {
         /// Test that encoded packet sizes are within reasonable bounds

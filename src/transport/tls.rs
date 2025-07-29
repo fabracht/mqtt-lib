@@ -157,12 +157,11 @@ impl TlsConfig {
     #[must_use]
     pub fn with_alpn_protocols(mut self, protocols: &[&str]) -> Self {
         for protocol in protocols {
-            if protocol.is_empty() {
-                panic!("ALPN protocol cannot be empty");
-            }
-            if protocol.len() > 255 {
-                panic!("ALPN protocol cannot exceed 255 bytes");
-            }
+            assert!(!protocol.is_empty(), "ALPN protocol cannot be empty");
+            assert!(
+                (protocol.len() <= 255),
+                "ALPN protocol cannot exceed 255 bytes"
+            );
         }
         self.alpn_protocols = Some(protocols.iter().map(|p| p.as_bytes().to_vec()).collect());
         self
@@ -175,10 +174,10 @@ impl TlsConfig {
         self
     }
 
-    /// Sets ALPN protocol for AWS IoT Core (x-amzn-mqtt-ca)
+    /// Sets ALPN protocol for AWS `IoT` Core (x-amzn-mqtt-ca)
     ///
-    /// This is a convenience method for AWS IoT connections using port 443.
-    /// AWS IoT requires the "x-amzn-mqtt-ca" ALPN protocol for MQTT connections on port 443.
+    /// This is a convenience method for AWS `IoT` connections using port 443.
+    /// AWS `IoT` requires the "x-amzn-mqtt-ca" ALPN protocol for MQTT connections on port 443.
     ///
     /// # Examples
     ///

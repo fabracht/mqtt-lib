@@ -3,7 +3,7 @@ use mqtt_v5::validation::{RestrictiveValidator, StandardValidator, TopicValidato
 use mqtt_v5::{ConnectOptions, MqttClient};
 
 // For AWS IoT validator, import from the submodule
-use mqtt_v5::validation::aws_iot::AwsIotValidator;
+use mqtt_v5::validation::namespace::NamespaceValidator;
 
 #[tokio::test]
 #[ignore = "Integration test - requires certificates and TLS broker"]
@@ -87,7 +87,7 @@ async fn test_tls_config_with_connect_options() {
 #[test]
 fn test_topic_validators() {
     // Test standard validator
-    let standard = StandardValidator::default();
+    let standard = StandardValidator;
     assert!(standard.validate_topic_name("sensor/temperature").is_ok());
     assert!(standard.validate_topic_filter("sensor/+").is_ok());
     assert!(!standard.is_reserved_topic("any/topic"));
@@ -106,7 +106,7 @@ fn test_topic_validators() {
     assert!(restrictive.is_reserved_topic("internal/anything"));
 
     // Test AWS IoT validator
-    let aws_validator = AwsIotValidator::new().with_device_name("my-device");
+    let aws_validator = NamespaceValidator::aws_iot().with_device_id("my-device");
 
     // Device-specific topics should work
     assert!(aws_validator
@@ -133,7 +133,7 @@ fn test_topic_validators() {
 
 #[test]
 fn test_aws_iot_validator_device_specific() {
-    let validator = AwsIotValidator::new().with_device_name("sensor-001");
+    let validator = NamespaceValidator::aws_iot().with_device_id("sensor-001");
 
     // Allowed device topics
     assert!(validator
@@ -157,7 +157,7 @@ fn test_aws_iot_validator_device_specific() {
 
 #[test]
 fn test_aws_iot_validator_system_topics() {
-    let validator = AwsIotValidator::new().with_system_topics(true);
+    let validator = NamespaceValidator::new("$aws", "thing").with_system_topics(true);
 
     // System topics should now be allowed
     assert!(validator.validate_topic_name("$SYS/broker/version").is_ok());
@@ -215,7 +215,7 @@ fn test_alpn_protocol_validation() {
 #[test]
 #[should_panic(expected = "ALPN protocol cannot be empty")]
 fn test_alpn_empty_protocol_validation() {
-    TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
+    let _ = TlsConfig::new("127.0.0.1:8883".parse().unwrap(), "localhost")
         .with_alpn_protocols(&["mqtt", ""]);
 }
 

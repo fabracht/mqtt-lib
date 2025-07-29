@@ -1,6 +1,6 @@
 use crate::error::{MqttError, Result};
 
-pub mod aws_iot;
+pub mod namespace;
 
 /// Validates an MQTT topic name according to MQTT v5.0 specification
 ///
@@ -266,7 +266,7 @@ impl TopicValidator for StandardValidator {
 ///
 /// This validator extends the standard MQTT rules with additional restrictions
 /// such as reserved topic prefixes, maximum topic levels, and custom character sets.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RestrictiveValidator {
     /// Reserved topic prefixes that should be rejected
     pub reserved_prefixes: Vec<String>,
@@ -276,17 +276,6 @@ pub struct RestrictiveValidator {
     pub max_topic_length: Option<usize>,
     /// Prohibited characters beyond MQTT spec requirements
     pub prohibited_chars: Vec<char>,
-}
-
-impl Default for RestrictiveValidator {
-    fn default() -> Self {
-        Self {
-            reserved_prefixes: Vec::new(),
-            max_levels: None,
-            max_topic_length: None,
-            prohibited_chars: Vec::new(),
-        }
-    }
 }
 
 impl RestrictiveValidator {
@@ -330,8 +319,7 @@ impl RestrictiveValidator {
         for prefix in &self.reserved_prefixes {
             if topic.starts_with(prefix) {
                 return Err(MqttError::InvalidTopicName(format!(
-                    "Topic '{}' uses reserved prefix '{}'",
-                    topic, prefix
+                    "Topic '{topic}' uses reserved prefix '{prefix}'"
                 )));
             }
         }
@@ -341,8 +329,7 @@ impl RestrictiveValidator {
             let level_count = topic.split('/').count();
             if level_count > max_levels {
                 return Err(MqttError::InvalidTopicName(format!(
-                    "Topic '{}' has {} levels, maximum allowed is {}",
-                    topic, level_count, max_levels
+                    "Topic '{topic}' has {level_count} levels, maximum allowed is {max_levels}"
                 )));
             }
         }
@@ -363,8 +350,7 @@ impl RestrictiveValidator {
         for &prohibited_char in &self.prohibited_chars {
             if topic.contains(prohibited_char) {
                 return Err(MqttError::InvalidTopicName(format!(
-                    "Topic '{}' contains prohibited character '{}'",
-                    topic, prohibited_char
+                    "Topic '{topic}' contains prohibited character '{prohibited_char}'"
                 )));
             }
         }
@@ -391,8 +377,7 @@ impl TopicValidator for RestrictiveValidator {
         for prefix in &self.reserved_prefixes {
             if filter.starts_with(prefix) && !filter.contains('+') && !filter.contains('#') {
                 return Err(MqttError::InvalidTopicFilter(format!(
-                    "Topic filter '{}' uses reserved prefix '{}'",
-                    filter, prefix
+                    "Topic filter '{filter}' uses reserved prefix '{prefix}'"
                 )));
             }
         }

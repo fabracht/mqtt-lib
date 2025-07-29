@@ -554,11 +554,11 @@ impl MqttClient {
                     }
                 }
 
-                return Ok(result);
+                Ok(result)
             }
             Err(e) => {
                 drop(inner);
-                return Err(e);
+                Err(e)
             }
         }
     }
