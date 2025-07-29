@@ -349,7 +349,7 @@ mod tests {
         let remaining = limits.get_remaining_expiry(expiry_time);
         assert!(remaining.is_some());
         assert!(
-            remaining.unwrap() <= crate::constants::time::DEFAULT_SESSION_EXPIRY.as_secs() as u32
+            remaining.unwrap() <= u32::try_from(crate::constants::time::DEFAULT_SESSION_EXPIRY.as_secs()).unwrap_or(u32::MAX)
         );
     }
 }
