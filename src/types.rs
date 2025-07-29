@@ -4,29 +4,29 @@ use std::time::Duration;
 
 pub use crate::protocol::v5::reason_codes::ReasonCode;
 
-/// `Result` of a publish operation
+/// Result of a publish operation
 ///
 /// # Examples
 ///
 /// ```
 /// use mqtt_v5::PublishResult;
 ///
-/// let result = PublishResult::QoS1Or2 { `packet_id`: 42 };
-/// assert_eq!(result.`packet_id`(), Some(42));
+/// let result = PublishResult::QoS1Or2 { packet_id: 42 };
+/// assert_eq!(result.packet_id(), Some(42));
 ///
 /// let result = PublishResult::QoS0;
-/// assert_eq!(result.`packet_id`(), None);
+/// assert_eq!(result.packet_id(), None);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PublishResult {
-    /// `QoS` 0 publish completed (no packet ID)
+    /// QoS 0 publish completed (no packet ID)
     QoS0,
-    /// `QoS` 1 or 2 publish initiated with packet ID
+    /// QoS 1 or 2 publish initiated with packet ID
     QoS1Or2 { packet_id: u16 },
 }
 
 impl PublishResult {
-    /// Get the packet ID if this was a `QoS` 1 or 2 publish
+    /// Get the packet ID if this was a QoS 1 or 2 publish
     #[must_use]
     pub fn packet_id(&self) -> Option<u16> {
         match self {
@@ -36,7 +36,7 @@ impl PublishResult {
     }
 }
 
-/// `Result` of a connect operation
+/// Result of a connect operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConnectResult {
     /// Whether a previous session was resumed
@@ -74,7 +74,7 @@ impl Default for ReconnectConfig {
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::{ConnectOptions, WillMessage, `QoS`};
+/// use mqtt_v5::{ConnectOptions, WillMessage, QoS};
 /// use std::time::Duration;
 ///
 /// // Basic connection options
@@ -88,7 +88,7 @@ impl Default for ReconnectConfig {
 ///
 /// // With Last Will and Testament
 /// let will = WillMessage::new("status/offline", b"Client disconnected")
-///     .with_qos(`QoS`::AtLeastOnce)
+///     .with_qos(QoS::AtLeastOnce)
 ///     .with_retain(true);
 ///
 /// let options = ConnectOptions::new("monitored-client")
@@ -98,7 +98,7 @@ impl Default for ReconnectConfig {
 /// let options = ConnectOptions::new("persistent-client")
 ///     .with_automatic_reconnect(true)
 ///     .with_reconnect_delay(Duration::from_secs(5), Duration::from_secs(60));
-/// ``
+/// ```
 #[derive(Debug, Clone)]
 pub struct ConnectOptions {
     pub client_id: String,

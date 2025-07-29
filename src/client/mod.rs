@@ -48,11 +48,11 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///
 /// ## Basic usage
 ///
-/// ````no_run
+/// ```rust,no_run
 /// use mqtt_v5::MqttClient;
 ///
 /// #[tokio::main]
-/// async fn main() -> `Result`<(), Box<dyn std::error::Error>> {
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Create a client with a unique ID
 ///     let client = MqttClient::new("my-client-id");
 ///     
@@ -77,12 +77,12 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///
 /// ## Advanced usage with options
 ///
-/// ````no_run
-/// use mqtt_v5::{`MqttClient`, ConnectOptions, PublishOptions, `QoS`};
+/// ```rust,no_run
+/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS};
 /// use std::time::Duration;
 ///
 /// #[tokio::main]
-/// async fn main() -> `Result`<(), Box<dyn std::error::Error>> {
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Create client with custom options
 ///     let options = ConnectOptions::new("my-client")
 ///         .with_clean_start(true)
@@ -94,9 +94,9 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 ///     // Connect with TLS
 ///     client.connect("mqtts://broker.example.com:8883").await?;
 ///     
-///     // Publish with `QoS` 2 and retain flag
+///     // Publish with QoS 2 and retain flag
 ///     let mut pub_options = PublishOptions::default();
-///     pub_options.qos = `QoS`::ExactlyOnce;
+///     pub_options.qos = QoS::ExactlyOnce;
 ///     pub_options.retain = true;
 ///     
 ///     client.publish_with_options(
@@ -140,7 +140,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```
-    /// use mqtt_v5::{`MqttClient`, ConnectOptions};
+    /// use mqtt_v5::{MqttClient, ConnectOptions};
     /// use std::time::Duration;
     ///
     /// let options = ConnectOptions::new("client-001")
@@ -183,16 +183,16 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ````no_run
-    /// use mqtt_v5::{`MqttClient`, ConnectionEvent, DisconnectReason};
+    /// ```rust,no_run
+    /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
     ///
-    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     ///
     /// client.on_connection_event(|event| {
     ///     match event {
-    ///         ConnectionEvent::Connected { `session_present` } => {
-    ///             println!("Connected! Session present: {}", `session_present`);
+    ///         ConnectionEvent::Connected { session_present } => {
+    ///             println!("Connected! Session present: {}", session_present);
     ///         }
     ///         ConnectionEvent::Disconnected { reason } => {
     ///             println!("Disconnected: {:?}", reason);
@@ -248,9 +248,9 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ````no_run
+    /// ```rust,no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     ///
     /// // Connect via TCP
@@ -279,7 +279,7 @@ impl MqttClient {
     /// Connects to the MQTT broker with custom options
     ///
     /// This is a DIRECT async method - no event loops!
-    /// Returns `session_present` flag from CONNACK
+    /// Returns session_present flag from CONNACK
     ///
     /// # Errors
     ///
@@ -453,9 +453,9 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ````no_run
+    /// ```rust,no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
     ///
@@ -471,7 +471,7 @@ impl MqttClient {
     /// client.publish("sensors/json", json).await?;
     /// # Ok(())
     /// # }
-    /// ````
+    /// ```
     ///
     /// # Errors
     ///
@@ -485,7 +485,7 @@ impl MqttClient {
         self.publish_with_options(topic, payload, options).await
     }
 
-    /// Publishes a message to a topic with specific `QoS` (compatibility method)
+    /// Publishes a message to a topic with specific QoS (compatibility method)
     ///
     /// # Errors
     ///
@@ -530,9 +530,9 @@ impl MqttClient {
     ///
     /// # Examples
     ///
-    /// ````no_run
+    /// ```rust,no_run
     /// # use mqtt_v5::MqttClient;
-    /// # async fn example() -> `Result`<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
     ///
@@ -596,7 +596,7 @@ impl MqttClient {
             .await
     }
 
-    /// Internal method that accepts `PublishPacket` callbacks
+    /// Internal method that accepts PublishPacket callbacks
     ///
     /// # Errors
     ///
@@ -762,7 +762,7 @@ impl MqttClient {
         self.publish_with_options(topic, payload, opts).await
     }
 
-    /// Publish with `QoS` 0 (convenience method)
+    /// Publish with QoS 0 (convenience method)
     ///
     /// # Errors
     ///
@@ -775,7 +775,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtMostOnce).await
     }
 
-    /// Publish with `QoS` 1 (convenience method)
+    /// Publish with QoS 1 (convenience method)
     ///
     /// # Errors
     ///
@@ -788,7 +788,7 @@ impl MqttClient {
         self.publish_qos(topic, payload, QoS::AtLeastOnce).await
     }
 
-    /// Publish with `QoS` 2 (convenience method)
+    /// Publish with QoS 2 (convenience method)
     ///
     /// # Errors
     ///
@@ -840,7 +840,7 @@ impl MqttClient {
     }
 }
 
-/// Implementation of `MqttClientTrait` for `MqttClient`
+/// Implementation of MqttClientTrait for MqttClient
 #[allow(clippy::manual_async_fn)]
 impl MqttClientTrait for MqttClient {
     fn is_connected(&self) -> impl Future<Output = bool> + Send + '_ {

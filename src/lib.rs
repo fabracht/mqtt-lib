@@ -18,7 +18,7 @@
 //!
 //! ## Quick Start
 //!
-//! ````rust,no_run
+//! ```rust,no_run
 //! use mqtt_v5::{MqttClient, ConnectOptions, QoS};
 //!
 //! #[tokio::main]
@@ -44,7 +44,7 @@
 //!
 //! ## Advanced Example
 //!
-//! ````rust,no_run
+//! ```rust,no_run
 //! use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS, ConnectionEvent};
 //! use std::time::Duration;
 //!
