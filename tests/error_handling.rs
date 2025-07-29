@@ -136,14 +136,19 @@ async fn test_packet_too_large() {
 async fn test_duplicate_connect() {
     let client = MqttClient::new("duplicate-connect-test");
 
-    // Simulate duplicate connect by attempting multiple connections
-    // Both should fail because no broker is running, but we're testing the logic
-    let result1 = client.connect("mqtt://localhost:1883").await;
-    let result2 = client.connect("mqtt://localhost:1883").await;
+    // Use a port that definitely has no broker
+    let result1 = client.connect("mqtt://localhost:19999").await;
+    let result2 = client.connect("mqtt://localhost:19999").await;
 
-    // Both should fail with connection errors since no broker is running
-    assert!(result1.is_err(), "First connect should fail (no broker)");
-    assert!(result2.is_err(), "Second connect should fail (no broker)");
+    // Both should fail with connection errors since no broker is on port 19999
+    assert!(
+        result1.is_err(),
+        "First connect should fail (no broker on port 19999)"
+    );
+    assert!(
+        result2.is_err(),
+        "Second connect should fail (no broker on port 19999)"
+    );
 
     // The specific error type depends on whether the first connect completed
     // before the second one was attempted
@@ -217,9 +222,12 @@ async fn test_malformed_connack_handling() {
     // Test client behavior with connection attempts
     let client = MqttClient::new("malformed-test");
 
-    // Attempt connection - should fail with no broker running
-    let result = client.connect("mqtt://localhost:1883").await;
-    assert!(result.is_err(), "Connection should fail with no broker");
+    // Attempt connection to a port with no broker
+    let result = client.connect("mqtt://localhost:19999").await;
+    assert!(
+        result.is_err(),
+        "Connection should fail with no broker on port 19999"
+    );
 
     // The client should handle connection failures gracefully
     match result.unwrap_err() {

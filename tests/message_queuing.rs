@@ -3,9 +3,11 @@ use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS};
 #[tokio::test]
 
 async fn test_message_queuing_when_disconnected() {
-    let client = MqttClient::new("test-client");
+    // Create client with clean_start=false to enable queuing
+    let options = ConnectOptions::new("test-client").with_clean_start(false);
+    let client = MqttClient::with_options(options);
 
-    // Enable queuing (should be enabled by default for persistent sessions)
+    // Queuing should be enabled for persistent sessions
     assert!(client.is_queue_on_disconnect().await);
 
     // Try to publish while disconnected - should queue the message
@@ -62,7 +64,9 @@ async fn test_qos0_not_queued() {
 #[tokio::test]
 
 async fn test_queue_multiple_messages() {
-    let client = MqttClient::new("test-client");
+    // Create client with clean_start=false to enable queuing
+    let options = ConnectOptions::new("test-client").with_clean_start(false);
+    let client = MqttClient::with_options(options);
 
     let mut packet_ids = Vec::new();
 
@@ -94,9 +98,11 @@ async fn test_queue_multiple_messages() {
 #[tokio::test]
 
 async fn test_toggle_queue_on_disconnect() {
-    let client = MqttClient::new("test-client");
+    // Create client with clean_start=false to enable queuing initially
+    let options = ConnectOptions::new("test-client").with_clean_start(false);
+    let client = MqttClient::with_options(options);
 
-    // Should be enabled by default for persistent sessions
+    // Should be enabled for persistent sessions
     assert!(client.is_queue_on_disconnect().await);
 
     // Disable queuing
@@ -134,7 +140,9 @@ async fn test_message_replay_on_reconnect() {
     // This test would require a mock broker to verify that messages are replayed
     // For now, we just test the queueing behavior
 
-    let client = MqttClient::new("test-client");
+    // Create client with clean_start=false to enable queuing
+    let options = ConnectOptions::new("test-client").with_clean_start(false);
+    let client = MqttClient::with_options(options);
 
     // Queue several messages
     let messages = vec![
@@ -170,7 +178,9 @@ async fn test_message_replay_on_reconnect() {
 #[tokio::test]
 
 async fn test_retained_message_queuing() {
-    let client = MqttClient::new("test-client");
+    // Create client with clean_start=false to enable queuing
+    let options = ConnectOptions::new("test-client").with_clean_start(false);
+    let client = MqttClient::with_options(options);
 
     let options = PublishOptions {
         qos: QoS::AtLeastOnce,

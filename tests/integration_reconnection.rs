@@ -525,5 +525,8 @@ async fn test_subscription_restoration_after_reconnect() {
         "Should have received at least 2 messages after reconnect"
     );
 
-    client.disconnect().await.expect("Failed to disconnect");
+    // Only disconnect if still connected
+    if client.is_connected().await {
+        client.disconnect().await.expect("Failed to disconnect");
+    }
 }

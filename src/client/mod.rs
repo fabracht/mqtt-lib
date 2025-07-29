@@ -340,93 +340,139 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    /// Try to connect to a specific address
+    async fn try_connect_address(
+        &self,
+        addr: std::net::SocketAddr,
+        client_transport_type: ClientTransportType,
+        host: &str,
+    ) -> Result<TransportType> {
+        match client_transport_type {
+            ClientTransportType::Tcp => {
+                let config = TcpConfig::new(addr);
+                let mut tcp_transport = TcpTransport::new(config);
+                tcp_transport.connect().await.map_err(|e| {
+                    MqttError::ConnectionError(format!("TCP connect failed: {e}"))
+                })?;
+                Ok(TransportType::Tcp(tcp_transport))
+            }
+            ClientTransportType::Tls => {
+                let config = TlsConfig::new(addr, host);
+                let mut tls_transport = TlsTransport::new(config);
+                tls_transport.connect().await.map_err(|e| {
+                    MqttError::ConnectionError(format!("TLS connect failed: {e}"))
+                })?;
+                Ok(TransportType::Tls(Box::new(tls_transport)))
+            }
+        }
+    }
+
     async fn connect_internal(&self, address: &str) -> Result<ConnectResult> {
         // Parse address to determine transport type
         let (client_transport_type, host, port) = Self::parse_address(address)?;
 
-        // Resolve address
+        // Resolve address - try all resolved addresses
         let addr_str = format!("{host}:{port}");
-        let addr = addr_str
+        let addrs: Vec<_> = addr_str
             .to_socket_addrs()
             .map_err(|e| MqttError::ConnectionError(format!("Failed to resolve address: {e}")))?
-            .next()
-            .ok_or_else(|| MqttError::ConnectionError("No valid address found".to_string()))?;
+            .collect();
 
-        // Create transport based on type
-        let transport =
-            match client_transport_type {
-                ClientTransportType::Tcp => {
-                    let config = TcpConfig::new(addr);
-                    let mut tcp_transport = TcpTransport::new(config);
+        if addrs.is_empty() {
+            return Err(MqttError::ConnectionError(
+                "No valid address found".to_string(),
+            ));
+        }
 
-                    // Connect TCP transport directly
-                    tcp_transport.connect().await.map_err(|e| {
-                        MqttError::ConnectionError(format!("TCP connect failed: {e}"))
-                    })?;
+        let mut last_error = None;
 
-                    TransportType::Tcp(tcp_transport)
-                }
-                ClientTransportType::Tls => {
-                    let config = TlsConfig::new(addr, host);
-                    let mut tls_transport = TlsTransport::new(config);
+        // Try each resolved address
+        for addr in &addrs {
+            tracing::debug!("Trying to connect to address: {}", addr);
 
-                    // Connect TLS transport directly
-                    tls_transport.connect().await.map_err(|e| {
-                        MqttError::ConnectionError(format!("TLS connect failed: {e}"))
-                    })?;
-
-                    TransportType::Tls(Box::new(tls_transport))
+            // Try to create and connect transport
+            let transport = match self.try_connect_address(*addr, client_transport_type, host).await {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::debug!("Failed to connect to {}: {}", addr, e);
+                    last_error = Some(e);
+                    continue;
                 }
             };
 
-        // Reset reconnect attempt counter
-        {
+            // Reset reconnect attempt counter
+            {
+                let mut inner = self.inner.write().await;
+                inner.reconnect_attempt = 0;
+            }
+
+            // Try to connect using direct async method - NO event loop!
             let mut inner = self.inner.write().await;
-            inner.reconnect_attempt = 0;
-        }
+            match inner.connect(transport).await {
+                Ok(result) => {
+                    // Get stored subscriptions before releasing the lock
+                    let stored_subs = inner.stored_subscriptions.read().await.clone();
+                    let session_present = result.session_present;
+                    drop(inner); // Release lock before potentially resubscribing
 
-        // Connect using direct async method - NO event loop!
-        let mut inner = self.inner.write().await;
-        let result = inner.connect(transport).await?;
+                    // Trigger connected event
+                    self.trigger_connection_event(ConnectionEvent::Connected { session_present })
+                        .await;
 
-        // Get stored subscriptions before releasing the lock
-        let stored_subs = inner.stored_subscriptions.read().await.clone();
-        let session_present = result.session_present;
-        drop(inner); // Release lock before potentially resubscribing
-
-        // Trigger connected event
-        self.trigger_connection_event(ConnectionEvent::Connected { session_present })
-            .await;
-
-        // Restore callbacks and subscriptions
-        if !stored_subs.is_empty() {
-            if session_present {
-                // Session was resumed - broker has subscriptions, but we need to restore callbacks
-                tracing::info!("Session resumed, restoring {} callbacks", stored_subs.len());
-                let inner = self.inner.read().await;
-                for (topic, _, callback_id) in stored_subs {
-                    if let Err(e) = inner.callback_manager.restore_callback(callback_id).await {
-                        tracing::warn!("Failed to restore callback for {}: {}", topic, e);
+                    // Restore callbacks and subscriptions
+                    if !stored_subs.is_empty() {
+                        if session_present {
+                            // Session was resumed - broker has subscriptions, but we need to restore callbacks
+                            tracing::info!(
+                                "Session resumed, restoring {} callbacks",
+                                stored_subs.len()
+                            );
+                            let inner = self.inner.read().await;
+                            for (topic, _, callback_id) in stored_subs {
+                                if let Err(e) =
+                                    inner.callback_manager.restore_callback(callback_id).await
+                                {
+                                    tracing::warn!(
+                                        "Failed to restore callback for {}: {}",
+                                        topic,
+                                        e
+                                    );
+                                }
+                            }
+                        } else {
+                            // Session was not resumed - need to resubscribe and restore callbacks
+                            tracing::info!(
+                                "Session not resumed, restoring {} subscriptions",
+                                stored_subs.len()
+                            );
+                            for (topic, options, callback_id) in stored_subs {
+                                if let Err(e) = self
+                                    .resubscribe_internal(&topic, options, callback_id)
+                                    .await
+                                {
+                                    tracing::warn!(
+                                        "Failed to restore subscription to {}: {}",
+                                        topic,
+                                        e
+                                    );
+                                }
+                            }
+                        }
                     }
+
+                    return Ok(result);
                 }
-            } else {
-                // Session was not resumed - need to resubscribe and restore callbacks
-                tracing::info!(
-                    "Session not resumed, restoring {} subscriptions",
-                    stored_subs.len()
-                );
-                for (topic, options, callback_id) in stored_subs {
-                    if let Err(e) = self
-                        .resubscribe_internal(&topic, options, callback_id)
-                        .await
-                    {
-                        tracing::warn!("Failed to restore subscription to {}: {}", topic, e);
-                    }
+                Err(e) => {
+                    drop(inner);
+                    last_error = Some(e);
                 }
             }
         }
 
-        Ok(result)
+        // If we get here, all addresses failed
+        Err(last_error.unwrap_or_else(|| {
+            MqttError::ConnectionError("Failed to connect to any address".to_string())
+        }))
     }
 
     /// Disconnects from the MQTT broker
