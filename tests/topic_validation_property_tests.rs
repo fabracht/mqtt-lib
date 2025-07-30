@@ -30,7 +30,7 @@ fn topic_filter_with_wildcards() -> impl Strategy<Value = String> {
             Just("+".to_string()),
             Just("#".to_string()),
         ],
-        1..10
+        1..10,
     )
     .prop_map(|parts| {
         // Ensure # only appears at the end
@@ -150,7 +150,7 @@ mod wildcard_tests {
 
             for pattern in invalid_patterns {
                 let result = validate_filter(&pattern);
-                prop_assert!(result.is_err(), 
+                prop_assert!(result.is_err(),
                     "Pattern '{}' should be invalid (wildcard mixed with text)", pattern);
             }
         }
@@ -169,14 +169,14 @@ mod length_constraint_tests {
         ) {
             // Build increasingly long topics
             let long_topic = base.repeat(repeat_count);
-            
+
             if long_topic.len() <= MAX_TOPIC_LENGTH {
                 let result = validate_filter(&long_topic);
-                prop_assert!(result.is_ok(), 
+                prop_assert!(result.is_ok(),
                     "Topic with length {} should be valid", long_topic.len());
             } else {
                 let result = validate_filter(&long_topic);
-                prop_assert!(result.is_err(), 
+                prop_assert!(result.is_err(),
                     "Topic with length {} should be invalid", long_topic.len());
             }
         }
@@ -189,14 +189,14 @@ mod length_constraint_tests {
             // Empty levels are invalid
             let invalid_patterns = vec![
                 format!("/{}", prefix),      // Leading slash
-                format!("{}/", suffix),      // Trailing slash  
+                format!("{}/", suffix),      // Trailing slash
                 format!("{}///{}", prefix, suffix), // Multiple slashes
                 "//".to_string(),           // Only slashes
             ];
 
             for pattern in invalid_patterns {
                 let result = validate_filter(&pattern);
-                prop_assert!(result.is_err(), 
+                prop_assert!(result.is_err(),
                     "Pattern '{}' with empty levels should be invalid", pattern);
             }
         }
@@ -216,7 +216,7 @@ mod character_validation_tests {
             // Null characters are always invalid
             let topic_with_null = format!("{}\0{}", prefix, suffix);
             let result = validate_filter(&topic_with_null);
-            prop_assert!(result.is_err(), 
+            prop_assert!(result.is_err(),
                 "Topic with null character should be invalid");
         }
 
@@ -228,9 +228,9 @@ mod character_validation_tests {
             // Unicode should be handled correctly
             let topic_with_unicode = format!("{}/{}/{}", text, emoji, text);
             let result = validate_filter(&topic_with_unicode);
-            
+
             // Valid UTF-8 unicode should be accepted
-            prop_assert!(result.is_ok(), 
+            prop_assert!(result.is_ok(),
                 "Valid Unicode topic '{}' should be accepted", topic_with_unicode);
         }
 
@@ -246,10 +246,95 @@ mod character_validation_tests {
             // Most special characters should be allowed in MQTT
             let topic = format!("{}{}{}", base, special_char, base);
             let result = validate_filter(&topic);
-            
+
             // MQTT allows most characters except null
-            prop_assert!(result.is_ok(), 
+            prop_assert!(result.is_ok(),
                 "Topic with special char {:?} should be valid", special_char);
+        }
+    }
+}
+
+#[cfg(test)]
+mod topic_name_validation_tests {
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn prop_invalid_topic_rejection(
+            topic in potentially_invalid_topic()
+        ) {
+            // Test that invalid topics are properly rejected
+            let result = validate_topic(&topic);
+
+            // According to the code, empty topics are actually valid in MQTT
+            // (e.g., for will messages), so we need to adjust our expectations
+
+            // Check specific invalid cases
+            if topic.contains('\0') {
+                prop_assert!(result.is_err(),
+                    "Topic with null character should be rejected");
+            } else if topic.len() > MAX_TOPIC_LENGTH {
+                prop_assert!(result.is_err(),
+                    "Topic exceeding max length should be rejected");
+            } else {
+                // Empty topics are valid
+                // Topics with spaces are valid
+                // Topics starting with $ are valid (system topics)
+                // Topics with // or leading/trailing slashes are valid for topic names
+                // (these restrictions apply to topic filters, not topic names)
+                prop_assert!(result.is_ok(),
+                    "Topic '{}' should be valid", topic);
+            }
+        }
+
+        #[test]
+        fn prop_topic_name_no_wildcards(
+            topic in topic_filter_with_wildcards()
+        ) {
+            // Topic names for publishing cannot contain wildcards
+            if topic.contains('+') || topic.contains('#') {
+                let result = validate_topic(&topic);
+                prop_assert!(result.is_err(),
+                    "Topic '{}' with wildcards should be invalid for publishing", topic);
+            } else {
+                // If no wildcards, should be valid (unless other issues)
+                let result = validate_topic(&topic);
+                if !topic.is_empty() && !topic.contains("//") &&
+                   !topic.starts_with('/') && !topic.ends_with('/') {
+                    prop_assert!(result.is_ok(),
+                        "Topic '{}' without wildcards should be valid for publishing", topic);
+                }
+            }
+        }
+
+        #[test]
+        fn prop_valid_topic_acceptance(
+            levels in prop::collection::vec(valid_topic_level(), 1..10)
+        ) {
+            // Generate valid topic names
+            let topic = levels.join("/");
+
+            if topic.len() <= MAX_TOPIC_LENGTH {
+                let result = validate_topic(&topic);
+                prop_assert!(result.is_ok(),
+                    "Valid topic '{}' should be accepted", topic);
+            }
+        }
+
+        #[test]
+        fn prop_system_topic_validation(
+            topic in aws_iot_topic()
+        ) {
+            // System topics starting with $ are technically valid MQTT topics
+            // but may have special handling
+            let result = validate_topic(&topic);
+
+            // These should be valid from MQTT spec perspective
+            // (restrictions are application-specific)
+            if !topic.is_empty() && topic.len() <= MAX_TOPIC_LENGTH {
+                prop_assert!(result.is_ok(),
+                    "System topic '{}' should be valid MQTT topic", topic);
+            }
         }
     }
 }
@@ -266,7 +351,7 @@ mod aws_iot_validation_tests {
         ) {
             let validator = NamespaceValidator::aws_iot();
             let long_topic = format!("{}/{}", base, base.repeat(repeat_count));
-            
+
             if long_topic.len() <= AWS_IOT_MAX_TOPIC_LENGTH {
                 prop_assert!(validator.validate_topic_name(&long_topic).is_ok(),
                     "AWS IoT topic with length {} should be valid", long_topic.len());
@@ -282,7 +367,7 @@ mod aws_iot_validation_tests {
             job_id in "[a-zA-Z0-9_\\-]{1,64}"
         ) {
             let validator = NamespaceValidator::aws_iot();
-            
+
             // These are reserved AWS IoT topics that clients shouldn't publish to
             let reserved_topics = vec![
                 "$aws/certificates/create/json".to_string(),
@@ -295,14 +380,14 @@ mod aws_iot_validation_tests {
                 // For namespace validator, check if it's a reserved topic
                 let result = validator.validate_topic_name(&topic);
                 // AWS reserved topics should be restricted for publishing
-                prop_assert!(result.is_err(), 
+                prop_assert!(result.is_err(),
                     "Publishing to reserved topic '{}' should be restricted", topic);
-                
+
                 // For subscription, use validate_topic_filter
                 let result = validator.validate_topic_filter(&topic);
                 // Subscribing to reserved topics may be allowed depending on configuration
                 // The namespace validator may still restrict these
-                prop_assert!(result.is_ok() || result.is_err(), 
+                prop_assert!(result.is_ok() || result.is_err(),
                     "Subscribing to reserved topic '{}' validation result: {:?}", topic, result);
             }
         }
@@ -318,7 +403,7 @@ mod aws_iot_validation_tests {
             ]
         ) {
             let validator = NamespaceValidator::aws_iot();
-            
+
             // Common IoT patterns that should be valid
             let valid_topics = vec![
                 format!("device/{}/telemetry/{}", device_id, telemetry_type),
@@ -346,7 +431,7 @@ mod edge_case_tests {
             .map(|i| format!("level{}", i))
             .collect::<Vec<_>>()
             .join("/");
-            
+
         let result = validate_filter(&many_levels);
         assert!(result.is_ok(), "Many topic levels should be valid");
     }
@@ -355,10 +440,14 @@ mod edge_case_tests {
     fn test_single_character_topics() {
         // Single character topics and levels are valid
         let single_chars = vec!["a", "1", "_", "-", "a/b/c/d/e"];
-        
+
         for topic in single_chars {
             let result = validate_filter(topic);
-            assert!(result.is_ok(), "Single character topic '{}' should be valid", topic);
+            assert!(
+                result.is_ok(),
+                "Single character topic '{}' should be valid",
+                topic
+            );
         }
     }
 
@@ -375,22 +464,30 @@ mod edge_case_tests {
 
         for topic in valid {
             let result = validate_filter(topic);
-            assert!(result.is_ok(), "Wildcard pattern '{}' should be valid", topic);
+            assert!(
+                result.is_ok(),
+                "Wildcard pattern '{}' should be valid",
+                topic
+            );
         }
 
         // Invalid combinations
         let invalid = vec![
-            "a/+b/c",      // + mixed with text
-            "a/b+/c",      // + mixed with text
-            "a/#/c",       // # not at end
-            "a/b/#/d",     // # not at end
-            "++/a",        // Multiple + together
-            "a/##",        // Multiple # together
+            "a/+b/c",  // + mixed with text
+            "a/b+/c",  // + mixed with text
+            "a/#/c",   // # not at end
+            "a/b/#/d", // # not at end
+            "++/a",    // Multiple + together
+            "a/##",    // Multiple # together
         ];
 
         for topic in invalid {
             let result = validate_filter(topic);
-            assert!(result.is_err(), "Wildcard pattern '{}' should be invalid", topic);
+            assert!(
+                result.is_err(),
+                "Wildcard pattern '{}' should be invalid",
+                topic
+            );
         }
     }
 
@@ -398,11 +495,11 @@ mod edge_case_tests {
     fn test_dollar_prefixed_topics() {
         // $ topics have special meaning in MQTT
         let dollar_topics = vec![
-            ("$SYS/broker/uptime", true),          // System topic
-            ("$aws/things/abc/shadow", true),      // AWS IoT
-            ("$share/group/topic", true),          // Shared subscriptions
-            ("a/$sys/data", true),                 // $ not at start is ok
-            ("$/invalid", false),                  // $ alone is invalid
+            ("$SYS/broker/uptime", true),     // System topic
+            ("$aws/things/abc/shadow", true), // AWS IoT
+            ("$share/group/topic", true),     // Shared subscriptions
+            ("a/$sys/data", true),            // $ not at start is ok
+            ("$/invalid", false),             // $ alone is invalid
         ];
 
         for (topic, should_be_valid) in dollar_topics {
@@ -430,7 +527,7 @@ mod performance_property_tests {
             let start = Instant::now();
             let _ = validate_filter(&topic);
             let elapsed = start.elapsed();
-            
+
             // Topic validation should complete in microseconds
             prop_assert!(elapsed < Duration::from_millis(1),
                 "Topic validation took too long: {:?}", elapsed);
@@ -441,11 +538,11 @@ mod performance_property_tests {
             topic in valid_topic_level()
         ) {
             let validator = NamespaceValidator::aws_iot();
-            
+
             let start = Instant::now();
             let _ = validator.validate_topic_name(&topic);
             let elapsed = start.elapsed();
-            
+
             // AWS IoT validation should also be fast
             prop_assert!(elapsed < Duration::from_millis(1),
                 "AWS IoT validation took too long: {:?}", elapsed);

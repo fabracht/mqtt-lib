@@ -698,7 +698,7 @@ fn bench_bebytes_26_direct_buffer(c: &mut Criterion) {
         });
     });
 
-    // Compare to_be_bytes_buf vs old to_be_bytes 
+    // Compare to_be_bytes_buf vs old to_be_bytes
     group.bench_function("fixed_header_old_to_bytes", |b| {
         use bebytes_impl::MqttTypeAndFlags;
         let header = MqttTypeAndFlags::create(3, 0b0010);

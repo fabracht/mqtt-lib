@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 33028a42c1dd15568426d94951e3a46069f08f634e0e6ac102538164dda92ba7 # shrinks to receive_max = 1, message_count = 1
+cc d18e4a4c69aa92458f10bde01e1247f1f78c623ff414794b1b6dfffc4323bea2 # shrinks to messages = [37, 19, 45, 8, 51, 41, 20, 70, 25, 37, 72, 85, 94, 61, 55, 58, 97]
+cc 13106c33cc45dc55dc13793750254163a9cd8643f217de2cfac96973ccac6af1 # shrinks to packet_ids = [23199, 23199]
