@@ -1,0 +1,79 @@
+name: Auto-merge
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["Rust CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge-dependabot:
+    runs-on: ubuntu-latest
+    # Only auto-merge dependabot PRs after YOUR approval
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.review.author_association == 'OWNER'
+    steps:
+      - name: Auto-merge Dependabot PR
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-merge-own-prs:
+    runs-on: ubuntu-latest
+    # Auto-merge your own PRs when CI passes (you already approved by creating them)
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.actor == 'fabriciobracht'
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          PR_NUMBER=$(gh api \
+            "repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.event.workflow_run.head_branch }}" \
+            --jq '.[0].number')
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Auto-merge if CI passed
+        if: steps.pr.outputs.number
+        run: |
+          gh pr merge "${{ steps.pr.outputs.number }}" \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  label-based-merge:
+    runs-on: ubuntu-latest
+    # For contributor PRs: merge when you add the "auto-merge" label
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'auto-merge'
+    steps:
+      - name: Enable auto-merge
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

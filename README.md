@@ -1,5 +1,8 @@
 # MQTT v5.0 Client Library
 
+[![Rust CI](https://github.com/fabriciobracht/mqtt-lib/workflows/Rust%20CI/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
+[![Security Audit](https://github.com/fabriciobracht/mqtt-lib/workflows/Security%20Audit/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
+
 A complete MQTT v5.0 client library that provides full protocol compliance with a simple, callback-based API. This library handles all background tasks internally, providing automatic message routing and connection management.
 
 **🚀 Now with full AWS IoT SDK compatibility!** Subscribe methods return `(packet_id, qos)` tuples and a mockable trait interface enables comprehensive unit testing.

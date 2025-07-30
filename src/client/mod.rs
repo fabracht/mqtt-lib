@@ -22,6 +22,7 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::Duration;
+use tracing::instrument;
 
 mod connection;
 mod direct;
@@ -269,11 +270,22 @@ impl MqttClient {
     ///
     /// Returns an error if connection fails, address is invalid, or transport cannot be established
     #[allow(clippy::missing_errors_doc)]
+    #[instrument(skip(self))]
     pub async fn connect(&self, address: &str) -> Result<()> {
+        let client_id = self.client_id().await;
+        tracing::info!(client_id = %client_id, address = %address, "Initiating MQTT connection");
+
         let options = self.inner.read().await.options.clone();
-        self.connect_with_options(address, options)
-            .await
-            .map(|_| ())
+        match self.connect_with_options(address, options).await {
+            Ok(result) => {
+                tracing::info!(client_id = %client_id, session_present = %result.session_present, "Successfully connected to MQTT broker");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(client_id = %client_id, error = %e, "Failed to connect to MQTT broker");
+                Err(e)
+            }
+        }
     }
 
     /// Connects to the MQTT broker with custom options
@@ -284,6 +296,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start))]
     pub async fn connect_with_options(
         &self,
         address: &str,
@@ -693,17 +706,29 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self))]
     pub async fn disconnect(&self) -> Result<()> {
+        let client_id = self.client_id().await;
+        tracing::info!(client_id = %client_id, "Initiating MQTT disconnect");
+
         let mut inner = self.inner.write().await;
-        inner.disconnect().await?;
+        match inner.disconnect().await {
+            Ok(()) => {
+                tracing::info!(client_id = %client_id, "Successfully disconnected from MQTT broker");
 
-        // Trigger disconnected event
-        self.trigger_connection_event(ConnectionEvent::Disconnected {
-            reason: DisconnectReason::ClientInitiated,
-        })
-        .await;
+                // Trigger disconnected event
+                self.trigger_connection_event(ConnectionEvent::Disconnected {
+                    reason: DisconnectReason::ClientInitiated,
+                })
+                .await;
 
-        Ok(())
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(client_id = %client_id, error = %e, "Failed to disconnect from MQTT broker");
+                Err(e)
+            }
+        }
     }
 
     /// Publishes a message to a topic
@@ -733,6 +758,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self, topic, payload))]
     pub async fn publish(
         &self,
         topic: impl Into<String>,
@@ -767,6 +793,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self, topic, payload, options), fields(qos = ?options.qos, retain = %options.retain))]
     pub async fn publish_with_options(
         &self,
         topic: impl Into<String>,
@@ -775,10 +802,36 @@ impl MqttClient {
     ) -> Result<PublishResult> {
         let topic_str = topic.into();
         let payload_vec = payload.into();
+        let client_id = self.client_id().await;
+
+        tracing::debug!(
+            client_id = %client_id,
+            topic = %topic_str,
+            payload_len = payload_vec.len(),
+            qos = ?options.qos,
+            retain = %options.retain,
+            "Publishing MQTT message"
+        );
 
         // Direct publish - no command channels!
         let inner = self.inner.read().await;
-        inner.publish(topic_str, payload_vec, options).await
+        match inner.publish(topic_str.clone(), payload_vec, options).await {
+            Ok(result) => {
+                match &result {
+                    PublishResult::QoS0 => {
+                        tracing::debug!(client_id = %client_id, topic = %topic_str, "Published QoS0 message");
+                    }
+                    PublishResult::QoS1Or2 { packet_id } => {
+                        tracing::debug!(client_id = %client_id, topic = %topic_str, packet_id = %packet_id, "Published QoS1/2 message");
+                    }
+                }
+                Ok(result)
+            }
+            Err(e) => {
+                tracing::error!(client_id = %client_id, topic = %topic_str, error = %e, "Failed to publish MQTT message");
+                Err(e)
+            }
+        }
     }
 
     /// Subscribes to a topic with a callback
@@ -817,6 +870,7 @@ impl MqttClient {
     ///
     /// Returns an error if subscription fails, topic filter is invalid, or client is not connected
     #[allow(clippy::missing_errors_doc)]
+    #[instrument(skip(self, topic_filter, callback))]
     pub async fn subscribe<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -835,6 +889,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self, topic_filter, options, callback), fields(qos = ?options.qos))]
     pub async fn subscribe_with_options<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -844,13 +899,46 @@ impl MqttClient {
     where
         F: Fn(crate::types::Message) + Send + Sync + 'static,
     {
+        let topic_filter_str = topic_filter.into();
+        let client_id = self.client_id().await;
+
+        tracing::info!(
+            client_id = %client_id,
+            topic_filter = %topic_filter_str,
+            qos = ?options.qos,
+            "Subscribing to MQTT topic"
+        );
+
         // Wrap the callback to convert PublishPacket to Message
         let wrapped_callback = move |packet: PublishPacket| {
             let msg = crate::types::Message::from(packet);
             callback(msg);
         };
-        self.subscribe_with_options_raw(topic_filter, options, wrapped_callback)
+
+        match self
+            .subscribe_with_options_raw(topic_filter_str.clone(), options, wrapped_callback)
             .await
+        {
+            Ok((packet_id, granted_qos)) => {
+                tracing::info!(
+                    client_id = %client_id,
+                    topic_filter = %topic_filter_str,
+                    packet_id = %packet_id,
+                    granted_qos = ?granted_qos,
+                    "Successfully subscribed to MQTT topic"
+                );
+                Ok((packet_id, granted_qos))
+            }
+            Err(e) => {
+                tracing::error!(
+                    client_id = %client_id,
+                    topic_filter = %topic_filter_str,
+                    error = %e,
+                    "Failed to subscribe to MQTT topic"
+                );
+                Err(e)
+            }
+        }
     }
 
     /// Internal method that accepts `PublishPacket` callbacks
@@ -937,8 +1025,16 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
+    #[instrument(skip(self, topic_filter))]
     pub async fn unsubscribe(&self, topic_filter: impl Into<String>) -> Result<()> {
         let topic_filter = topic_filter.into();
+        let client_id = self.client_id().await;
+
+        tracing::info!(
+            client_id = %client_id,
+            topic_filter = %topic_filter,
+            "Unsubscribing from MQTT topic"
+        );
 
         // Unregister callback first
         let inner = self.inner.read().await;
@@ -947,12 +1043,30 @@ impl MqttClient {
         // Create unsubscribe packet
         let packet = UnsubscribePacket {
             packet_id: 0, // Will be assigned in unsubscribe method
-            filters: vec![topic_filter],
+            filters: vec![topic_filter.clone()],
             properties: Properties::default(),
         };
 
         // Direct unsubscribe - no command channels!
-        inner.unsubscribe(packet).await
+        match inner.unsubscribe(packet).await {
+            Ok(()) => {
+                tracing::info!(
+                    client_id = %client_id,
+                    topic_filter = %topic_filter,
+                    "Successfully unsubscribed from MQTT topic"
+                );
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(
+                    client_id = %client_id,
+                    topic_filter = %topic_filter,
+                    error = %e,
+                    "Failed to unsubscribe from MQTT topic"
+                );
+                Err(e)
+            }
+        }
     }
 
     /// Subscribe to multiple topics at once
