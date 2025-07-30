@@ -195,6 +195,9 @@ pub enum MqttError {
 
     #[error("Packet ID exhausted")]
     PacketIdExhausted,
+
+    #[error("String too long: {0} bytes exceeds maximum of 65535")]
+    StringTooLong(usize),
 }
 
 impl From<std::io::Error> for MqttError {

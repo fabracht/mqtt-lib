@@ -27,23 +27,23 @@ use mqtt_v5::{MqttClient, QoS};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create client with session persistence
     let client = MqttClient::new("my-device-001");
-    
+
     // Connect to MQTT broker
     client.connect("mqtt://test.mosquitto.org:1883").await?;
-    
+
     // Subscribe and get packet_id + granted QoS (NEW!)
     let (packet_id, granted_qos) = client.subscribe("sensors/+/data", |msg| {
         println!("Topic: {} Payload: {:?}", msg.topic, msg.payload);
     }).await?;
-    
+
     println!("Subscribed with packet_id: {}, QoS: {:?}", packet_id, granted_qos);
-    
+
     // Publish message
     client.publish_qos1("sensors/temp/data", b"25.5").await?;
-    
+
     // Keep running to receive messages
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-    
+
     client.disconnect().await?;
     Ok(())
 }
@@ -60,14 +60,14 @@ use mqtt_v5::{MockMqttClient, MqttClientTrait, PublishResult, QoS};
 async fn test_my_iot_function() {
     // Create mock client
     let mock = MockMqttClient::new("test-device");
-    
+
     // Configure mock responses
     mock.set_connect_response(Ok(())).await;
     mock.set_publish_response(Ok(PublishResult::QoS1Or2 { packet_id: 123 })).await;
-    
+
     // Test your function that accepts MqttClientTrait
     my_iot_function(&mock).await.unwrap();
-    
+
     // Verify the calls
     let calls = mock.get_calls().await;
     assert_eq!(calls.len(), 2); // connect + publish
@@ -148,7 +148,7 @@ options.reconnect_config.backoff_multiplier = 2.0;
 
 ### Prerequisites
 
-- Rust 1.70 or later
+- Rust 1.75 or later
 - Docker and Docker Compose (for integration testing)
 
 ### Building

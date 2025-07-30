@@ -24,6 +24,10 @@ harness = false
 name = "concurrent_benchmarks"
 harness = false
 
+[[bench]]
+name = "bebytes_comparison"
+harness = false
+
 [lib]
 name = "mqtt_v5"
 path = "src/lib.rs"
@@ -37,7 +41,7 @@ panic = "abort"
 debug = true
 
 [dependencies]
-bebytes = "2.2.0"
+bebytes = { git = "https://github.com/fabracht/bebytes_macro.git", branch = "feature/direct-buffer-codegen" }
 bytes = "1.10.1"
 rustls = "0.23.29"
 rustls-pemfile = "2.2.0"
@@ -47,3 +51,6 @@ tokio = { version = "1.46.1", features = ["full"] }
 tokio-rustls = "0.26.2"
 tracing = "0.1.41"
 webpki-roots = "1.0.2"
+
+[patch.crates-io]
+bebytes_derive = { git = "https://github.com/fabracht/bebytes_macro.git", branch = "feature/direct-buffer-codegen" }
