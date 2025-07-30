@@ -41,7 +41,7 @@ panic = "abort"
 debug = true
 
 [dependencies]
-bebytes = { git = "https://github.com/fabracht/bebytes_macro.git", branch = "feature/direct-buffer-codegen" }
+bebytes = "2.6.0"
 bytes = "1.10.1"
 rustls = "0.23.29"
 rustls-pemfile = "2.2.0"
@@ -52,5 +52,3 @@ tokio-rustls = "0.26.2"
 tracing = "0.1.41"
 webpki-roots = "1.0.2"
 
-[patch.crates-io]
-bebytes_derive = { git = "https://github.com/fabracht/bebytes_macro.git", branch = "feature/direct-buffer-codegen" }
