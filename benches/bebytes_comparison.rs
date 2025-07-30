@@ -683,6 +683,64 @@ fn bench_variable_int_v23(c: &mut Criterion) {
     group.finish();
 }
 
+// Benchmarks for BeBytes 2.6.0 direct buffer codegen
+fn bench_bebytes_26_direct_buffer(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bebytes_26_direct_buffer");
+
+    // to_be_bytes_buf() method - 2.3x performance improvement
+    group.bench_function("fixed_header_to_bytes_buf", |b| {
+        use bebytes_impl::MqttTypeAndFlags;
+        let header = MqttTypeAndFlags::create(3, 0b0010);
+
+        b.iter(|| {
+            let bytes = header.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    // Compare to_be_bytes_buf vs old to_be_bytes 
+    group.bench_function("fixed_header_old_to_bytes", |b| {
+        use bebytes_impl::MqttTypeAndFlags;
+        let header = MqttTypeAndFlags::create(3, 0b0010);
+
+        b.iter(|| {
+            let bytes = header.to_be_bytes();
+            black_box(bytes);
+        });
+    });
+
+    // Raw pointer methods for structures (when available)
+    group.bench_function("subscription_options_to_bytes_buf", |b| {
+        use bebytes_impl::SubscriptionOptionsBits;
+        let options = SubscriptionOptionsBits::create(1, true, false, 2);
+
+        b.iter(|| {
+            let bytes = options.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    // MQTT String with direct buffer
+    group.bench_function("mqtt_string_to_bytes_buf", |b| {
+        let mqtt_str = MqttString::create("test/topic/name").unwrap();
+        b.iter(|| {
+            let bytes = mqtt_str.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    // Variable Integer with direct buffer
+    group.bench_function("variable_int_to_bytes_buf", |b| {
+        let var_int = VariableInt::new(16_383).unwrap();
+        b.iter(|| {
+            let bytes = var_int.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    group.finish();
+}
+
 // Benchmarks for BeBytes 2.4.0 zero-allocation encoding
 fn bench_bebytes_24_zero_allocation(c: &mut Criterion) {
     let mut group = c.benchmark_group("bebytes_24_zero_allocation");
@@ -844,6 +902,92 @@ fn bench_allocation_patterns_v24(c: &mut Criterion) {
     group.finish();
 }
 
+// Comprehensive comparison of all BeBytes versions
+fn bench_bebytes_version_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bebytes_version_comparison");
+    group.measurement_time(Duration::from_secs(10));
+
+    // Fixed header comparison: Manual -> BeBytes old -> BeBytes 2.4.0 -> BeBytes 2.6.0
+    group.bench_function("manual_fixed_header", |b| {
+        use bytes::BytesMut;
+        let mut buf = BytesMut::with_capacity(16);
+
+        b.iter(|| {
+            buf.clear();
+            manual_impl::encode_fixed_header_manual(&mut buf, 3, 0b0010);
+            black_box(&buf);
+        });
+    });
+
+    group.bench_function("bebytes_old_api_fixed_header", |b| {
+        use bebytes_impl::MqttTypeAndFlags;
+        use bytes::BytesMut;
+        let mut buf = BytesMut::with_capacity(16);
+        let header = MqttTypeAndFlags::create(3, 0b0010);
+
+        b.iter(|| {
+            buf.clear();
+            let bytes = header.to_be_bytes();
+            buf.put_slice(&bytes);
+            black_box(&buf);
+        });
+    });
+
+    group.bench_function("bebytes_24_encode_to_fixed_header", |b| {
+        use bebytes_impl::MqttTypeAndFlags;
+        use bytes::BytesMut;
+        let mut buf = BytesMut::with_capacity(16);
+        let header = MqttTypeAndFlags::create(3, 0b0010);
+
+        b.iter(|| {
+            buf.clear();
+            let _ = header.encode_be_to(&mut buf);
+            black_box(&buf);
+        });
+    });
+
+    group.bench_function("bebytes_26_to_bytes_buf_fixed_header", |b| {
+        use bebytes_impl::MqttTypeAndFlags;
+        let header = MqttTypeAndFlags::create(3, 0b0010);
+
+        b.iter(|| {
+            let bytes = header.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    // MQTT String comparison across versions
+    group.bench_function("mqtt_string_v23_to_be_bytes", |b| {
+        let mqtt_str = MqttString::create("test/topic/name").unwrap();
+        b.iter(|| {
+            let bytes = mqtt_str.to_be_bytes();
+            black_box(bytes);
+        });
+    });
+
+    group.bench_function("mqtt_string_v24_encode_to", |b| {
+        use bytes::BytesMut;
+        let mqtt_str = MqttString::create("test/topic/name").unwrap();
+        let mut buf = BytesMut::with_capacity(32);
+
+        b.iter(|| {
+            buf.clear();
+            let _ = mqtt_str.encode_be_to(&mut buf);
+            black_box(&buf);
+        });
+    });
+
+    group.bench_function("mqtt_string_v26_to_bytes_buf", |b| {
+        let mqtt_str = MqttString::create("test/topic/name").unwrap();
+        b.iter(|| {
+            let bytes = mqtt_str.to_be_bytes_buf();
+            black_box(bytes);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_fixed_header_encoding,
@@ -856,7 +1000,9 @@ criterion_group!(
     bench_mqtt_string_v23,
     bench_variable_int_v23,
     bench_bebytes_24_zero_allocation,
+    bench_bebytes_26_direct_buffer,
     bench_encoding_comparison_v24,
-    bench_allocation_patterns_v24
+    bench_allocation_patterns_v24,
+    bench_bebytes_version_comparison
 );
 criterion_main!(benches);
