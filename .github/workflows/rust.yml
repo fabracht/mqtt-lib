@@ -30,85 +30,18 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  # Build once and share artifacts
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    outputs:
-      rust-version: ${{ steps.rust-version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      
-      - name: Get Rust version
-        id: rust-version
-        run: echo "version=$(rustc --version | awk '{print $2}')" >> $GITHUB_OUTPUT
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          cache-targets: "false"  # We'll handle target caching separately
-      
-      - name: Build all targets
-        run: |
-          cargo build --all-targets --all-features
-          cargo build --all-targets --all-features --release
-      
-      - name: Upload debug artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: target-debug-${{ github.sha }}
-          path: |
-            target/debug/
-            !target/debug/.fingerprint/
-            !target/debug/build/
-            !target/debug/deps/
-            !target/debug/incremental/
-          retention-days: 1
-      
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: target-release-${{ github.sha }}
-          path: |
-            target/release/
-            !target/release/.fingerprint/
-            !target/release/build/
-            !target/release/deps/
-            !target/release/incremental/
-          retention-days: 1
-
-  # Clippy using pre-built artifacts
+  # Clippy linting
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - uses: actions/checkout@v4
-      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          cache-targets: "false"
-          cache-on-failure: "true"
-      
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: target-debug-${{ github.sha }}
-          path: target/debug
-      
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -116,7 +49,6 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -131,40 +63,35 @@ jobs:
       
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          key: ${{ matrix.rust }}
       
       - name: Generate test certificates
         run: |
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
+      - name: Build
+        run: cargo build --all-features
+      
       - name: Run unit tests
         run: |
           cargo test --lib --all-features
           cargo test --doc --all-features
-          cargo test --all-features -- --skip integration --skip persistence --skip keepalive --skip client_ --skip connection_ --skip qos_ --skip message_ --skip tls_integration
+          # Run non-integration tests
+          cargo test --all-features --tests -- \
+            --skip integration \
+            --skip persistence \
+            --skip keepalive \
+            --skip client_ \
+            --skip connection_ \
+            --skip qos_ \
+            --skip message_ \
+            --skip tls_integration \
+            --skip debug_tls
 
   # Integration tests (requires Mosquitto)
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: build
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-          - 8883:8883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1 | grep -v Error || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        volumes:
-          - ${{ github.workspace }}/mosquitto-ci.conf:/mosquitto/config/mosquitto.conf
-          - ${{ github.workspace }}/test_certs:/mosquitto/certs
     steps:
       - uses: actions/checkout@v4
       
@@ -173,31 +100,42 @@ jobs:
       
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
       
       - name: Generate test certificates
         run: |
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Wait for Mosquitto
+      - name: Start Mosquitto
         run: |
-          for i in {1..30}; do
-            nc -zv localhost 1883 && nc -zv localhost 8883 && break
-            echo "Waiting for Mosquitto to start... (attempt $i/30)"
-            sleep 2
-          done
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          sudo systemctl stop mosquitto || true
+          mkdir -p /tmp/mosquitto
+          mosquitto -c mosquitto-ci.conf -d
+          sleep 2
           nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
           nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
       
+      - name: Build
+        run: cargo build --all-features
+      
       - name: Run integration tests
         run: |
-          cargo test --test persistence --test keepalive_handling --test integration_complete_flow \
-            --test integration_mqtt5_features --test integration_reconnection --test client_publish \
-            --test client_subscribe --test client_connection --test connection_events \
-            --test qos_flow --test message_queuing --test common_scenarios_demo \
-            --test tls_integration --test debug_tls_test \
+          cargo test --test persistence \
+            --test keepalive_handling \
+            --test integration_complete_flow \
+            --test integration_mqtt5_features \
+            --test integration_reconnection \
+            --test client_publish \
+            --test client_subscribe \
+            --test client_connection \
+            --test connection_events \
+            --test qos_flow \
+            --test message_queuing \
+            --test common_scenarios_demo \
+            --test tls_integration \
+            --test debug_tls_test \
             -- --test-threads=1
 
   # MSRV check
@@ -212,9 +150,6 @@ jobs:
       
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          key: "msrv"
       
       - name: Generate test certificates
         run: |
@@ -238,7 +173,6 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - uses: actions/checkout@v4
       
@@ -247,9 +181,6 @@ jobs:
       
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          cache-targets: "false"
       
       - name: Build documentation
         run: cargo doc --no-deps --all-features
@@ -260,21 +191,6 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: build
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-          - 8883:8883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1 | grep -v Error || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        volumes:
-          - ${{ github.workspace }}/mosquitto-ci.conf:/mosquitto/config/mosquitto.conf
-          - ${{ github.workspace }}/test_certs:/mosquitto/certs
     steps:
       - uses: actions/checkout@v4
       
@@ -283,22 +199,22 @@ jobs:
       
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "shared-${{ runner.os }}"
-          key: "coverage"
       
       - name: Generate test certificates
         run: |
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Wait for Mosquitto
+      - name: Start Mosquitto
         run: |
-          for i in {1..30}; do
-            nc -zv localhost 1883 && nc -zv localhost 8883 && break
-            echo "Waiting for Mosquitto to start... (attempt $i/30)"
-            sleep 2
-          done
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          sudo systemctl stop mosquitto || true
+          mkdir -p /tmp/mosquitto
+          mosquitto -c mosquitto-ci.conf -d
+          sleep 2
+          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
+          nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
       
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
@@ -321,7 +237,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-  # Final status check
+  # Final status check for branch protection
   ci-success:
     name: CI Success
     if: ${{ success() }}
