@@ -1,0 +1,31 @@
+name: 'Setup Mosquitto'
+description: 'Install and configure Mosquitto for testing'
+runs:
+  using: "composite"
+  steps:
+    - name: Install Mosquitto
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mosquitto mosquitto-clients
+        
+        # Stop any existing mosquitto service
+        sudo systemctl stop mosquitto || true
+        
+        # Create persistence directory
+        mkdir -p /tmp/mosquitto
+    
+    - name: Start Mosquitto
+      shell: bash
+      run: |
+        # Start mosquitto in background
+        mosquitto -c mosquitto-ci.conf -d
+        
+        # Wait for it to start and verify
+        for i in {1..30}; do
+          nc -zv localhost 1883 && nc -zv localhost 8883 && break
+          echo "Waiting for Mosquitto to start... (attempt $i/30)"
+          sleep 2
+        done
+        nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
+        nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
