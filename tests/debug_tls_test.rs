@@ -11,7 +11,7 @@ mod tests {
         let client = MqttClient::new("debug-tls-client");
 
         // Parse address
-        let addr = "127.0.0.1:18883".parse().expect("Failed to parse address");
+        let addr = "127.0.0.1:8883".parse().expect("Failed to parse address");
         println!("Connecting to address: {:?}", addr);
 
         // Create TLS config
