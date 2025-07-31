@@ -21,7 +21,7 @@ echo -e "${GREEN}Default branch detected: ${DEFAULT_BRANCH}${NC}"
 
 # Configure branch protection
 echo "Configuring branch protection..."
-gh api "repos/fabriciobracht/mqtt-lib/branches/${DEFAULT_BRANCH}/protection" \
+gh api "repos/fabracht/mqtt-lib/branches/${DEFAULT_BRANCH}/protection" \
   --method PUT \
   --field required_status_checks='{
     "strict": true,

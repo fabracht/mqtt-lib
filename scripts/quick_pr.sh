@@ -12,7 +12,7 @@ NC='\033[0m'
 # Get current branch
 CURRENT_BRANCH=$(git branch --show-current)
 
-if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+if [ "$CURRENT_BRANCH" = "main" ]; then
     echo -e "${YELLOW}⚠️  You're on the main branch. Creating feature branch...${NC}"
     read -p "Branch name (e.g., feature/add-something): " BRANCH_NAME
     git checkout -b "$BRANCH_NAME"
