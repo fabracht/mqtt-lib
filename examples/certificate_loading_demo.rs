@@ -117,7 +117,7 @@ async fn demo_file_based_loading() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Demonstrate the configuration
-    tls_config = tls_config
+    let _tls_config = tls_config
         .with_system_roots(false)
         .with_verify_server_cert(true);
 
@@ -144,7 +144,7 @@ async fn demo_byte_based_loading() -> Result<(), Box<dyn std::error::Error>> {
     info!("   - CA certificate: {} bytes", DEMO_CA_PEM.len());
 
     // Configure TLS settings
-    tls_config = tls_config
+    let _tls_config = tls_config
         .with_system_roots(false)
         .with_verify_server_cert(true);
 
@@ -206,7 +206,7 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     // Scenario 1: Kubernetes Secrets
     info!("Scenario 1: Loading from Kubernetes secrets mounted as files");
     let addr: SocketAddr = "broker.company.com:8883".parse()?;
-    let mut k8s_config = TlsConfig::new(addr.clone(), "broker.company.com");
+    let mut k8s_config = TlsConfig::new(addr, "broker.company.com");
 
     // In Kubernetes, secrets are often mounted as files
     if k8s_config
@@ -224,7 +224,7 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
 
     // Scenario 2: Environment Variables (raw PEM in env vars)
     info!("Scenario 2: Loading from environment variables");
-    let mut env_config = TlsConfig::new(addr.clone(), "broker.company.com");
+    let mut env_config = TlsConfig::new(addr, "broker.company.com");
 
     if let (Ok(cert_pem), Ok(key_pem), Ok(ca_pem)) = (
         env::var("TLS_CERT_PEM"),

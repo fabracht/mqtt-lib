@@ -473,6 +473,12 @@ pub struct AlertEngine {
     alert_history: Arc<Mutex<VecDeque<MetricAlert>>>,
 }
 
+impl Default for AlertEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AlertEngine {
     pub fn new() -> Self {
         Self {

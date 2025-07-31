@@ -563,7 +563,7 @@ impl IoTDeviceSimulator {
                     info!(device_id = %device_id, topic = %msg.topic, command = %command, "Received device command");
 
                     // Parse command from topic
-                    if let Some(cmd_type) = msg.topic.split('/').last() {
+                    if let Some(cmd_type) = msg.topic.split('/').next_back() {
                         match cmd_type {
                             "reboot" => {
                                 info!(device_id = %device_id, "Processing reboot command");

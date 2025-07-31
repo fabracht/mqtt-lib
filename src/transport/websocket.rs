@@ -608,8 +608,8 @@ mod tests {
         let ws_config = WebSocketConfig::new("ws://example.com/mqtt").unwrap();
         assert_eq!(ws_config.port(), 80);
 
-        let wss_config = WebSocketConfig::new("wss://example.com/mqtt").unwrap();
-        assert_eq!(wss_config.port(), 443);
+        let secure_config = WebSocketConfig::new("wss://example.com/mqtt").unwrap();
+        assert_eq!(secure_config.port(), 443);
 
         let custom_port_config = WebSocketConfig::new("ws://example.com:8080/mqtt").unwrap();
         assert_eq!(custom_port_config.port(), 8080);

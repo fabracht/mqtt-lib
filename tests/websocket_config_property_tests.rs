@@ -97,7 +97,7 @@ proptest! {
         match result {
             Ok(config) => {
                 // Verify basic properties - URL may be normalized (e.g., hostname lowercased)
-                assert!(config.url.as_str().len() > 0);
+                assert!(!config.url.as_str().is_empty());
                 assert!(!config.subprotocols.is_empty());
                 assert!(config.timeout > Duration::from_secs(0));
 

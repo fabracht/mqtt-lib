@@ -364,7 +364,7 @@ proptest! {
         let _ = config.load_ca_cert_der_bytes(&data);
 
         // Function should complete without panicking
-        assert!(true, "Certificate loading should not panic on any input");
+        // Test passed if we reach this point without panicking
     }
 }
 
@@ -397,7 +397,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
                 assert!(config.client_cert.is_some());
                 // Should load all certificates found
                 let certs = config.client_cert.as_ref().unwrap();
-                assert!(certs.len() >= 1, "Should load at least one certificate");
+                assert!(!certs.is_empty(), "Should load at least one certificate");
             }
             Err(e) => {
                 // If it fails, should be a meaningful error

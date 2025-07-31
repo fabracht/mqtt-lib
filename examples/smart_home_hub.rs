@@ -188,15 +188,19 @@ pub struct SmartHomeHub {
 
 /// Automation engine for scene management
 pub struct AutomationEngine {
-    scene_triggers: Arc<RwLock<HashMap<String, Vec<String>>>>, // condition -> scene_ids
     last_trigger_time: Arc<RwLock<HashMap<String, Instant>>>,
     cooldown_period: Duration,
+}
+
+impl Default for AutomationEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AutomationEngine {
     pub fn new() -> Self {
         Self {
-            scene_triggers: Arc::new(RwLock::new(HashMap::new())),
             last_trigger_time: Arc::new(RwLock::new(HashMap::new())),
             cooldown_period: Duration::from_secs(10), // Prevent rapid triggers
         }
@@ -761,7 +765,7 @@ impl SmartHomeHub {
                 let online_devices = devices_guard.values().filter(|d| d.online).count();
                 let low_battery_devices = devices_guard
                     .values()
-                    .filter(|d| d.battery_level.map_or(false, |level| level < 20.0))
+                    .filter(|d| d.battery_level.is_some_and(|level| level < 20.0))
                     .count();
 
                 health_stats.insert("total_devices", total_devices);
@@ -1230,7 +1234,7 @@ impl SmartHomeHub {
     pub async fn set_home_mode(&self, mode: HomeMode) -> Result<(), Box<dyn std::error::Error>> {
         info!(mode = ?mode, "Setting home mode");
 
-        *self.home_mode.write().await = mode.clone();
+        *self.home_mode.write().await = mode;
 
         // Publish mode change
         let mode_data = serde_json::json!({

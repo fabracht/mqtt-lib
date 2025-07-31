@@ -180,6 +180,12 @@ pub struct FailoverEvent {
     pub reason: String,
 }
 
+impl Default for SensorFailoverManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SensorFailoverManager {
     pub fn new() -> Self {
         Self {
@@ -374,20 +380,19 @@ pub struct IndustrialSensorNetwork {
 pub struct AlertManager {
     active_alerts: Arc<RwLock<HashMap<String, NetworkAlert>>>,
     alert_history: Arc<Mutex<VecDeque<NetworkAlert>>>,
-    escalation_rules: Arc<RwLock<HashMap<CriticalityLevel, Duration>>>,
+}
+
+impl Default for AlertManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AlertManager {
     pub fn new() -> Self {
-        let mut escalation_rules = HashMap::new();
-        escalation_rules.insert(CriticalityLevel::Warning, Duration::from_secs(15 * 60));
-        escalation_rules.insert(CriticalityLevel::Critical, Duration::from_secs(5 * 60));
-        escalation_rules.insert(CriticalityLevel::Emergency, Duration::from_secs(60));
-
         Self {
             active_alerts: Arc::new(RwLock::new(HashMap::new())),
             alert_history: Arc::new(Mutex::new(VecDeque::new())),
-            escalation_rules: Arc::new(RwLock::new(escalation_rules)),
         }
     }
 
@@ -808,7 +813,7 @@ impl IndustrialSensorNetwork {
                     if let Some(measurement) = measurements.pop_front() {
                         sensor_groups
                             .entry(measurement.sensor_id.clone())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(measurement);
                     }
                 }
@@ -943,7 +948,7 @@ impl IndustrialSensorNetwork {
                 if let Ok(command) = String::from_utf8(msg.payload.clone()) {
                     info!(topic = %msg.topic, command = %command, "Received network command");
 
-                    if let Some(cmd_type) = msg.topic.split('/').last() {
+                    if let Some(cmd_type) = msg.topic.split('/').next_back() {
                         match cmd_type {
                             "failover" => {
                                 if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&command) {
