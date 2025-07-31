@@ -18,7 +18,7 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Generate a unique test client ID
 pub fn test_client_id(test_name: &str) -> String {
-    format!("test-{}-{}", test_name, Ulid::new())
+    format!("test-{test_name}-{}", Ulid::new())
 }
 
 /// Create a connected test client with default settings

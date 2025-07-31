@@ -11,7 +11,7 @@ use ulid::Ulid;
 
 /// Helper function to get a unique client ID for tests
 fn test_client_id(test_name: &str) -> String {
-    format!("test-{}-{}", test_name, Ulid::new())
+    format!("test-{test_name}-{}", Ulid::new())
 }
 
 #[tokio::test]

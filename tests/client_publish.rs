@@ -3,7 +3,7 @@ use ulid::Ulid;
 
 /// Generate a lexicographically sortable client ID using ULID
 fn test_client_id(test_name: &str) -> String {
-    format!("test-{}-{}", test_name, Ulid::new())
+    format!("test-{test_name}-{}", Ulid::new())
 }
 
 #[tokio::test]

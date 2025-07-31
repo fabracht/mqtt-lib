@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("MQTT_BROKER").unwrap_or_else(|_| "mqtt://localhost:1883".to_string());
 
     println!("🚀 Starting simple MQTT client");
-    println!("📡 Connecting to broker: {}", broker_url);
+    println!("📡 Connecting to broker: {broker_url}");
 
     // Create a client with basic options
     let options = ConnectOptions::new("simple-client-demo")
@@ -56,10 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("❌ Disconnected from broker: {:?}", reason);
             }
             ConnectionEvent::Reconnecting { attempt } => {
-                println!("🔄 Reconnecting... (attempt {})", attempt);
+                println!("🔄 Reconnecting... (attempt {attempt})");
             }
             ConnectionEvent::ReconnectFailed { error } => {
-                println!("💥 Reconnection failed: {}", error);
+                println!("💥 Reconnection failed: {error}");
             }
         })
         .await?;
@@ -142,9 +142,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_secs(5)).await;
 
         // Publish a counter message every 5 seconds
-        let message = format!("Counter message #{}", i);
+        let message = format!("Counter message #{i}");
         client.publish("demo/messages", message.as_bytes()).await?;
-        println!("   📤 Published: {}", message);
+        println!("   📤 Published: {message}");
     }
 
     // Clean disconnect

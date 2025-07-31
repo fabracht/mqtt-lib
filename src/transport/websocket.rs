@@ -180,7 +180,7 @@ impl WebSocketConfig {
             MqttError::ProtocolError("WebSocket URL must have a host".to_string())
         })?;
 
-        let addr: SocketAddr = format!("{}:{}", host, self.port())
+        let addr: SocketAddr = format!("{host}:{}", self.port())
             .parse()
             .map_err(|e| MqttError::ProtocolError(format!("Invalid host/port combination: {e}")))?;
 

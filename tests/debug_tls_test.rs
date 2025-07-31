@@ -43,15 +43,15 @@ mod tests {
                 // Test publish
                 match client.publish("test/debug", b"Hello TLS").await {
                     Ok(_) => println!("✅ Publish successful!"),
-                    Err(e) => println!("❌ Publish failed: {}", e),
+                    Err(e) => println!("❌ Publish failed: {e}"),
                 }
 
                 // Disconnect
                 let _ = client.disconnect().await;
             }
             Err(e) => {
-                println!("❌ TLS connection failed: {}", e);
-                panic!("TLS connection failed: {}", e);
+                println!("❌ TLS connection failed: {e}");
+                panic!("TLS connection failed: {e}");
             }
         }
     }

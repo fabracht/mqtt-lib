@@ -21,7 +21,7 @@ fn valid_websocket_url() -> impl Strategy<Value = String> {
             .prop_map(|(host, port, path)| {
                 let host = host.unwrap_or_else(|| "localhost".to_string());
                 let path = path.unwrap_or_else(|| "/mqtt".to_string());
-                format!("ws://{}:{}/{}", host, port, path.trim_start_matches('/'))
+                format!("ws://{host}:{port}/{}", path.trim_start_matches('/'))
             }),
         // Basic wss:// URLs
         (
@@ -32,16 +32,16 @@ fn valid_websocket_url() -> impl Strategy<Value = String> {
             .prop_map(|(host, port, path)| {
                 let host = host.unwrap_or_else(|| "localhost".to_string());
                 let path = path.unwrap_or_else(|| "/mqtt".to_string());
-                format!("wss://{}:{}/{}", host, port, path.trim_start_matches('/'))
+                format!("wss://{host}:{port}/{}", path.trim_start_matches('/'))
             }),
         // URLs with default ports
-        "[a-zA-Z0-9.-]{1,20}".prop_map(|host| format!("ws://{}/mqtt", host)),
-        "[a-zA-Z0-9.-]{1,20}".prop_map(|host| format!("wss://{}/mqtt", host)),
+        "[a-zA-Z0-9.-]{1,20}".prop_map(|host| format!("ws://{host}/mqtt")),
+        "[a-zA-Z0-9.-]{1,20}".prop_map(|host| format!("wss://{host}/mqtt")),
         // IP addresses
         (0u8..255, 0u8..255, 0u8..255, 0u8..255, 1u16..65535)
-            .prop_map(|(a, b, c, d, port)| format!("ws://{}.{}.{}.{}:{}/mqtt", a, b, c, d, port)),
+            .prop_map(|(a, b, c, d, port)| format!("ws://{a}.{b}.{c}.{d}:{port}/mqtt")),
         (0u8..255, 0u8..255, 0u8..255, 0u8..255, 1u16..65535)
-            .prop_map(|(a, b, c, d, port)| format!("wss://{}.{}.{}.{}:{}/mqtt", a, b, c, d, port)),
+            .prop_map(|(a, b, c, d, port)| format!("wss://{a}.{b}.{c}.{d}:{port}/mqtt"))
     ]
 }
 
