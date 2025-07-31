@@ -24,7 +24,7 @@ use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
-use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};  
+use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
 use crate::transport::websocket::{WebSocketReadHandle, WebSocketWriteHandle};
 use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};

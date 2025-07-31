@@ -74,9 +74,8 @@ impl WebSocketConfig {
     ///
     /// Returns an error if the URL is invalid or uses an unsupported scheme
     pub fn new(url: &str) -> Result<Self> {
-        let parsed_url = Url::parse(url).map_err(|e| {
-            MqttError::ProtocolError(format!("Invalid WebSocket URL: {e}"))
-        })?;
+        let parsed_url = Url::parse(url)
+            .map_err(|e| MqttError::ProtocolError(format!("Invalid WebSocket URL: {e}")))?;
 
         match parsed_url.scheme() {
             "ws" | "wss" => {}
@@ -109,7 +108,10 @@ impl WebSocketConfig {
     /// Sets the WebSocket subprotocols to negotiate
     #[must_use]
     pub fn with_subprotocols(mut self, subprotocols: &[&str]) -> Self {
-        self.subprotocols = subprotocols.iter().map(std::string::ToString::to_string).collect();
+        self.subprotocols = subprotocols
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         self
     }
 
@@ -180,9 +182,7 @@ impl WebSocketConfig {
 
         let addr: SocketAddr = format!("{}:{}", host, self.port())
             .parse()
-            .map_err(|e| {
-                MqttError::ProtocolError(format!("Invalid host/port combination: {e}"))
-            })?;
+            .map_err(|e| MqttError::ProtocolError(format!("Invalid host/port combination: {e}")))?;
 
         let tls_config = TlsConfig::new(addr, host);
         self.tls_config = Some(tls_config);
@@ -200,11 +200,7 @@ impl WebSocketConfig {
     /// - The URL is not a secure WebSocket (wss://)
     /// - The certificate or key files cannot be read or parsed
     /// - The TLS configuration cannot be created
-    pub fn with_client_auth_from_files(
-        mut self,
-        cert_path: &str,
-        key_path: &str,
-    ) -> Result<Self> {
+    pub fn with_client_auth_from_files(mut self, cert_path: &str, key_path: &str) -> Result<Self> {
         if !self.is_secure() {
             return Err(MqttError::ProtocolError(
                 "Client authentication only applies to wss:// URLs".to_string(),
@@ -233,11 +229,7 @@ impl WebSocketConfig {
     /// - The URL is not a secure WebSocket (wss://)
     /// - The certificate or key bytes cannot be parsed
     /// - The TLS configuration cannot be created
-    pub fn with_client_auth_from_bytes(
-        mut self,
-        cert_pem: &[u8],
-        key_pem: &[u8],
-    ) -> Result<Self> {
+    pub fn with_client_auth_from_bytes(mut self, cert_pem: &[u8], key_pem: &[u8]) -> Result<Self> {
         if !self.is_secure() {
             return Err(MqttError::ProtocolError(
                 "Client authentication only applies to wss:// URLs".to_string(),
@@ -329,11 +321,9 @@ impl WebSocketConfig {
     /// Gets the port from the WebSocket URL, with defaults for ws/wss
     #[must_use]
     pub fn port(&self) -> u16 {
-        self.url.port().unwrap_or_else(|| {
-            match self.url.scheme() {
-                "wss" => 443,
-                _ => 80,
-            }
+        self.url.port().unwrap_or_else(|| match self.url.scheme() {
+            "wss" => 443,
+            _ => 80,
         })
     }
 
@@ -455,7 +445,7 @@ impl Transport for WebSocketTransport {
         // 3. Perform WebSocket handshake
         // 4. Negotiate subprotocol
         // 5. Store the WebSocket stream
-        
+
         self.connected = true;
         tracing::info!("WebSocket connection established");
         Ok(())
@@ -491,7 +481,7 @@ impl Transport for WebSocketTransport {
         // 3. Handle flow control
 
         tracing::debug!(bytes = buf.len(), "Writing WebSocket frame");
-        
+
         // Placeholder implementation
         Ok(())
     }
@@ -540,7 +530,10 @@ mod tests {
     fn test_websocket_config_invalid_scheme() {
         let result = WebSocketConfig::new("http://example.com");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported WebSocket scheme"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported WebSocket scheme"));
     }
 
     #[test]
@@ -554,7 +547,10 @@ mod tests {
 
         assert_eq!(config.timeout, Duration::from_secs(60));
         assert_eq!(config.subprotocols, vec!["mqttv5.0"]);
-        assert_eq!(config.headers.get("Authorization"), Some(&"Bearer token123".to_string()));
+        assert_eq!(
+            config.headers.get("Authorization"),
+            Some(&"Bearer token123".to_string())
+        );
         assert_eq!(config.user_agent, Some("custom-client/1.0".to_string()));
     }
 
@@ -562,7 +558,7 @@ mod tests {
     async fn test_websocket_transport_creation() {
         let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
         let transport = WebSocketTransport::new(config);
-        
+
         assert!(!transport.is_connected());
         assert_eq!(transport.url().as_str(), "ws://localhost:8080/mqtt");
         assert_eq!(transport.subprotocol(), Some("mqtt"));
@@ -572,11 +568,11 @@ mod tests {
     async fn test_websocket_transport_connect() {
         let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
-        
+
         assert!(!transport.is_connected());
         transport.connect().await.unwrap();
         assert!(transport.is_connected());
-        
+
         // Should fail to connect again
         let result = transport.connect().await;
         assert!(result.is_err());
@@ -586,23 +582,23 @@ mod tests {
     async fn test_websocket_transport_operations_when_not_connected() {
         let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
-        
+
         let mut buf = [0u8; 10];
         assert!(transport.read(&mut buf).await.is_err());
         assert!(transport.write(b"test").await.is_err());
-        
+
         // Close should succeed even when not connected
         assert!(transport.close().await.is_ok());
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_websocket_transport_close() {
         let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
-        
+
         transport.connect().await.unwrap();
         assert!(transport.is_connected());
-        
+
         transport.close().await.unwrap();
         assert!(!transport.is_connected());
     }
@@ -611,10 +607,10 @@ mod tests {
     fn test_websocket_config_port_defaults() {
         let ws_config = WebSocketConfig::new("ws://example.com/mqtt").unwrap();
         assert_eq!(ws_config.port(), 80);
-        
+
         let wss_config = WebSocketConfig::new("wss://example.com/mqtt").unwrap();
         assert_eq!(wss_config.port(), 443);
-        
+
         let custom_port_config = WebSocketConfig::new("ws://example.com:8080/mqtt").unwrap();
         assert_eq!(custom_port_config.port(), 8080);
     }
@@ -626,24 +622,24 @@ mod tests {
             .unwrap()
             .with_tls_auto()
             .unwrap();
-        
+
         assert!(config.tls_config().is_some());
         let tls_config = config.tls_config().unwrap();
         assert_eq!(tls_config.addr.port(), 8443);
         assert_eq!(tls_config.hostname, "127.0.0.1");
-        
+
         // Should fail for ws://
         let result = WebSocketConfig::new("ws://127.0.0.1:8080/mqtt")
             .unwrap()
             .with_tls_auto();
         assert!(result.is_err());
-        
+
         // Test with default port
         let config_default = WebSocketConfig::new("wss://127.0.0.1/mqtt")
             .unwrap()
             .with_tls_auto()
             .unwrap();
-        
+
         let tls_config_default = config_default.tls_config().unwrap();
         assert_eq!(tls_config_default.addr.port(), 443);
     }
@@ -652,17 +648,17 @@ mod tests {
     fn test_websocket_config_client_auth_from_bytes() {
         let cert_pem = b"-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----";
         let key_pem = b"-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----";
-        
+
         let config = WebSocketConfig::new("wss://127.0.0.1/mqtt")
             .unwrap()
             .with_client_auth_from_bytes(cert_pem, key_pem)
             .unwrap();
-        
+
         assert!(config.tls_config().is_some());
         let tls_config = config.tls_config().unwrap();
         assert!(tls_config.client_cert.is_some());
         assert!(tls_config.client_key.is_some());
-        
+
         // Should fail for ws://
         let result = WebSocketConfig::new("ws://127.0.0.1/mqtt")
             .unwrap()
@@ -673,16 +669,16 @@ mod tests {
     #[test]
     fn test_websocket_config_ca_cert_from_bytes() {
         let ca_pem = b"-----BEGIN CERTIFICATE-----\ntest ca\n-----END CERTIFICATE-----";
-        
+
         let config = WebSocketConfig::new("wss://127.0.0.1/mqtt")
             .unwrap()
             .with_ca_cert_from_bytes(ca_pem)
             .unwrap();
-        
+
         assert!(config.tls_config().is_some());
         let tls_config = config.tls_config().unwrap();
         assert!(tls_config.root_certs.is_some());
-        
+
         // Should fail for ws://
         let result = WebSocketConfig::new("ws://127.0.0.1/mqtt")
             .unwrap()
@@ -693,14 +689,14 @@ mod tests {
     #[test]
     fn test_websocket_config_with_custom_tls_config() {
         use std::net::{IpAddr, Ipv4Addr};
-        
+
         let addr = std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
         let tls_config = TlsConfig::new(addr, "localhost");
-        
+
         let config = WebSocketConfig::new("wss://broker.example.com/mqtt")
             .unwrap()
             .with_tls_config(tls_config);
-        
+
         assert!(config.tls_config().is_some());
         let tls_config = config.tls_config().unwrap();
         assert_eq!(tls_config.hostname, "localhost");
@@ -713,13 +709,13 @@ mod tests {
             .unwrap()
             .with_tls_auto()
             .unwrap();
-        
+
         assert!(config.tls_config().is_some());
-        
+
         let tls_config = config.take_tls_config();
         assert!(tls_config.is_some());
         assert!(config.tls_config().is_none()); // Should be None after taking
-        
+
         let tls_config = tls_config.unwrap();
         assert_eq!(tls_config.hostname, "127.0.0.1");
     }

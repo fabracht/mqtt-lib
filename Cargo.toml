@@ -2,7 +2,7 @@
 name = "mqtt-v5"
 version = "0.3.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.82"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
 description = "High-performance async MQTT v5.0 client with certificate loading from bytes, WebSocket transport, and comprehensive property testing"
 license = "MIT OR Apache-2.0"

@@ -24,10 +24,7 @@
 //! cargo run --example certificate_loading_demo
 //! ```
 
-use mqtt_v5::{
-    client::MqttClient,
-    transport::tls::TlsConfig,
-};
+use mqtt_v5::{client::MqttClient, transport::tls::TlsConfig};
 use std::env;
 use std::net::SocketAddr;
 use tracing::{info, warn};
@@ -184,9 +181,18 @@ async fn demo_der_format_loading() -> Result<(), Box<dyn std::error::Error>> {
     tls_config.load_ca_cert_der_bytes(&dummy_ca_der)?;
 
     info!("✅ Successfully loaded certificates from DER bytes");
-    info!("   - Client certificate: {} bytes (DER format)", dummy_cert_der.len());
-    info!("   - Client key: {} bytes (DER format)", dummy_key_der.len());
-    info!("   - CA certificate: {} bytes (DER format)", dummy_ca_der.len());
+    info!(
+        "   - Client certificate: {} bytes (DER format)",
+        dummy_cert_der.len()
+    );
+    info!(
+        "   - Client key: {} bytes (DER format)",
+        dummy_key_der.len()
+    );
+    info!(
+        "   - CA certificate: {} bytes (DER format)",
+        dummy_ca_der.len()
+    );
 
     info!("TLS configuration ready for DER-based certificates");
     Ok(())
@@ -201,44 +207,51 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     info!("Scenario 1: Loading from Kubernetes secrets mounted as files");
     let addr: SocketAddr = "broker.company.com:8883".parse()?;
     let mut k8s_config = TlsConfig::new(addr.clone(), "broker.company.com");
-    
+
     // In Kubernetes, secrets are often mounted as files
-    if k8s_config.load_client_cert_pem("/var/secrets/tls/tls.crt").is_ok() &&
-       k8s_config.load_client_key_pem("/var/secrets/tls/tls.key").is_ok() &&
-       k8s_config.load_ca_cert_pem("/var/secrets/ca/ca.crt").is_ok() {
+    if k8s_config
+        .load_client_cert_pem("/var/secrets/tls/tls.crt")
+        .is_ok()
+        && k8s_config
+            .load_client_key_pem("/var/secrets/tls/tls.key")
+            .is_ok()
+        && k8s_config
+            .load_ca_cert_pem("/var/secrets/ca/ca.crt")
+            .is_ok()
+    {
         info!("✅ Loaded certificates from Kubernetes secret mounts");
     }
 
     // Scenario 2: Environment Variables (raw PEM in env vars)
     info!("Scenario 2: Loading from environment variables");
     let mut env_config = TlsConfig::new(addr.clone(), "broker.company.com");
-    
+
     if let (Ok(cert_pem), Ok(key_pem), Ok(ca_pem)) = (
         env::var("TLS_CERT_PEM"),
-        env::var("TLS_KEY_PEM"), 
-        env::var("TLS_CA_PEM")
+        env::var("TLS_KEY_PEM"),
+        env::var("TLS_CA_PEM"),
     ) {
         // Load directly from PEM strings in environment variables
         env_config.load_client_cert_pem_bytes(cert_pem.as_bytes())?;
         env_config.load_client_key_pem_bytes(key_pem.as_bytes())?;
         env_config.load_ca_cert_pem_bytes(ca_pem.as_bytes())?;
-        
+
         info!("✅ Loaded certificates from PEM environment variables");
     }
 
     // Scenario 3: HashiCorp Vault or similar secret store
     info!("Scenario 3: Loading from secret management system");
     let mut vault_config = TlsConfig::new(addr, "broker.company.com");
-    
+
     // Example: retrieve from a hypothetical secret store
     let cert_bytes = retrieve_secret("pki/cert/mqtt-client").await?;
     let key_bytes = retrieve_secret("pki/key/mqtt-client").await?;
     let ca_bytes = retrieve_secret("pki/ca/root").await?;
-    
+
     vault_config.load_client_cert_pem_bytes(&cert_bytes)?;
     vault_config.load_client_key_pem_bytes(&key_bytes)?;
     vault_config.load_ca_cert_pem_bytes(&ca_bytes)?;
-    
+
     info!("✅ Loaded certificates from secret management system");
 
     Ok(())
