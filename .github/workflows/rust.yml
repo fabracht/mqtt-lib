@@ -14,10 +14,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
 
 jobs:
-  # Quick checks that don't require building
+  # Check code formatting
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -30,7 +29,7 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  # Clippy linting
+  # Lint code with clippy
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -45,9 +44,9 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-  # Unit tests (no Mosquitto needed)
-  unit-tests:
-    name: Unit Tests
+  # Build and test
+  test:
+    name: Test Suite
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,43 +68,6 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Build
-        run: cargo build --all-features
-      
-      - name: Run unit tests
-        run: |
-          cargo test --lib --all-features
-          cargo test --doc --all-features
-          # Run non-integration tests
-          cargo test --all-features --tests -- \
-            --skip integration \
-            --skip persistence \
-            --skip keepalive \
-            --skip client_ \
-            --skip connection_ \
-            --skip qos_ \
-            --skip message_ \
-            --skip tls_integration \
-            --skip debug_tls
-
-  # Integration tests (requires Mosquitto)
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-      
-      - name: Generate test certificates
-        run: |
-          chmod +x scripts/generate_test_certs.sh
-          ./scripts/generate_test_certs.sh
-      
       - name: Start Mosquitto
         run: |
           sudo apt-get update
@@ -118,44 +80,25 @@ jobs:
           nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
       
       - name: Build
-        run: cargo build --all-features
+        run: cargo build --verbose --all-features
       
-      - name: Run integration tests
-        run: |
-          cargo test --test persistence \
-            --test keepalive_handling \
-            --test integration_complete_flow \
-            --test integration_mqtt5_features \
-            --test integration_reconnection \
-            --test client_publish \
-            --test client_subscribe \
-            --test client_connection \
-            --test connection_events \
-            --test qos_flow \
-            --test message_queuing \
-            --test common_scenarios_demo \
-            --test tls_integration \
-            --test debug_tls_test \
-            -- --test-threads=1
+      - name: Run all tests
+        run: cargo test --verbose --all-features
 
-  # MSRV check
+  # Test with minimal supported Rust version
   msrv:
     name: MSRV (1.82)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.82
-      
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-      
       - name: Generate test certificates
         run: |
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
-      
       - name: Check MSRV
         run: cargo check --all-features
 
@@ -168,24 +111,6 @@ jobs:
       - uses: rustsec/audit-check@v1.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  # Documentation
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-      
-      - name: Build documentation
-        run: cargo doc --no-deps --all-features
-        env:
-          RUSTDOCFLAGS: -D warnings
 
   # Code coverage
   coverage:
@@ -237,20 +162,17 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-  # Final status check for branch protection
-  ci-success:
-    name: CI Success
-    if: ${{ success() }}
-    needs:
-      - fmt
-      - clippy
-      - unit-tests
-      - integration-tests
-      - msrv
-      - security
-      - docs
-      - coverage
+  # Build documentation
+  docs:
+    name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - name: CI Success
-        run: echo "All checks passed!"
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Build documentation
+        run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
