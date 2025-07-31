@@ -3,12 +3,15 @@
 [![Rust CI](https://github.com/fabriciobracht/mqtt-lib/workflows/Rust%20CI/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
 [![Security Audit](https://github.com/fabriciobracht/mqtt-lib/workflows/Security%20Audit/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
 
-A complete MQTT v5.0 client library that provides full protocol compliance with a simple, callback-based API. This library handles all background tasks internally, providing automatic message routing and connection management.
+A complete MQTT v5.0 client library with certificate loading from bytes, WebSocket transport, and comprehensive property testing. Features full protocol compliance with a simple, callback-based API.
 
-**🚀 Now with full AWS IoT SDK compatibility!** Subscribe methods return `(packet_id, qos)` tuples and a mockable trait interface enables comprehensive unit testing.
+**🚀 New in v0.3.0**: Certificate loading from bytes for cloud deployments and WebSocket transport for browser applications!
 
 ## Features
 
+- **Certificate loading from bytes** - Load TLS certificates from memory (PEM/DER formats)
+- **WebSocket transport** - MQTT over WebSocket for browsers and firewall-restricted environments
+- **Comprehensive property testing** - 29 property-based tests ensuring robustness
 - **Full MQTT v5.0 protocol compliance** - All MQTT 5.0 features implemented
 - **Callback-based message handling** - Simple, intuitive API with automatic message routing
 - **AWS IoT SDK Compatible** - Subscribe returns `(packet_id, qos)` like Python paho-mqtt

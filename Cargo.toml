@@ -1,15 +1,15 @@
 [package]
 name = "mqtt-v5"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
-description = "High-performance async MQTT v5.0 client with BeBytes serialization, TLS support, and comprehensive IoT examples"
+description = "High-performance async MQTT v5.0 client with certificate loading from bytes, WebSocket transport, and comprehensive property testing"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fabriciobracht/mqtt-lib"
 documentation = "https://docs.rs/mqtt-v5"
 readme = "README.md"
-keywords = ["mqtt", "iot", "messaging", "async", "bebytes"]
+keywords = ["mqtt", "iot", "messaging", "async", "websocket"]
 categories = ["network-programming", "asynchronous"]
 exclude = [
     "CLAUDE.md",
@@ -74,5 +74,6 @@ thiserror = "2.0.12"
 tokio = { version = "1.46.1", features = ["full"] }
 tokio-rustls = "0.26.2"
 tracing = "0.1.41"
+url = "2.5.4"
 webpki-roots = "1.0.2"
 

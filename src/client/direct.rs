@@ -24,15 +24,17 @@ use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
-use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
+use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};  
+use crate::transport::websocket::{WebSocketReadHandle, WebSocketWriteHandle};
 use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};
 use crate::QoS;
 
-/// Unified reader type that can handle both TCP and TLS
+/// Unified reader type that can handle TCP, TLS, and WebSocket
 pub enum UnifiedReader {
     Tcp(OwnedReadHalf),
     Tls(TlsReadHalf),
+    WebSocket(WebSocketReadHandle),
 }
 
 impl PacketReader for UnifiedReader {
@@ -40,14 +42,21 @@ impl PacketReader for UnifiedReader {
         match self {
             Self::Tcp(reader) => reader.read_packet().await,
             Self::Tls(reader) => reader.read_packet().await,
+            Self::WebSocket(_reader) => {
+                // TODO: Implement WebSocket packet reading
+                Err(MqttError::ProtocolError(
+                    "WebSocket packet reading not implemented".to_string(),
+                ))
+            }
         }
     }
 }
 
-/// Unified writer type that can handle both TCP and TLS
+/// Unified writer type that can handle TCP, TLS, and WebSocket
 pub enum UnifiedWriter {
     Tcp(OwnedWriteHalf),
     Tls(TlsWriteHalf),
+    WebSocket(WebSocketWriteHandle),
 }
 
 impl PacketWriter for UnifiedWriter {
@@ -55,6 +64,12 @@ impl PacketWriter for UnifiedWriter {
         match self {
             Self::Tcp(writer) => writer.write_packet(packet).await,
             Self::Tls(writer) => writer.write_packet(packet).await,
+            Self::WebSocket(_writer) => {
+                // TODO: Implement WebSocket packet writing
+                Err(MqttError::ProtocolError(
+                    "WebSocket packet writing not implemented".to_string(),
+                ))
+            }
         }
     }
 }
@@ -199,6 +214,10 @@ impl DirectClientInner {
                     TransportType::Tls(tls) => {
                         let (r, w) = (*tls).into_split()?;
                         (UnifiedReader::Tls(r), UnifiedWriter::Tls(w))
+                    }
+                    TransportType::WebSocket(ws) => {
+                        let (r, w) = (*ws).into_split()?;
+                        (UnifiedReader::WebSocket(r), UnifiedWriter::WebSocket(w))
                     }
                 };
 

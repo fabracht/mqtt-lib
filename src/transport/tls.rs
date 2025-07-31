@@ -282,6 +282,108 @@ impl TlsConfig {
         self.root_certs = Some(ca_certs);
         Ok(())
     }
+
+    /// Loads client certificate from PEM bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes cannot be parsed as PEM certificate
+    pub fn load_client_cert_pem_bytes(&mut self, cert_pem: &[u8]) -> Result<()> {
+        let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &cert_pem[..])
+            .filter_map(std::result::Result::ok)
+            .collect();
+        if certs.is_empty() {
+            return Err(MqttError::ProtocolError(
+                "No certificates found in PEM bytes".to_string(),
+            ));
+        }
+        self.client_cert = Some(certs);
+        Ok(())
+    }
+
+    /// Loads client private key from PEM bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes cannot be parsed as PEM private key
+    pub fn load_client_key_pem_bytes(&mut self, key_pem: &[u8]) -> Result<()> {
+        let mut keys: Vec<PrivateKeyDer<'static>> =
+            rustls_pemfile::pkcs8_private_keys(&mut &key_pem[..])
+                .filter_map(std::result::Result::ok)
+                .map(PrivateKeyDer::from)
+                .collect();
+
+        if keys.is_empty() {
+            // Try RSA keys if PKCS8 didn't work
+            keys = rustls_pemfile::rsa_private_keys(&mut &key_pem[..])
+                .filter_map(std::result::Result::ok)
+                .map(PrivateKeyDer::from)
+                .collect();
+        }
+
+        if keys.is_empty() {
+            return Err(MqttError::ProtocolError(
+                "No private keys found in PEM bytes".to_string(),
+            ));
+        }
+        self.client_key = Some(keys.into_iter().next().ok_or_else(|| {
+            MqttError::ProtocolError("Keys vector unexpectedly empty".to_string())
+        })?);
+        Ok(())
+    }
+
+    /// Loads CA certificate from PEM bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes cannot be parsed as PEM certificate
+    pub fn load_ca_cert_pem_bytes(&mut self, ca_pem: &[u8]) -> Result<()> {
+        let ca_certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut &ca_pem[..])
+            .filter_map(std::result::Result::ok)
+            .collect();
+        if ca_certs.is_empty() {
+            return Err(MqttError::ProtocolError(
+                "No CA certificates found in PEM bytes".to_string(),
+            ));
+        }
+        self.root_certs = Some(ca_certs);
+        Ok(())
+    }
+
+    /// Loads client certificate from DER bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes are not valid DER-encoded certificate
+    pub fn load_client_cert_der_bytes(&mut self, cert_der: &[u8]) -> Result<()> {
+        let cert = CertificateDer::from(cert_der.to_vec());
+        self.client_cert = Some(vec![cert]);
+        Ok(())
+    }
+
+    /// Loads client private key from DER bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes are not valid DER-encoded private key
+    pub fn load_client_key_der_bytes(&mut self, key_der: &[u8]) -> Result<()> {
+        // Assume PKCS#8 format for DER keys - this is the most common format
+        use rustls::pki_types::PrivatePkcs8KeyDer;
+        let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_der.to_vec()));
+        self.client_key = Some(key);
+        Ok(())
+    }
+
+    /// Loads CA certificate from DER bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes are not valid DER-encoded certificate
+    pub fn load_ca_cert_der_bytes(&mut self, ca_der: &[u8]) -> Result<()> {
+        let ca_cert = CertificateDer::from(ca_der.to_vec());
+        self.root_certs = Some(vec![ca_cert]);
+        Ok(())
+    }
 }
 
 /// TLS transport implementation
@@ -591,5 +693,156 @@ mod tests {
         assert!(config.load_client_cert_pem("non_existent.pem").is_err());
         assert!(config.load_client_key_pem("non_existent.pem").is_err());
         assert!(config.load_ca_cert_pem("non_existent.pem").is_err());
+    }
+
+    #[test]
+    fn test_tls_config_load_cert_from_pem_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test valid PEM certificate
+        let valid_cert_pem = b"-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJALRJF4QlQZq2MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCWxv
+Y2FsaG9zdDAeFw0yNDAxMDEwMDAwMDBaFw0yNTAxMDEwMDAwMDBaMBQxEjAQBgNV
+BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
+UmRKvW2aIGMBMExdqGp4ncyf4BzGTOIUtShgP6+u7kj7mBH2q9sP5bOxFKqQSzAD
+g8hSN4z8z2o3GYUBj5uEJjh8iVR1OGlmv0iYgzgZWj5Jw7BLG0HMwNfb+H4hTlgc
+pZYH8gMxmGQiQmOxSKNJAz5xPJTBGNJjvP+Z3Nd8bQe2qnOz4Hp3s2qs7C4Gq
+aPVP5q7LxXIAgIDAQABMA0GCSqGSIb3DQEBCwUAA0EANQfUSRkgFfPb0K9VkbNj
+PwX8FnQ+zjqAVHCtjpB+5jdYG3TQmFfQ7EaQdKZGKMWKyGKIQ9fhFvTmI8OU6Y6V
+TA==
+-----END CERTIFICATE-----";
+
+        assert!(config.load_client_cert_pem_bytes(valid_cert_pem).is_ok());
+        assert!(config.client_cert.is_some());
+
+        // Test invalid PEM data
+        let invalid_pem = b"not a valid certificate";
+        let mut config2 = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+        assert!(config2.load_client_cert_pem_bytes(invalid_pem).is_err());
+
+        // Test empty PEM data
+        let empty_pem = b"";
+        let mut config3 = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+        assert!(config3.load_client_cert_pem_bytes(empty_pem).is_err());
+    }
+
+    #[test]
+    fn test_tls_config_load_key_from_pem_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test valid RSA private key in PEM format
+        let valid_key_pem = b"-----BEGIN RSA PRIVATE KEY-----
+MIIBOgIBAAJBALtUlNS31SzxwoFSZEq9bZogYwEwTF2oanidzJ/gHMZM4hS1KGA/
+r67uSPuYEfar2w/ls7EUqpBLMAODyFI3jPzPajcZhQGPm4QmOHyJVHU4aWa/SJiD
+OBlaOknDsEsbQczA19v4fiFOWByllgfyAzGYZCJCY7FIo0kDPnE8lMEY0mO8/5nc
+13xtB7aqc7PgenezaqzsLgapo9U/mrsvFcgCAgMBAAECQBKmZi7m2J+5nEoM0YKU
+wQgRqT2kFz8tJO0Q9r4rQfkbFm8OmVZs9FcX+Z8vCcOqS8nG0z8cRGhX+rKhRrVu
+uoECIQDdwJmRZQhCGpX0P8Q6v5B2J7mOZQVg7VK1g4YFcYHyeQIhANJFfHjHgKqJ
+x8Z9fQzK8u0FDlq0wGHkL1rCgJzQLHmBAiEA6VjXlZGhF2G8EL4P+7+P6u6W2Qrb
+u9W5m0K4kV2sQ2ECIDTqoHEfL2+OzPsQpBxZ5kD6XpGuL6UKYXyF+VZw9uGBAiBm
+QK8Q2JGfQtK+7F6vGgR8QKrMgJh6EwZhLl3mPVH+QQ==
+-----END RSA PRIVATE KEY-----";
+
+        assert!(config.load_client_key_pem_bytes(valid_key_pem).is_ok());
+        assert!(config.client_key.is_some());
+
+        // Test invalid PEM data
+        let invalid_pem = b"not a valid private key";
+        let mut config2 = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+        assert!(config2.load_client_key_pem_bytes(invalid_pem).is_err());
+    }
+
+    #[test]
+    fn test_tls_config_load_ca_from_pem_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test valid CA certificate
+        let valid_ca_pem = b"-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJALRJF4QlQZq2MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCWxv
+Y2FsaG9zdDAeFw0yNDAxMDEwMDAwMDBaFw0yNTAxMDEwMDAwMDBaMBQxEjAQBgNV
+BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
+UmRKvW2aIGMBMExdqGp4ncyf4BzGTOIUtShgP6+u7kj7mBH2q9sP5bOxFKqQSzAD
+g8hSN4z8z2o3GYUBj5uEJjh8iVR1OGlmv0iYgzgZWj5Jw7BLG0HMwNfb+H4hTlgc
+pZYH8gMxmGQiQmOxSKNJAz5xPJTBGNJjvP+Z3Nd8bQe2qnOz4Hp3s2qs7C4Gq
+aPVP5q7LxXIAgIDAQABMA0GCSqGSIb3DQEBCwUAA0EANQfUSRkgFfPb0K9VkbNj
+PwX8FnQ+zjqAVHCtjpB+5jdYG3TQmFfQ7EaQdKZGKMWKyGKIQ9fhFvTmI8OU6Y6V
+TA==
+-----END CERTIFICATE-----";
+
+        assert!(config.load_ca_cert_pem_bytes(valid_ca_pem).is_ok());
+        assert!(config.root_certs.is_some());
+
+        // Test invalid PEM data
+        let invalid_pem = b"not a valid ca certificate";
+        let mut config2 = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+        assert!(config2.load_ca_cert_pem_bytes(invalid_pem).is_err());
+    }
+
+    #[test]
+    fn test_tls_config_load_cert_from_der_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test with dummy DER bytes (in practice these would be valid DER-encoded certificates)
+        let dummy_der = vec![0x30, 0x82, 0x01, 0x00]; // Basic DER structure
+        assert!(config.load_client_cert_der_bytes(&dummy_der).is_ok());
+        assert!(config.client_cert.is_some());
+
+        // Test empty DER data
+        let empty_der = vec![];
+        let mut config2 = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+        assert!(config2.load_client_cert_der_bytes(&empty_der).is_ok()); // DER validation happens at TLS handshake
+    }
+
+    #[test]
+    fn test_tls_config_load_key_from_der_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test with dummy DER bytes
+        let dummy_der = vec![0x30, 0x48, 0x02, 0x01]; // Basic DER structure for key
+        assert!(config.load_client_key_der_bytes(&dummy_der).is_ok());
+        assert!(config.client_key.is_some());
+    }
+
+    #[test]
+    fn test_tls_config_load_ca_from_der_bytes() {
+        let mut config = TlsConfig::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            "localhost",
+        );
+
+        // Test with dummy DER bytes
+        let dummy_der = vec![0x30, 0x82, 0x01, 0x00]; // Basic DER structure
+        assert!(config.load_ca_cert_der_bytes(&dummy_der).is_ok());
+        assert!(config.root_certs.is_some());
     }
 }

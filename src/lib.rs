@@ -1,6 +1,6 @@
 //! # MQTT v5.0 Client Library
 //!
-//! A complete MQTT v5.0 client library with full protocol compliance and a simple, callback-based API.
+//! A complete MQTT v5.0 client library with certificate loading from bytes, WebSocket transport, and comprehensive property testing.
 //!
 //! ## CRITICAL: NO EVENT LOOPS
 //!

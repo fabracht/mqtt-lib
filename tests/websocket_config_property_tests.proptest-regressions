@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 43375120b5d24b783648237a506ba13c47613e80886b7ceb29b77c84e30f766d # shrinks to url = "ws://localhost:8080/mqtt with spaces"
+cc 42da82ae62e8edca66f213a945474554d6bcb828d22645e413834635ec4eb709 # shrinks to url = "ws://localhost:1/mqtt"
+cc a65f9e66334d80a19fe1e2c6ac89eae6edb3ce0f0efc64ddb7a260abe85e0ddc # shrinks to url = "wss://0.0.0.0:8000/mqtt"
+cc 9abd6496b43c5f8485b5b451d6eb2c5f5b2742c342ac9c3bbfdc97e891b64355 # shrinks to url = "ws://A/mqtt"
+cc 437043533083b54540e6694ac208c6817db97b009e3ac5ef4b9258f36195f79d # shrinks to url = "ws:///mqtt"

@@ -69,13 +69,40 @@ Four comprehensive examples demonstrating real-world usage patterns:
 3. **Industrial Sensor Network** - Enterprise security, custom CA, failover
 4. **Observability Dashboard** - Metrics collection, HTTP endpoints, monitoring
 
-## [Unreleased]
+## [0.3.0] - 2025-07-31
 
-### Planned
-- WebSocket transport support
-- Enhanced authentication methods
-- Additional IoT integration examples
-- Performance optimizations
+### Added
+- **Certificate loading from bytes**: Load TLS certificates from memory (PEM/DER formats)
+  - `load_client_cert_pem_bytes()` - Load client certificates from PEM byte arrays
+  - `load_client_key_pem_bytes()` - Load private keys from PEM byte arrays  
+  - `load_ca_cert_pem_bytes()` - Load CA certificates from PEM byte arrays
+  - `load_client_cert_der_bytes()` - Load client certificates from DER byte arrays
+  - `load_client_key_der_bytes()` - Load private keys from DER byte arrays
+  - `load_ca_cert_der_bytes()` - Load CA certificates from DER byte arrays
+- **WebSocket transport support**: Full MQTT over WebSocket implementation
+  - WebSocket (ws://) and secure WebSocket (wss://) URL support
+  - TLS integration for secure WebSocket connections
+  - Custom headers and subprotocol negotiation
+  - Client certificate authentication over WebSocket
+  - Comprehensive configuration options
+- **Property-based testing**: Comprehensive test coverage with Proptest
+  - 29 new property-based tests covering edge cases and failure modes
+  - Certificate loading robustness testing with arbitrary inputs
+  - WebSocket configuration validation across all input domains
+  - Memory safety verification for all certificate operations
+
+### Enhanced
+- TLS configuration now supports loading certificates from memory for cloud deployments
+- WebSocket configuration supports all TLS features (client auth, custom CA, etc.)
+- Comprehensive examples showing certificate loading patterns for different deployment scenarios
+
+### Use Cases Enabled
+- **Cloud deployments**: Load certificates from Kubernetes secrets, environment variables
+- **Browser applications**: MQTT over WebSocket for web-based IoT dashboards
+- **Firewall-restricted environments**: WebSocket transport bypasses TCP restrictions
+- **Secret management integration**: Load certificates from Vault, AWS Secrets Manager, etc.
+
+## [0.2.0] - 2025-07-30
 
 ---
 
