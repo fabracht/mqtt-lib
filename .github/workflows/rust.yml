@@ -105,12 +105,12 @@ jobs:
 
   # Test with minimal supported Rust version
   msrv:
-    name: MSRV (1.75)
+    name: MSRV (1.82)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.75
+        uses: dtolnay/rust-toolchain@1.82
       - name: Generate test certificates
         run: |
           chmod +x scripts/generate_test_certs.sh
