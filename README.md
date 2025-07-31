@@ -21,6 +21,15 @@ A complete MQTT v5.0 client library that provides full protocol compliance with 
 - **Zero-copy message handling** - Efficient memory usage with BeBytes
 - **No event loops** - Direct async/await patterns throughout
 
+## Installation
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+mqtt-v5 = "0.2"
+```
+
 ## Quick Start
 
 ```rust
