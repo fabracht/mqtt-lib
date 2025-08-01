@@ -1,0 +1,56 @@
+[config]
+default_to_workspace = false
+
+[env]
+CARGO_TERM_COLOR = "always"
+RUST_BACKTRACE = "1"
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.fmt-check]
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+
+[tasks.clippy]
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["test", "--all-features", "--verbose"]
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--all-features", "--verbose"]
+
+[tasks.check]
+command = "cargo"
+args = ["check", "--all-features"]
+
+[tasks.ci-verify]
+dependencies = ["fmt-check", "clippy", "build", "test"]
+description = "Run all CI checks locally - MUST pass before pushing"
+
+[tasks.pre-commit]
+dependencies = ["fmt", "clippy", "test"]
+description = "Run before committing - formats code and runs all checks"
+
+[tasks.doc]
+command = "cargo"
+args = ["doc", "--no-deps", "--all-features"]
+env = { "RUSTDOCFLAGS" = "-D warnings" }
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.audit]
+command = "cargo"
+args = ["audit"]
+
+[tasks.msrv-check]
+toolchain = "1.82"
+command = "cargo"
+args = ["check", "--all-features"]

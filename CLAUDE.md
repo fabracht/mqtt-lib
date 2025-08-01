@@ -296,3 +296,61 @@ Before marking ANY task as complete:
 6. Never skip verifications
 
 **If you catch yourself typing `| grep`, `| tail`, or `| head` after a build/test command, STOP and reconsider.**
+
+## CRITICAL: Use cargo-make for ALL Build Operations
+
+### MANDATORY: Always Use Makefile.toml Commands
+
+**STOP! This project uses cargo-make to ensure consistent command execution between local development and CI.**
+
+You MUST use these cargo-make commands for ALL operations:
+
+```bash
+# FORBIDDEN - Never use direct cargo commands
+cargo fmt          # NO! Use cargo make fmt
+cargo clippy       # NO! Use cargo make clippy
+cargo test         # NO! Use cargo make test
+cargo build        # NO! Use cargo make build
+
+# REQUIRED - Always use cargo-make
+cargo make fmt           # Format code
+cargo make fmt-check     # Check formatting (CI uses this)
+cargo make clippy        # Run clippy with exact CI flags
+cargo make test          # Run tests with exact CI flags
+cargo make build         # Build with exact CI flags
+cargo make ci-verify     # Run ALL CI checks locally - MUST pass before pushing
+cargo make pre-commit    # Run before committing - formats and checks
+```
+
+### Key Commands You MUST Use
+
+1. **Before ANY commit:**
+   ```bash
+   cargo make pre-commit
+   ```
+   This runs fmt, clippy, and tests. If this passes, you're good to commit.
+
+2. **Before claiming CI will pass:**
+   ```bash
+   cargo make ci-verify
+   ```
+   This runs EXACTLY what CI runs. If this passes locally, CI WILL pass.
+
+3. **For individual operations:**
+   - `cargo make fmt` - Format code
+   - `cargo make clippy` - Lint code with CI settings
+   - `cargo make test` - Run tests with CI settings
+   - `cargo make build` - Build with CI settings
+
+### Why This Is Critical
+
+1. **CI uses specific flags** - Direct cargo commands may miss issues CI will catch
+2. **Consistency is mandatory** - Local and CI must behave identically
+3. **No surprises** - What passes locally MUST pass in CI
+
+### Your Commitment
+
+- NEVER use direct cargo commands for fmt, clippy, test, or build
+- ALWAYS use cargo make commands
+- ALWAYS run `cargo make ci-verify` before claiming CI will pass
+- If `cargo make ci-verify` passes locally, CI WILL pass (no excuses)

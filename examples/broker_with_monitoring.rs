@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run broker in background
     let broker_handle = tokio::spawn(async move {
         if let Err(e) = broker.run().await {
-            eprintln!("Broker error: {}", e);
+            eprintln!("Broker error: {e}");
         }
     });
 

@@ -139,7 +139,7 @@ impl AclManager {
     /// Creates an ACL manager from a file
     ///
     /// File format (one rule per line):
-    /// ```
+    /// ```text
     /// # Comments start with #
     /// user alice topic sensors/+ permission read
     /// user bob topic actuators/# permission write
