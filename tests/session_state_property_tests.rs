@@ -195,7 +195,7 @@ mod session_expiry_tests {
 
                 // Add subscriptions
                 for i in 0..sub_count {
-                    let topic_filter = format!("topic/{}", i);
+                    let topic_filter = format!("topic/{i}");
                     let sub = Subscription {
                         topic_filter: topic_filter.clone(),
                         options: SubscriptionOptions::default(),
@@ -440,7 +440,7 @@ mod message_queue_tests {
                 // Try to queue all messages
                 for (i, size) in messages.iter().enumerate() {
                     let msg = QueuedMessage {
-                        topic: format!("topic/{}", i),
+                        topic: format!("topic/{i}"),
                         payload: vec![0u8; *size as usize],
                         qos: QoS::AtLeastOnce,
                         retain: false,
@@ -482,7 +482,7 @@ mod message_queue_tests {
                 // Queue messages
                 for i in 0..count {
                     let msg = QueuedMessage {
-                        topic: format!("topic/{}", i),
+                        topic: format!("topic/{i}"),
                         payload: vec![i as u8],
                         qos: QoS::AtLeastOnce,
                         retain: false,
@@ -657,7 +657,7 @@ mod retained_message_tests {
                 // Create hierarchical topics
                 let mut topics = Vec::new();
                 for i in 0..levels {
-                    let topic = format!("{}/{}/data", base_topic, i);
+                    let topic = format!("{base_topic}/{i}/data");
                     topics.push(topic.clone());
 
                     let packet = PublishPacket {
@@ -673,12 +673,12 @@ mod retained_message_tests {
                 }
 
                 // Test wildcard matching
-                let filter = format!("{}/+/data", base_topic);
+                let filter = format!("{base_topic}/+/data");
                 let matched = session.get_retained_messages(&filter).await;
                 prop_assert_eq!(matched.len(), levels);
 
                 // Test multi-level wildcard
-                let filter = format!("{}/#", base_topic);
+                let filter = format!("{base_topic}/#");
                 let matched = session.get_retained_messages(&filter).await;
                 prop_assert_eq!(matched.len(), levels);
 
@@ -714,7 +714,7 @@ mod concurrent_session_tests {
                     let session = Arc::clone(&session);
                     let task = async move {
                         for i in 0..ops_per_thread {
-                            let topic = format!("thread{}/topic{}", thread_id, i);
+                            let topic = format!("thread{thread_id}/topic{i}");
                             let sub = Subscription {
                                 topic_filter: topic.clone(),
                                 options: SubscriptionOptions::default(),
@@ -763,7 +763,7 @@ mod concurrent_session_tests {
                         let mut queued = 0;
                         for i in 0..msgs_per_thread {
                             let msg = QueuedMessage {
-                                topic: format!("thread{}/msg{}", thread_id, i),
+                                topic: format!("thread{thread_id}/msg{i}"),
                                 payload: vec![thread_id as u8, i as u8],
                                 qos: QoS::AtLeastOnce,
                                 retain: false,
@@ -815,7 +815,7 @@ mod performance_property_tests {
                     match i % 5 {
                         0 => {
                             // Add subscription
-                            let topic_filter = format!("topic/{}", i);
+                            let topic_filter = format!("topic/{i}");
                             let sub = Subscription {
                                 topic_filter: topic_filter.clone(),
                                 options: SubscriptionOptions::default(),
@@ -825,7 +825,7 @@ mod performance_property_tests {
                         1 => {
                             // Queue message
                             let msg = QueuedMessage {
-                                topic: format!("topic/{}", i),
+                                topic: format!("topic/{i}"),
                                 payload: vec![i as u8],
                                 qos: QoS::AtLeastOnce,
                                 retain: false,

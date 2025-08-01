@@ -130,7 +130,7 @@ proptest! {
                 // If it fails, should have a meaningful error message
                 let msg = e.to_string();
                 assert!(!msg.is_empty());
-                assert!(msg.len() > 10, "Error message should be descriptive: {}", msg);
+                assert!(msg.len() > 10, "Error message should be descriptive: {msg}");
             }
         }
     }
@@ -140,7 +140,7 @@ proptest! {
         let result = WebSocketConfig::new(&url);
 
         // Invalid URLs should always fail
-        assert!(result.is_err(), "Invalid URL '{}' should fail to parse", url);
+        assert!(result.is_err(), "Invalid URL '{url}' should fail to parse");
 
         let error_msg = result.unwrap_err().to_string();
         assert!(!error_msg.is_empty());
@@ -268,7 +268,7 @@ proptest! {
                     // Should fail gracefully with meaningful error
                     let msg = e.to_string();
                     assert!(!msg.is_empty());
-                    assert!(msg.len() > 10, "Error should be descriptive: {}", msg);
+                    assert!(msg.len() > 10, "Error should be descriptive: {msg}");
                 }
             }
         } else {
@@ -276,7 +276,7 @@ proptest! {
             assert!(result.is_err(), "Client auth should fail for ws:// URLs");
             let msg = result.unwrap_err().to_string();
             assert!(msg.contains("wss://") || msg.contains("secure"),
-                   "Error should mention security requirement: {}", msg);
+                   "Error should mention security requirement: {msg}");
         }
     }
 
@@ -302,7 +302,7 @@ proptest! {
                 Err(e) => {
                     let msg = e.to_string();
                     assert!(!msg.is_empty());
-                    assert!(msg.len() > 10, "Error should be descriptive: {}", msg);
+                    assert!(msg.len() > 10, "Error should be descriptive: {msg}");
                 }
             }
         } else {
@@ -360,7 +360,7 @@ proptest! {
         // (but we can't easily extract it from the string without parsing)
 
         // Port should always be valid
-        assert!(port > 0, "Port {} should be positive", port); // u16 is always <= 65535
+        assert!(port > 0, "Port {port} should be positive"); // u16 is always <= 65535
     }
 }
 

@@ -48,12 +48,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .on_connection_event(|event| match event {
             ConnectionEvent::Connected { session_present } => {
                 println!(
-                    "✅ Connected to MQTT broker (session_present: {})",
-                    session_present
+                    "✅ Connected to MQTT broker (session_present: {session_present})"
                 );
             }
             ConnectionEvent::Disconnected { reason } => {
-                println!("❌ Disconnected from broker: {:?}", reason);
+                println!("❌ Disconnected from broker: {reason:?}");
             }
             ConnectionEvent::Reconnecting { attempt } => {
                 println!("🔄 Reconnecting... (attempt {attempt})");
@@ -80,8 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!(
-        "✅ Subscribed with packet_id={}, QoS={:?}",
-        packet_id, granted_qos
+        "✅ Subscribed with packet_id={packet_id}, QoS={granted_qos:?}"
     );
 
     // Subscribe to another topic for JSON data
@@ -96,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Try to parse as JSON (just for demonstration)
             if let Ok(json_value) = serde_json::from_slice::<serde_json::Value>(&message.payload) {
-                println!("   Parsed JSON: {:#}", json_value);
+                println!("   Parsed JSON: {json_value:#}");
             }
         })
         .await?;

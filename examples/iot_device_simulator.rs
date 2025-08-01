@@ -373,7 +373,7 @@ impl IoTDeviceSimulator {
 
                 // Generate telemetry data
                 let telemetry = Self::generate_telemetry_data(&device_id, &device_type);
-                let topic = format!("devices/{}/telemetry", device_id);
+                let topic = format!("devices/{device_id}/telemetry");
 
                 // Try to send telemetry
                 let result = circuit_breaker
@@ -522,7 +522,7 @@ impl IoTDeviceSimulator {
                     "messages_failed": metrics.messages_failed.load(Ordering::SeqCst),
                 });
 
-                let topic = format!("devices/{}/heartbeat", device_id);
+                let topic = format!("devices/{device_id}/heartbeat");
 
                 let result = circuit_breaker
                     .call(|| async {
@@ -552,7 +552,7 @@ impl IoTDeviceSimulator {
         let state = Arc::clone(&self.state);
 
         // Subscribe to command topic
-        let command_topic = format!("devices/{}/commands/+", device_id);
+        let command_topic = format!("devices/{device_id}/commands/+");
 
         client.subscribe(&command_topic, move |msg| {
             let device_id = device_id.clone();
@@ -618,7 +618,7 @@ impl IoTDeviceSimulator {
 
                 let mut successfully_sent = 0;
                 while let Some(telemetry) = buffer_guard.pop_front() {
-                    let topic = format!("devices/{}/telemetry", device_id);
+                    let topic = format!("devices/{device_id}/telemetry");
 
                     let result = circuit_breaker
                         .call(|| async {
@@ -696,7 +696,7 @@ impl IoTDeviceSimulator {
                     "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
                 });
 
-                let topic = format!("devices/{}/health", device_id);
+                let topic = format!("devices/{device_id}/health");
                 if let Err(e) = client
                     .publish_qos0(&topic, health_report.to_string().as_bytes())
                     .await

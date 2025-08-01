@@ -292,7 +292,7 @@ impl SmartHomeHub {
             .with_automatic_reconnect(true)
             .with_reconnect_delay(Duration::from_secs(2), Duration::from_secs(30))
             .with_will(
-                WillMessage::new(format!("smarthome/{}/status", hub_id), b"offline".to_vec())
+                WillMessage::new(format!("smarthome/{hub_id}/status"), b"offline".to_vec())
                     .with_qos(QoS::AtLeastOnce)
                     .with_retain(true),
             );
@@ -331,7 +331,7 @@ impl SmartHomeHub {
                 let url = Url::parse(broker_url)?;
                 let host = url.host_str().ok_or("Invalid broker URL: missing host")?;
                 let port = url.port().unwrap_or(8883);
-                let addr = format!("{}:{}", host, port).parse()?;
+                let addr = format!("{host}:{port}").parse()?;
 
                 // Configure mTLS
                 let mut tls_config = TlsConfig::new(addr, host);
@@ -872,7 +872,7 @@ impl SmartHomeHub {
                             "reason": "energy_management"
                         });
 
-                        let topic = format!("devices/{}/command", device_id);
+                        let topic = format!("devices/{device_id}/command");
                         if let Err(e) = client
                             .publish_qos1(&topic, command.to_string().as_bytes())
                             .await

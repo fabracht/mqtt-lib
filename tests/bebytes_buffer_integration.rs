@@ -273,20 +273,19 @@ mod performance_tests {
         }
         let manual_time = start.elapsed();
 
-        println!("BeBytes buffer integration: {:?}", bebytes_time);
-        println!("Manual buffer writing: {:?}", manual_time);
+        println!("BeBytes buffer integration: {bebytes_time:?}");
+        println!("Manual buffer writing: {manual_time:?}");
 
         // BeBytes should be reasonably close to manual performance
         let ratio = bebytes_time.as_nanos() as f64 / manual_time.as_nanos() as f64;
-        println!("Performance ratio: {:.2}x", ratio);
+        println!("Performance ratio: {ratio:.2}x");
 
         // Note: The overhead here includes both BeBytes AND BytesMut.put() with Bytes
         // In real-world usage, the safety and correctness benefits outweigh this overhead
         // For ultra-performance paths, consider using encode_be_to() method instead
         assert!(
             ratio < 30.0,
-            "BeBytes integration unexpectedly slow: {:.2}x",
-            ratio
+            "BeBytes integration unexpectedly slow: {ratio:.2}x"
         );
     }
 
@@ -327,7 +326,7 @@ mod performance_tests {
         let manual_time = start.elapsed();
 
         println!("\nPerformance comparison:");
-        println!("Manual put_u8:          {:?}", manual_time);
+        println!("Manual put_u8:          {manual_time:?}");
         println!(
             "BeBytes encode_be_to:   {:?} ({:.2}x vs manual)",
             bebytes_encode_time,

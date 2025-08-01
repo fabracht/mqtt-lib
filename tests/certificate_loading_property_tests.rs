@@ -332,19 +332,19 @@ proptest! {
         if let Err(e) = cert_result {
             let msg = e.to_string();
             assert!(!msg.is_empty());
-            assert!(msg.len() > 10, "Error message should be descriptive: {}", msg);
+            assert!(msg.len() > 10, "Error message should be descriptive: {msg}");
         }
 
         if let Err(e) = key_result {
             let msg = e.to_string();
             assert!(!msg.is_empty());
-            assert!(msg.len() > 10, "Error message should be descriptive: {}", msg);
+            assert!(msg.len() > 10, "Error message should be descriptive: {msg}");
         }
 
         if let Err(e) = ca_result {
             let msg = e.to_string();
             assert!(!msg.is_empty());
-            assert!(msg.len() > 10, "Error message should be descriptive: {}", msg);
+            assert!(msg.len() > 10, "Error message should be descriptive: {msg}");
         }
     }
 

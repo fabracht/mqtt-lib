@@ -214,7 +214,7 @@ mod character_validation_tests {
             suffix in valid_topic_level()
         ) {
             // Null characters are always invalid
-            let topic_with_null = format!("{}\0{}", prefix, suffix);
+            let topic_with_null = format!("{prefix}\0{suffix}");
             let result = validate_filter(&topic_with_null);
             prop_assert!(result.is_err(),
                 "Topic with null character should be invalid");
@@ -226,7 +226,7 @@ mod character_validation_tests {
             text in valid_topic_level()
         ) {
             // Unicode should be handled correctly
-            let topic_with_unicode = format!("{}/{}/{}", text, emoji, text);
+            let topic_with_unicode = format!("{text}/{emoji}/{text}");
             let result = validate_filter(&topic_with_unicode);
 
             // Valid UTF-8 unicode should be accepted
@@ -244,7 +244,7 @@ mod character_validation_tests {
             ]
         ) {
             // Most special characters should be allowed in MQTT
-            let topic = format!("{}{}{}", base, special_char, base);
+            let topic = format!("{base}{special_char}{base}");
             let result = validate_filter(&topic);
 
             // MQTT allows most characters except null
@@ -428,7 +428,7 @@ mod edge_case_tests {
     fn test_maximum_topic_levels() {
         // MQTT doesn't specify a maximum number of levels
         let many_levels = (0..100)
-            .map(|i| format!("level{}", i))
+            .map(|i| format!("level{i}"))
             .collect::<Vec<_>>()
             .join("/");
 
@@ -445,8 +445,7 @@ mod edge_case_tests {
             let result = validate_filter(topic);
             assert!(
                 result.is_ok(),
-                "Single character topic '{}' should be valid",
-                topic
+                "Single character topic '{topic}' should be valid"
             );
         }
     }
@@ -466,8 +465,7 @@ mod edge_case_tests {
             let result = validate_filter(topic);
             assert!(
                 result.is_ok(),
-                "Wildcard pattern '{}' should be valid",
-                topic
+                "Wildcard pattern '{topic}' should be valid"
             );
         }
 
@@ -485,8 +483,7 @@ mod edge_case_tests {
             let result = validate_filter(topic);
             assert!(
                 result.is_err(),
-                "Wildcard pattern '{}' should be invalid",
-                topic
+                "Wildcard pattern '{topic}' should be invalid"
             );
         }
     }
@@ -505,9 +502,9 @@ mod edge_case_tests {
         for (topic, should_be_valid) in dollar_topics {
             let result = validate_filter(topic);
             if should_be_valid {
-                assert!(result.is_ok(), "Topic '{}' should be valid", topic);
+                assert!(result.is_ok(), "Topic '{topic}' should be valid");
             } else {
-                assert!(result.is_err(), "Topic '{}' should be invalid", topic);
+                assert!(result.is_err(), "Topic '{topic}' should be invalid");
             }
         }
     }

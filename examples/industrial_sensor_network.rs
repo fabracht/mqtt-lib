@@ -446,14 +446,14 @@ impl IndustrialSensorNetwork {
         info!(network_id = %network_id, "Initializing industrial sensor network");
 
         // Create MQTT client for network coordination
-        let connect_options = ConnectOptions::new(format!("industrial-network-{}", network_id))
+        let connect_options = ConnectOptions::new(format!("industrial-network-{network_id}"))
             .with_clean_start(false)
             .with_keep_alive(Duration::from_secs(30))
             .with_automatic_reconnect(true)
             .with_reconnect_delay(Duration::from_secs(2), Duration::from_secs(120))
             .with_will(
                 WillMessage::new(
-                    format!("networks/{}/status", network_id),
+                    format!("networks/{network_id}/status"),
                     b"offline".to_vec(),
                 )
                 .with_qos(QoS::AtLeastOnce)
@@ -497,7 +497,7 @@ impl IndustrialSensorNetwork {
             let url = Url::parse(broker_url)?;
             let host = url.host_str().ok_or("Invalid broker URL: missing host")?;
             let port = url.port().unwrap_or(8883);
-            let addr = format!("{}:{}", host, port).parse()?;
+            let addr = format!("{host}:{port}").parse()?;
 
             // Configure enterprise mTLS with custom CA
             let mut tls_config = TlsConfig::new(addr, host);
@@ -696,7 +696,7 @@ impl IndustrialSensorNetwork {
 
                 for (zone_id, zone_status) in status {
                     // Publish failover status
-                    let topic = format!("networks/zones/{}/failover-status", zone_id);
+                    let topic = format!("networks/zones/{zone_id}/failover-status");
                     if let Ok(payload) = serde_json::to_string(&zone_status) {
                         if let Err(e) = client.publish_qos0(&topic, payload.as_bytes()).await {
                             warn!(error = %e, "Failed to publish failover status");
@@ -756,7 +756,7 @@ impl IndustrialSensorNetwork {
                         warn!(alert_id = %alert_id, age_seconds = %alert_age, "Alert requires escalation");
 
                         // Publish escalation
-                        let topic = format!("networks/alerts/{}/escalation", alert_id);
+                        let topic = format!("networks/alerts/{alert_id}/escalation");
                         let escalation = serde_json::json!({
                             "alert_id": alert_id,
                             "escalation_level": alert.escalation_count + 1,
@@ -852,7 +852,7 @@ impl IndustrialSensorNetwork {
                     }
 
                     // Publish aggregated data
-                    let topic = format!("networks/sensors/{}/historical", sensor_id);
+                    let topic = format!("networks/sensors/{sensor_id}/historical");
                     if let Ok(payload) = serde_json::to_string(&data_point) {
                         if let Err(e) = client.publish_qos0(&topic, payload.as_bytes()).await {
                             warn!(error = %e, "Failed to publish historical data");

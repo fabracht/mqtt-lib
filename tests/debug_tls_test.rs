@@ -12,7 +12,7 @@ mod tests {
 
         // Parse address
         let addr = "127.0.0.1:8883".parse().expect("Failed to parse address");
-        println!("Connecting to address: {:?}", addr);
+        println!("Connecting to address: {addr:?}");
 
         // Create TLS config
         let mut tls_config = TlsConfig::new(addr, "localhost");

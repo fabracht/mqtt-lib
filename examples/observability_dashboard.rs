@@ -268,7 +268,7 @@ impl TimeSeriesDatabase {
         let mut results = Vec::new();
 
         for (series_key, series) in metrics.iter() {
-            if !series_key.starts_with(&format!("{}:", metric_name)) {
+            if !series_key.starts_with(&format!("{metric_name}:")) {
                 continue;
             }
 
@@ -317,11 +317,11 @@ impl TimeSeriesDatabase {
 impl MetricDataPoint {
     fn source_key(&self) -> String {
         match &self.source {
-            MetricSource::IoTDevice { device_type } => format!("iot_{}", device_type),
-            MetricSource::SmartHomeHub { hub_id } => format!("hub_{}", hub_id),
-            MetricSource::IndustrialNetwork { network_id } => format!("industrial_{}", network_id),
-            MetricSource::MqttBroker { broker_id } => format!("broker_{}", broker_id),
-            MetricSource::Dashboard { dashboard_id } => format!("dashboard_{}", dashboard_id),
+            MetricSource::IoTDevice { device_type } => format!("iot_{device_type}"),
+            MetricSource::SmartHomeHub { hub_id } => format!("hub_{hub_id}"),
+            MetricSource::IndustrialNetwork { network_id } => format!("industrial_{network_id}"),
+            MetricSource::MqttBroker { broker_id } => format!("broker_{broker_id}"),
+            MetricSource::Dashboard { dashboard_id } => format!("dashboard_{dashboard_id}"),
         }
     }
 }
@@ -805,14 +805,14 @@ impl ObservabilityDashboard {
         info!(dashboard_id = %dashboard_id, "Initializing Observability Dashboard");
 
         // Create MQTT client for collecting metrics
-        let connect_options = ConnectOptions::new(format!("observability-{}", dashboard_id))
+        let connect_options = ConnectOptions::new(format!("observability-{dashboard_id}"))
             .with_clean_start(false)
             .with_keep_alive(Duration::from_secs(30))
             .with_automatic_reconnect(true)
             .with_reconnect_delay(Duration::from_secs(2), Duration::from_secs(60))
             .with_will(
                 WillMessage::new(
-                    format!("observability/{}/status", dashboard_id),
+                    format!("observability/{dashboard_id}/status"),
                     b"offline".to_vec(),
                 )
                 .with_qos(QoS::AtLeastOnce)
@@ -1228,7 +1228,7 @@ async fn handle_metrics_request(
                     let labels: Vec<String> = metric
                         .labels
                         .iter()
-                        .map(|(k, v)| format!("{}=\"{}\"", k, v))
+                        .map(|(k, v)| format!("{k}=\"{v}\""))
                         .collect();
                     prometheus_output.push_str(&format!(
                         "{}{{{}}} {}\n",

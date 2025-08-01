@@ -226,8 +226,8 @@ mod raw_pointer_benchmarks {
         let std_time = start.elapsed();
 
         println!("Single-byte structure (1M iterations):");
-        println!("  to_be_bytes_buf(): {:?}", buf_time);
-        println!("  to_be_bytes():     {:?}", std_time);
+        println!("  to_be_bytes_buf(): {buf_time:?}");
+        println!("  to_be_bytes():     {std_time:?}");
         println!(
             "  Speedup: {:.2}x",
             std_time.as_nanos() as f64 / buf_time.as_nanos() as f64
@@ -253,8 +253,8 @@ mod raw_pointer_benchmarks {
         let std_time = start.elapsed();
 
         println!("Fixed-size structure (1M iterations):");
-        println!("  to_be_bytes_buf(): {:?}", buf_time);
-        println!("  to_be_bytes():     {:?}", std_time);
+        println!("  to_be_bytes_buf(): {buf_time:?}");
+        println!("  to_be_bytes():     {std_time:?}");
         println!(
             "  Speedup: {:.2}x",
             std_time.as_nanos() as f64 / buf_time.as_nanos() as f64
