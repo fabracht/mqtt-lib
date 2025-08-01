@@ -47,9 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client
         .on_connection_event(|event| match event {
             ConnectionEvent::Connected { session_present } => {
-                println!(
-                    "✅ Connected to MQTT broker (session_present: {session_present})"
-                );
+                println!("✅ Connected to MQTT broker (session_present: {session_present})");
             }
             ConnectionEvent::Disconnected { reason } => {
                 println!("❌ Disconnected from broker: {reason:?}");
@@ -78,9 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
 
-    println!(
-        "✅ Subscribed with packet_id={packet_id}, QoS={granted_qos:?}"
-    );
+    println!("✅ Subscribed with packet_id={packet_id}, QoS={granted_qos:?}");
 
     // Subscribe to another topic for JSON data
     println!("📬 Subscribing to topic 'demo/json'");

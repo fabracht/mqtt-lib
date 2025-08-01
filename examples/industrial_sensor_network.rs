@@ -452,12 +452,9 @@ impl IndustrialSensorNetwork {
             .with_automatic_reconnect(true)
             .with_reconnect_delay(Duration::from_secs(2), Duration::from_secs(120))
             .with_will(
-                WillMessage::new(
-                    format!("networks/{network_id}/status"),
-                    b"offline".to_vec(),
-                )
-                .with_qos(QoS::AtLeastOnce)
-                .with_retain(true),
+                WillMessage::new(format!("networks/{network_id}/status"), b"offline".to_vec())
+                    .with_qos(QoS::AtLeastOnce)
+                    .with_retain(true),
             );
 
         let client = Arc::new(MqttClient::with_options(connect_options));

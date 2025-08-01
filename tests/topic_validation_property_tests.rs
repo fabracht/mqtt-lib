@@ -463,10 +463,7 @@ mod edge_case_tests {
 
         for topic in valid {
             let result = validate_filter(topic);
-            assert!(
-                result.is_ok(),
-                "Wildcard pattern '{topic}' should be valid"
-            );
+            assert!(result.is_ok(), "Wildcard pattern '{topic}' should be valid");
         }
 
         // Invalid combinations
