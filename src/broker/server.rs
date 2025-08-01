@@ -4,8 +4,10 @@
 
 use crate::broker::auth::{AllowAllAuthProvider, AuthProvider};
 use crate::broker::client_handler::ClientHandler;
-use crate::broker::config::BrokerConfig;
+use crate::broker::config::{BrokerConfig, StorageBackend as StorageBackendType};
 use crate::broker::router::MessageRouter;
+use crate::broker::storage::{DynamicStorage, FileBackend, MemoryBackend, StorageBackend};
+use crate::broker::sys_topics::{BrokerStats, SysTopicsProvider};
 use crate::error::{MqttError, Result};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -16,6 +18,8 @@ pub struct MqttBroker {
     config: Arc<BrokerConfig>,
     router: Arc<MessageRouter>,
     auth_provider: Arc<dyn AuthProvider>,
+    storage: Option<Arc<DynamicStorage>>,
+    stats: Arc<BrokerStats>,
     listener: Option<TcpListener>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
 }
@@ -47,18 +51,46 @@ impl MqttBroker {
         let listener = TcpListener::bind(&config.bind_address).await?;
         info!("MQTT broker listening on {}", config.bind_address);
         
+        // Create storage backend
+        let storage = if config.storage_config.enable_persistence {
+            Some(Self::create_storage_backend(&config.storage_config).await?)
+        } else {
+            None
+        };
+        
         // Create shared components
-        let router = Arc::new(MessageRouter::new());
+        let router = if let Some(ref storage) = storage {
+            Arc::new(MessageRouter::with_storage(Arc::clone(storage)))
+        } else {
+            Arc::new(MessageRouter::new())
+        };
         let auth_provider: Arc<dyn AuthProvider> = Arc::new(AllowAllAuthProvider);
+        let stats = Arc::new(BrokerStats::new());
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         
         Ok(Self {
             config: Arc::new(config),
             router,
             auth_provider,
+            storage,
+            stats,
             listener: Some(listener),
             shutdown_tx: Some(shutdown_tx),
         })
+    }
+    
+    /// Create storage backend based on configuration
+    async fn create_storage_backend(storage_config: &crate::broker::config::StorageConfig) -> Result<Arc<DynamicStorage>> {
+        match storage_config.backend {
+            StorageBackendType::File => {
+                let backend = FileBackend::new(&storage_config.base_dir).await?;
+                Ok(Arc::new(DynamicStorage::File(backend)))
+            }
+            StorageBackendType::Memory => {
+                let backend = MemoryBackend::new();
+                Ok(Arc::new(DynamicStorage::Memory(backend)))
+            }
+        }
     }
     
     /// Sets a custom authentication provider
@@ -66,6 +98,37 @@ impl MqttBroker {
     pub fn with_auth_provider(mut self, provider: Arc<dyn AuthProvider>) -> Self {
         self.auth_provider = provider;
         self
+    }
+    
+    /// Initialize storage and start cleanup tasks
+    async fn initialize_storage(&self) -> Result<()> {
+        if let Some(ref storage) = self.storage {
+            // Perform initial cleanup
+            storage.cleanup_expired().await?;
+            
+            // Start periodic cleanup task
+            let storage_clone = Arc::clone(storage);
+            let cleanup_interval = self.config.storage_config.cleanup_interval;
+            let mut shutdown_rx = self.shutdown_tx.as_ref().unwrap().subscribe();
+            
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(cleanup_interval);
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = storage_clone.cleanup_expired().await {
+                                error!("Storage cleanup error: {}", e);
+                            }
+                        }
+                        _ = shutdown_rx.recv() => {
+                            debug!("Storage cleanup task shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        Ok(())
     }
     
     /// Runs the broker until shutdown
@@ -84,6 +147,19 @@ impl MqttBroker {
             return Err(MqttError::InvalidState("Broker already running".to_string()));
         };
         
+        // Initialize storage and cleanup tasks
+        self.initialize_storage().await?;
+        
+        // Initialize router (load retained messages)
+        self.router.initialize().await?;
+        
+        // Start $SYS topics provider
+        let sys_provider = SysTopicsProvider::new(
+            Arc::clone(&self.router),
+            Arc::clone(&self.stats),
+        );
+        sys_provider.start().await;
+        
         let mut shutdown_rx = shutdown_tx.subscribe();
         
         loop {
@@ -101,6 +177,8 @@ impl MqttBroker {
                                 Arc::clone(&self.config),
                                 Arc::clone(&self.router),
                                 Arc::clone(&self.auth_provider),
+                                self.storage.clone(),
+                                Arc::clone(&self.stats),
                                 shutdown_tx.subscribe(),
                             );
                             
@@ -148,24 +226,10 @@ impl MqttBroker {
     }
     
     /// Gets broker statistics
-    pub async fn stats(&self) -> BrokerStats {
-        BrokerStats {
-            connected_clients: self.router.client_count().await,
-            total_topics: self.router.topic_count().await,
-            retained_messages: self.router.retained_count().await,
-        }
+    #[must_use]
+    pub fn stats(&self) -> Arc<BrokerStats> {
+        Arc::clone(&self.stats)
     }
-}
-
-/// Broker statistics
-#[derive(Debug, Clone)]
-pub struct BrokerStats {
-    /// Number of currently connected clients
-    pub connected_clients: usize,
-    /// Number of topics with active subscriptions
-    pub total_topics: usize,
-    /// Number of retained messages
-    pub retained_messages: usize,
 }
 
 #[cfg(test)]
@@ -209,10 +273,8 @@ mod tests {
     #[tokio::test]
     async fn test_broker_stats() {
         let broker = MqttBroker::bind("127.0.0.1:0").await.unwrap();
-        let stats = broker.stats().await;
+        let stats = broker.stats();
         
-        assert_eq!(stats.connected_clients, 0);
-        assert_eq!(stats.total_topics, 0);
-        assert_eq!(stats.retained_messages, 0);
+        assert_eq!(stats.clients_connected.load(std::sync::atomic::Ordering::Relaxed), 0);
     }
 }

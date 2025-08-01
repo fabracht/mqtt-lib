@@ -46,6 +46,10 @@ tempfile = "3.12.0"
 name = "simple_broker"
 path = "examples/simple_broker.rs"
 
+[[example]]
+name = "broker_with_monitoring"
+path = "examples/broker_with_monitoring.rs"
+
 [[bench]]
 name = "mqtt_benchmarks"
 harness = false
@@ -76,9 +80,11 @@ bcrypt = "0.17.0"
 bebytes = "2.7.0"
 bytes = "1.10.1"
 hex = "0.4.3"
+rand = "0.9.2"
 rustls = "0.23.29"
 rustls-pemfile = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.141"
 sha2 = "0.10.8"
 thiserror = "2.0.12"
 tokio = { version = "1.46.1", features = ["full"] }

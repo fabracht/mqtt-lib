@@ -55,6 +55,9 @@ pub struct BrokerConfig {
     
     /// WebSocket configuration
     pub websocket_config: Option<WebSocketConfig>,
+    
+    /// Storage configuration
+    pub storage_config: StorageConfig,
 }
 
 impl Default for BrokerConfig {
@@ -75,6 +78,7 @@ impl Default for BrokerConfig {
             auth_config: AuthConfig::default(),
             tls_config: None,
             websocket_config: None,
+            storage_config: StorageConfig::default(),
         }
     }
 }
@@ -146,6 +150,13 @@ impl BrokerConfig {
     #[must_use]
     pub fn with_websocket(mut self, ws: WebSocketConfig) -> Self {
         self.websocket_config = Some(ws);
+        self
+    }
+    
+    /// Sets the storage configuration
+    #[must_use]
+    pub fn with_storage(mut self, storage: StorageConfig) -> Self {
+        self.storage_config = storage;
         self
     }
     
@@ -327,6 +338,78 @@ impl WebSocketConfig {
     }
 }
 
+/// Storage configuration
+#[derive(Debug, Clone)]
+pub struct StorageConfig {
+    /// Storage backend type
+    pub backend: StorageBackend,
+    
+    /// Base directory for file storage
+    pub base_dir: PathBuf,
+    
+    /// Cleanup interval for expired entries
+    pub cleanup_interval: Duration,
+    
+    /// Enable storage persistence
+    pub enable_persistence: bool,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            backend: StorageBackend::File,
+            base_dir: PathBuf::from("./mqtt_storage"),
+            cleanup_interval: Duration::from_secs(3600), // 1 hour
+            enable_persistence: true,
+        }
+    }
+}
+
+impl StorageConfig {
+    /// Creates a new storage configuration
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    /// Sets the storage backend
+    #[must_use]
+    pub fn with_backend(mut self, backend: StorageBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+    
+    /// Sets the base directory for file storage
+    #[must_use]
+    pub fn with_base_dir(mut self, dir: PathBuf) -> Self {
+        self.base_dir = dir;
+        self
+    }
+    
+    /// Sets the cleanup interval
+    #[must_use]
+    pub fn with_cleanup_interval(mut self, interval: Duration) -> Self {
+        self.cleanup_interval = interval;
+        self
+    }
+    
+    /// Enables or disables persistence
+    #[must_use]
+    pub fn with_persistence(mut self, enabled: bool) -> Self {
+        self.enable_persistence = enabled;
+        self
+    }
+}
+
+/// Storage backend type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageBackend {
+    /// File-based storage
+    File,
+    /// In-memory storage (for testing)
+    Memory,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -393,5 +476,19 @@ mod tests {
         assert_eq!(ws.bind_address.to_string(), "0.0.0.0:8443");
         assert_eq!(ws.path, "/ws");
         assert!(ws.use_tls);
+    }
+    
+    #[test]
+    fn test_storage_config() {
+        let storage = StorageConfig::new()
+            .with_backend(StorageBackend::Memory)
+            .with_base_dir("/tmp/mqtt".into())
+            .with_cleanup_interval(Duration::from_secs(1800))
+            .with_persistence(false);
+        
+        assert_eq!(storage.backend, StorageBackend::Memory);
+        assert_eq!(storage.base_dir.to_str().unwrap(), "/tmp/mqtt");
+        assert_eq!(storage.cleanup_interval, Duration::from_secs(1800));
+        assert!(!storage.enable_persistence);
     }
 }

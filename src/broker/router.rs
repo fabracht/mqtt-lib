@@ -2,13 +2,14 @@
 //! 
 //! Routes messages between clients based on subscriptions
 
+use crate::broker::storage::{DynamicStorage, RetainedMessage, QueuedMessage, StorageBackend};
 use crate::packet::publish::PublishPacket;
 use crate::validation::topic_matches_filter;
 use crate::QoS;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, trace};
+use tracing::{debug, trace, error};
 
 /// Client subscription information
 #[derive(Debug, Clone)]
@@ -25,10 +26,12 @@ pub struct Subscription {
 pub struct MessageRouter {
     /// Map of topic filters to subscriptions
     subscriptions: Arc<RwLock<HashMap<String, Vec<Subscription>>>>,
-    /// Map of exact topics to retained messages
+    /// Map of exact topics to retained messages (in-memory cache)
     retained_messages: Arc<RwLock<HashMap<String, PublishPacket>>>,
     /// Active client connections
     clients: Arc<RwLock<HashMap<String, ClientInfo>>>,
+    /// Storage backend for persistence
+    storage: Option<Arc<DynamicStorage>>,
 }
 
 /// Information about a connected client
@@ -46,7 +49,35 @@ impl MessageRouter {
             subscriptions: Arc::new(RwLock::new(HashMap::new())),
             retained_messages: Arc::new(RwLock::new(HashMap::new())),
             clients: Arc::new(RwLock::new(HashMap::new())),
+            storage: None,
         }
+    }
+    
+    /// Creates a new message router with storage backend
+    #[must_use]
+    pub fn with_storage(storage: Arc<DynamicStorage>) -> Self {
+        Self {
+            subscriptions: Arc::new(RwLock::new(HashMap::new())),
+            retained_messages: Arc::new(RwLock::new(HashMap::new())),
+            clients: Arc::new(RwLock::new(HashMap::new())),
+            storage: Some(storage),
+        }
+    }
+    
+    /// Initializes the router by loading retained messages from storage
+    pub async fn initialize(&self) -> Result<(), crate::error::MqttError> {
+        if let Some(ref storage) = self.storage {
+            // Load all retained messages from storage
+            let stored_messages = storage.get_retained_messages("#").await?;
+            let mut retained = self.retained_messages.write().await;
+            
+            for (topic, msg) in stored_messages {
+                retained.insert(topic, msg.to_publish_packet());
+            }
+            
+            debug!("Loaded {} retained messages from storage", retained.len());
+        }
+        Ok(())
     }
     
     /// Registers a client connection
@@ -124,9 +155,24 @@ impl MessageRouter {
                 // Empty payload means delete retained message
                 retained.remove(&publish.topic_name);
                 debug!("Deleted retained message for topic: {}", publish.topic_name);
+                
+                // Remove from storage
+                if let Some(ref storage) = self.storage {
+                    if let Err(e) = storage.remove_retained_message(&publish.topic_name).await {
+                        tracing::error!("Failed to remove retained message from storage: {}", e);
+                    }
+                }
             } else {
                 retained.insert(publish.topic_name.clone(), publish.clone());
                 debug!("Stored retained message for topic: {}", publish.topic_name);
+                
+                // Persist to storage
+                if let Some(ref storage) = self.storage {
+                    let retained_msg = RetainedMessage::new(publish.clone());
+                    if let Err(e) = storage.store_retained_message(&publish.topic_name, retained_msg).await {
+                        tracing::error!("Failed to store retained message to storage: {}", e);
+                    }
+                }
             }
         }
         
@@ -155,7 +201,45 @@ impl MessageRouter {
                         }
                         
                         // Send to client (non-blocking)
-                        let _ = client_info.sender.try_send(message);
+                        if let Err(e) = client_info.sender.try_send(message.clone()) {
+                            // Client's channel is full or disconnected, queue for later
+                            if self.storage.is_some() && effective_qos != QoS::AtMostOnce {
+                                if let Some(ref storage) = self.storage {
+                                    let queued_msg = QueuedMessage::new(
+                                        message.clone(),
+                                        sub.client_id.clone(),
+                                        effective_qos,
+                                        message.packet_id,
+                                    );
+                                    if let Err(e) = storage.queue_message(queued_msg).await {
+                                        error!("Failed to queue message for offline client {}: {}", sub.client_id, e);
+                                    } else {
+                                        debug!("Queued message for client {}", sub.client_id);
+                                    }
+                                }
+                            }
+                            trace!("Failed to send message to client {}: {:?}", sub.client_id, e);
+                        }
+                    } else {
+                        // Client is offline, queue message if QoS > 0
+                        if self.storage.is_some() && sub.qos != QoS::AtMostOnce {
+                            if let Some(ref storage) = self.storage {
+                                let mut message = publish.clone();
+                                message.qos = sub.qos;
+                                
+                                let queued_msg = QueuedMessage::new(
+                                    message,
+                                    sub.client_id.clone(),
+                                    sub.qos,
+                                    None, // Will be assigned when delivered
+                                );
+                                if let Err(e) = storage.queue_message(queued_msg).await {
+                                    error!("Failed to queue message for offline client {}: {}", sub.client_id, e);
+                                } else {
+                                    debug!("Queued message for offline client {}", sub.client_id);
+                                }
+                            }
+                        }
                     }
                 }
             }

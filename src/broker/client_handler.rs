@@ -3,6 +3,8 @@
 use crate::broker::auth::AuthProvider;
 use crate::broker::config::BrokerConfig;
 use crate::broker::router::MessageRouter;
+use crate::broker::storage::{ClientSession, DynamicStorage, StorageBackend};
+use crate::broker::sys_topics::BrokerStats;
 use crate::broker::tcp_stream_wrapper::TcpStreamWrapper;
 use crate::error::{MqttError, Result};
 use crate::packet::connack::ConnAckPacket;
@@ -37,6 +39,8 @@ pub struct ClientHandler {
     config: Arc<BrokerConfig>,
     router: Arc<MessageRouter>,
     auth_provider: Arc<dyn AuthProvider>,
+    storage: Option<Arc<DynamicStorage>>,
+    stats: Arc<BrokerStats>,
     shutdown_rx: tokio::sync::broadcast::Receiver<()>,
     client_id: Option<String>,
     user_id: Option<String>,
@@ -44,6 +48,7 @@ pub struct ClientHandler {
     publish_rx: mpsc::Receiver<PublishPacket>,
     publish_tx: mpsc::Sender<PublishPacket>,
     inflight_publishes: HashMap<u16, PublishPacket>,
+    session: Option<ClientSession>,
 }
 
 impl ClientHandler {
@@ -54,6 +59,8 @@ impl ClientHandler {
         config: Arc<BrokerConfig>,
         router: Arc<MessageRouter>,
         auth_provider: Arc<dyn AuthProvider>,
+        storage: Option<Arc<DynamicStorage>>,
+        stats: Arc<BrokerStats>,
         shutdown_rx: tokio::sync::broadcast::Receiver<()>,
     ) -> Self {
         let (publish_tx, publish_rx) = mpsc::channel(100);
@@ -64,6 +71,8 @@ impl ClientHandler {
             config,
             router,
             auth_provider,
+            storage,
+            stats,
             shutdown_rx,
             client_id: None,
             user_id: None,
@@ -71,6 +80,7 @@ impl ClientHandler {
             publish_rx,
             publish_tx,
             inflight_publishes: HashMap::new(),
+            session: None,
         }
     }
     
@@ -90,6 +100,7 @@ impl ClientHandler {
             Ok(Ok(())) => {
                 // Successfully connected
                 info!("Client {} connected from {}", self.client_id.as_ref().unwrap(), self.client_addr);
+                self.stats.client_connected();
             }
             Ok(Err(e)) => {
                 error!("Connect error: {}", e);
@@ -114,6 +125,25 @@ impl ClientHandler {
         
         // Cleanup
         self.router.unregister_client(&client_id).await;
+        
+        // Handle session cleanup based on session expiry
+        if let Some(ref storage) = self.storage {
+            if let Some(ref session) = self.session {
+                // Update session last seen time
+                if let Some(mut stored_session) = storage.get_session(&client_id).await.ok().flatten() {
+                    stored_session.touch();
+                    storage.store_session(stored_session).await.ok();
+                }
+                
+                // If session expiry is 0, remove session and queued messages
+                if session.expiry_interval == Some(0) {
+                    storage.remove_session(&client_id).await.ok();
+                    storage.remove_queued_messages(&client_id).await.ok();
+                    debug!("Removed session and queued messages for client {}", client_id);
+                }
+            }
+        }
+        
         info!("Client {} disconnected", client_id);
         
         result
@@ -231,8 +261,53 @@ impl ClientHandler {
         self.user_id = auth_result.user_id;
         self.keep_alive = Duration::from_secs(u64::from(connect.keep_alive));
         
+        // Handle session
+        let mut session_present = false;
+        if let Some(ref storage) = self.storage {
+            // Get or create session
+            let existing_session = storage.get_session(&connect.client_id).await?;
+            
+            if connect.clean_start || existing_session.is_none() {
+                // Create new session
+                let session = ClientSession::new(
+                    connect.client_id.clone(),
+                    true, // persistent
+                    None, // TODO: Extract session expiry from properties
+                );
+                storage.store_session(session.clone()).await?;
+                self.session = Some(session);
+            } else if let Some(mut session) = existing_session {
+                // Existing session found
+                session_present = true;
+                
+                // Restore subscriptions
+                for (topic_filter, qos) in &session.subscriptions {
+                    self.router.subscribe(
+                        connect.client_id.clone(),
+                        topic_filter.clone(),
+                        *qos,
+                        None,
+                    ).await;
+                }
+                
+                // Update last seen
+                session.touch();
+                storage.store_session(session.clone()).await?;
+                self.session = Some(session);
+                
+                // Deliver queued messages
+                let queued_messages = storage.get_queued_messages(&connect.client_id).await?;
+                for msg in queued_messages {
+                    let publish = msg.to_publish_packet();
+                    self.publish_tx.try_send(publish).ok();
+                }
+                // Clear delivered messages
+                storage.remove_queued_messages(&connect.client_id).await?;
+            }
+        }
+        
         // Send CONNACK
-        let mut connack = ConnAckPacket::new(false, ReasonCode::Success);
+        let mut connack = ConnAckPacket::new(session_present, ReasonCode::Success);
         
         // Set broker properties using setter methods
         connack.properties.set_topic_alias_maximum(self.config.topic_alias_maximum);
@@ -281,6 +356,14 @@ impl ClientHandler {
                 None,
             ).await;
             
+            // Persist subscription to session
+            if let Some(ref mut session) = self.session {
+                session.add_subscription(filter.filter.clone(), QoS::from(granted_qos));
+                if let Some(ref storage) = self.storage {
+                    storage.store_session(session.clone()).await.ok();
+                }
+            }
+            
             // Send retained messages if requested
             if filter.options.retain_handling != crate::packet::subscribe::RetainHandling::DoNotSend {
                 let retained = self.router.get_retained_messages(&filter.filter).await;
@@ -307,6 +390,17 @@ impl ClientHandler {
         
         for topic_filter in &unsubscribe.filters {
             let removed = self.router.unsubscribe(client_id, topic_filter).await;
+            
+            // Remove from persisted session
+            if removed {
+                if let Some(ref mut session) = self.session {
+                    session.remove_subscription(topic_filter);
+                    if let Some(ref storage) = self.storage {
+                        storage.store_session(session.clone()).await.ok();
+                    }
+                }
+            }
+            
             reason_codes.push(if removed {
                 crate::packet::unsuback::UnsubAckReasonCode::Success
             } else {
@@ -322,6 +416,10 @@ impl ClientHandler {
     /// Handles PUBLISH packet
     async fn handle_publish(&mut self, publish: PublishPacket) -> Result<()> {
         let client_id = self.client_id.as_ref().unwrap();
+        
+        // Track publish received stats
+        let payload_size = publish.payload.len();
+        self.stats.publish_received(payload_size);
         
         // Check authorization
         let authorized = self.auth_provider
@@ -417,6 +515,19 @@ impl ClientHandler {
     
     /// Sends a publish to the client
     async fn send_publish(&mut self, publish: PublishPacket) -> Result<()> {
-        self.transport.write_packet(Packet::Publish(publish)).await
+        let payload_size = publish.payload.len();
+        self.transport.write_packet(Packet::Publish(publish)).await?;
+        self.stats.publish_sent(payload_size);
+        Ok(())
+    }
+}
+
+impl Drop for ClientHandler {
+    fn drop(&mut self) {
+        // Clean up is handled in the run method after the main loop
+        if let Some(ref client_id) = self.client_id {
+            debug!("Client handler dropped for {}", client_id);
+            self.stats.client_disconnected();
+        }
     }
 }

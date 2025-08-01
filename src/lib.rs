@@ -146,7 +146,7 @@ pub use validation::{
     StandardValidator, TopicValidator,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum QoS {
     AtMostOnce = 0,
     AtLeastOnce = 1,

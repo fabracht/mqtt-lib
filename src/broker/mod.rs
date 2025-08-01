@@ -27,12 +27,15 @@ pub mod client_handler;
 pub mod config;
 pub mod router;
 pub mod server;
+pub mod storage;
+pub mod sys_topics;
 mod tcp_stream_wrapper;
 
 pub use acl::{AclManager, AclRule, Permission};
 pub use auth::{AllowAllAuthProvider, AuthProvider, AuthResult, CertificateAuthProvider, ComprehensiveAuthProvider, PasswordAuthProvider};
-pub use config::BrokerConfig;
+pub use config::{BrokerConfig, StorageConfig, StorageBackend as StorageBackendType};
 pub use server::MqttBroker;
+pub use storage::{Storage, StorageBackend, FileBackend, MemoryBackend, DynamicStorage};
 
 // Re-export key types for convenience
 pub use crate::QoS;
