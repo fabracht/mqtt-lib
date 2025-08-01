@@ -69,7 +69,7 @@ Four comprehensive examples demonstrating real-world usage patterns:
 3. **Industrial Sensor Network** - Enterprise security, custom CA, failover
 4. **Observability Dashboard** - Metrics collection, HTTP endpoints, monitoring
 
-## [0.3.0] - 2025-07-31
+## [0.3.0] - 2025-08-01
 
 ### Added
 - **Certificate loading from bytes**: Load TLS certificates from memory (PEM/DER formats)
@@ -90,11 +90,26 @@ Four comprehensive examples demonstrating real-world usage patterns:
   - Certificate loading robustness testing with arbitrary inputs
   - WebSocket configuration validation across all input domains
   - Memory safety verification for all certificate operations
+- **AWS IoT namespace validator**: Topic validation for AWS IoT Core
+  - Enforces AWS IoT topic restrictions and length limits (256 chars)
+  - Device-specific topic isolation
+  - Reserved topic protection
+- **Supply chain security**: Enhanced security measures
+  - GPG commit signing setup
+  - Dependabot configuration
+  - Security policy documentation
+
+### Fixed
+- Topic validation now correctly follows MQTT v5.0 specification
+- AWS IoT namespace uses correct "things" (plural) path
+- Subscription management handles duplicate topics correctly (replacement behavior)
+- All clippy warnings resolved (65+ uninlined format strings)
 
 ### Enhanced
 - TLS configuration now supports loading certificates from memory for cloud deployments
 - WebSocket configuration supports all TLS features (client auth, custom CA, etc.)
 - Comprehensive examples showing certificate loading patterns for different deployment scenarios
+- CI pipeline optimized and all tests passing
 
 ### Use Cases Enabled
 - **Cloud deployments**: Load certificates from Kubernetes secrets, environment variables
