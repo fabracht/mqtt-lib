@@ -134,6 +134,12 @@ Before implementing anything, ask yourself:
 
 **Remember: This is Rust. We write direct async code and let the compiler and runtime handle the magic.**
 
+## CRITICAL: Git Commit Rules
+
+**FORBIDDEN: Never use `--no-verify` flag with git commits**
+
+You MUST NOT bypass pre-commit hooks. If CI verification fails, you MUST fix the issues before committing. This ensures code quality and prevents broken builds from being pushed.
+
 ## CRITICAL: Output Handling and Verification Instructions
 
 ### NEVER Filter Command Outputs

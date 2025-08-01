@@ -5,7 +5,7 @@ use crate::broker::config::BrokerConfig;
 use crate::broker::router::MessageRouter;
 use crate::broker::storage::{ClientSession, DynamicStorage, StorageBackend};
 use crate::broker::sys_topics::BrokerStats;
-use crate::broker::tcp_stream_wrapper::TcpStreamWrapper;
+use crate::broker::transport::BrokerTransport;
 use crate::error::{MqttError, Result};
 use crate::packet::connack::ConnAckPacket;
 use crate::packet::connect::ConnectPacket;
@@ -27,14 +27,13 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::{interval, timeout};
 use tracing::{debug, error, info, trace, warn};
 
 /// Handles a single client connection
 pub struct ClientHandler {
-    transport: TcpStreamWrapper,
+    transport: BrokerTransport,
     client_addr: SocketAddr,
     config: Arc<BrokerConfig>,
     router: Arc<MessageRouter>,
@@ -55,7 +54,7 @@ impl ClientHandler {
     /// Creates a new client handler
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        stream: TcpStream,
+        transport: BrokerTransport,
         client_addr: SocketAddr,
         config: Arc<BrokerConfig>,
         router: Arc<MessageRouter>,
@@ -67,7 +66,7 @@ impl ClientHandler {
         let (publish_tx, publish_rx) = mpsc::channel(100);
 
         Self {
-            transport: TcpStreamWrapper::new(stream),
+            transport,
             client_addr,
             config,
             router,
@@ -101,10 +100,14 @@ impl ClientHandler {
             Ok(Ok(())) => {
                 // Successfully connected
                 info!(
-                    "Client {} connected from {}",
+                    "Client {} connected from {} ({})",
                     self.client_id.as_ref().unwrap(),
-                    self.client_addr
+                    self.client_addr,
+                    self.transport.transport_type()
                 );
+                if let Some(cert_info) = self.transport.client_cert_info() {
+                    debug!("Client certificate: {}", cert_info);
+                }
                 self.stats.client_connected();
             }
             Ok(Err(e)) => {

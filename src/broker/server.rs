@@ -8,9 +8,12 @@ use crate::broker::config::{BrokerConfig, StorageBackend as StorageBackendType};
 use crate::broker::router::MessageRouter;
 use crate::broker::storage::{DynamicStorage, FileBackend, MemoryBackend, StorageBackend};
 use crate::broker::sys_topics::{BrokerStats, SysTopicsProvider};
+use crate::broker::tls_acceptor::{accept_tls_connection, TlsAcceptorConfig};
+use crate::broker::transport::BrokerTransport;
 use crate::error::{MqttError, Result};
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
 use tracing::{debug, error, info};
 
 /// MQTT v5.0 Broker
@@ -21,6 +24,8 @@ pub struct MqttBroker {
     storage: Option<Arc<DynamicStorage>>,
     stats: Arc<BrokerStats>,
     listener: Option<TcpListener>,
+    tls_listener: Option<TcpListener>,
+    tls_acceptor: Option<TlsAcceptor>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
 }
 
@@ -53,6 +58,45 @@ impl MqttBroker {
         let listener = TcpListener::bind(&config.bind_address).await?;
         info!("MQTT broker listening on {}", config.bind_address);
 
+        // Set up TLS if configured
+        let (tls_listener, tls_acceptor) = if let Some(ref tls_config) = config.tls_config {
+            // Load certificates and key
+            let cert_chain =
+                TlsAcceptorConfig::load_cert_chain_from_file(&tls_config.cert_file).await?;
+            let private_key =
+                TlsAcceptorConfig::load_private_key_from_file(&tls_config.key_file).await?;
+
+            // Create TLS acceptor config
+            let mut acceptor_config = TlsAcceptorConfig::new(cert_chain, private_key);
+
+            // Load client CA certificates if specified
+            if let Some(ref ca_file) = tls_config.ca_file {
+                let ca_certs = TlsAcceptorConfig::load_cert_chain_from_file(ca_file).await?;
+                acceptor_config = acceptor_config.with_client_ca_certs(ca_certs);
+            }
+
+            // Set client cert requirement
+            acceptor_config =
+                acceptor_config.with_require_client_cert(tls_config.require_client_cert);
+
+            // Build the acceptor
+            let acceptor = acceptor_config.build_acceptor()?;
+
+            // Bind TLS listener
+            let tls_addr = tls_config.bind_address.unwrap_or_else(|| {
+                // Default to port 8883 on same interface as main listener
+                let mut addr = config.bind_address;
+                addr.set_port(8883);
+                addr
+            });
+            let tls_listener = TcpListener::bind(&tls_addr).await?;
+            info!("MQTT broker TLS listening on {}", tls_addr);
+
+            (Some(tls_listener), Some(acceptor))
+        } else {
+            (None, None)
+        };
+
         // Create storage backend
         let storage = if config.storage_config.enable_persistence {
             Some(Self::create_storage_backend(&config.storage_config).await?)
@@ -77,6 +121,8 @@ impl MqttBroker {
             storage,
             stats,
             listener: Some(listener),
+            tls_listener,
+            tls_acceptor,
             shutdown_tx: Some(shutdown_tx),
         })
     }
@@ -142,12 +188,16 @@ impl MqttBroker {
     /// # Errors
     ///
     /// Returns an error if the accept loop fails
+    #[allow(clippy::too_many_lines)]
     pub async fn run(&mut self) -> Result<()> {
         let Some(listener) = self.listener.take() else {
             return Err(MqttError::InvalidState(
                 "Broker already running".to_string(),
             ));
         };
+
+        let tls_listener = self.tls_listener.take();
+        let tls_acceptor = self.tls_acceptor.take();
 
         let Some(shutdown_tx) = self.shutdown_tx.take() else {
             return Err(MqttError::InvalidState(
@@ -168,17 +218,82 @@ impl MqttBroker {
 
         let mut shutdown_rx = shutdown_tx.subscribe();
 
+        // Spawn TLS accept task if enabled
+        if let (Some(tls_listener), Some(tls_acceptor)) = (tls_listener, tls_acceptor) {
+            let config = Arc::clone(&self.config);
+            let router = Arc::clone(&self.router);
+            let auth_provider = Arc::clone(&self.auth_provider);
+            let storage = self.storage.clone();
+            let stats = Arc::clone(&self.stats);
+            let shutdown_tx_clone = shutdown_tx.clone();
+            let mut shutdown_rx_tls = shutdown_tx.subscribe();
+
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        // Accept TLS connections
+                        accept_result = tls_listener.accept() => {
+                            match accept_result {
+                                Ok((tcp_stream, addr)) => {
+                                    debug!("New TLS connection from {}", addr);
+
+                                    // Perform TLS handshake
+                                    match accept_tls_connection(&tls_acceptor, tcp_stream, addr).await {
+                                        Ok(tls_stream) => {
+                                            let transport = BrokerTransport::tls(tls_stream);
+
+                                            // Spawn handler task for this client
+                                            let handler = ClientHandler::new(
+                                                transport,
+                                                addr,
+                                                Arc::clone(&config),
+                                                Arc::clone(&router),
+                                                Arc::clone(&auth_provider),
+                                                storage.clone(),
+                                                Arc::clone(&stats),
+                                                shutdown_tx_clone.subscribe(),
+                                            );
+
+                                            tokio::spawn(async move {
+                                                if let Err(e) = handler.run().await {
+                                                    error!("Client handler error: {}", e);
+                                                }
+                                            });
+                                        }
+                                        Err(e) => {
+                                            error!("TLS handshake failed: {}", e);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("TLS accept error: {}", e);
+                                }
+                            }
+                        }
+
+                        // Shutdown signal
+                        _ = shutdown_rx_tls.recv() => {
+                            debug!("TLS accept task shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
         loop {
             tokio::select! {
-                // Accept new connections
+                // Accept new TCP connections
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, addr)) => {
-                            debug!("New connection from {}", addr);
+                            debug!("New TCP connection from {}", addr);
+
+                            let transport = BrokerTransport::tcp(stream);
 
                             // Spawn handler task for this client
                             let handler = ClientHandler::new(
-                                stream,
+                                transport,
                                 addr,
                                 Arc::clone(&self.config),
                                 Arc::clone(&self.router),
@@ -195,7 +310,7 @@ impl MqttBroker {
                             });
                         }
                         Err(e) => {
-                            error!("Accept error: {}", e);
+                            error!("TCP accept error: {}", e);
                             // Continue accepting other connections
                         }
                     }

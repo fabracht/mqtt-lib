@@ -30,6 +30,8 @@ pub mod server;
 pub mod storage;
 pub mod sys_topics;
 mod tcp_stream_wrapper;
+pub mod tls_acceptor;
+pub mod transport;
 
 pub use acl::{AclManager, AclRule, Permission};
 pub use auth::{

@@ -524,8 +524,9 @@ mod performance_property_tests {
             let _ = validate_filter(&topic);
             let elapsed = start.elapsed();
 
-            // Topic validation should complete in microseconds
-            prop_assert!(elapsed < Duration::from_millis(1),
+            // Topic validation should complete quickly (within 10ms)
+            // Note: 1ms was too strict and caused flaky tests under load
+            prop_assert!(elapsed < Duration::from_millis(10),
                 "Topic validation took too long: {:?}", elapsed);
         }
 

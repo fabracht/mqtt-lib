@@ -156,6 +156,17 @@ options.reconnect_config.backoff_multiplier = 2.0;
 
 - Rust 1.75 or later
 - Docker and Docker Compose (for integration testing)
+- cargo-make (`cargo install cargo-make`)
+
+### Setup
+
+```bash
+# Install git hooks for automatic CI checks before commits
+./scripts/install-hooks.sh
+```
+
+This will install a pre-commit hook that runs `cargo make ci-verify` before each commit,
+ensuring your code passes all CI checks (formatting, linting, tests) before being committed.
 
 ### Building
 

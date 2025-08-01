@@ -50,6 +50,10 @@ path = "examples/simple_broker.rs"
 name = "broker_with_monitoring"
 path = "examples/broker_with_monitoring.rs"
 
+[[example]]
+name = "broker_with_tls"
+path = "examples/broker_with_tls.rs"
+
 [[bench]]
 name = "mqtt_benchmarks"
 harness = false
@@ -89,6 +93,7 @@ sha2 = "0.10.8"
 thiserror = "2.0.12"
 tokio = { version = "1.46.1", features = ["full"] }
 tokio-rustls = "0.26.2"
+tokio-tungstenite = "0.25.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [
     "env-filter",
