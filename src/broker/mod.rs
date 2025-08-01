@@ -21,6 +21,7 @@
 //! }
 //! ```
 
+pub mod acl;
 pub mod auth;
 pub mod client_handler;
 pub mod config;
@@ -28,7 +29,8 @@ pub mod router;
 pub mod server;
 mod tcp_stream_wrapper;
 
-pub use auth::{AllowAllAuthProvider, AuthProvider, AuthResult};
+pub use acl::{AclManager, AclRule, Permission};
+pub use auth::{AllowAllAuthProvider, AuthProvider, AuthResult, ComprehensiveAuthProvider, PasswordAuthProvider};
 pub use config::BrokerConfig;
 pub use server::MqttBroker;
 
