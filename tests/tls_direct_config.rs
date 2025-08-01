@@ -110,12 +110,12 @@ fn test_topic_validators() {
 
     // Device-specific topics should work
     assert!(aws_validator
-        .validate_topic_name("$aws/thing/my-device/shadow/update")
+        .validate_topic_name("$aws/things/my-device/shadow/update")
         .is_ok());
 
     // Other device topics should fail
     assert!(aws_validator
-        .validate_topic_name("$aws/thing/other-device/shadow/update")
+        .validate_topic_name("$aws/things/other-device/shadow/update")
         .is_err());
 
     // System topics should fail by default
@@ -137,17 +137,17 @@ fn test_aws_iot_validator_device_specific() {
 
     // Allowed device topics
     assert!(validator
-        .validate_topic_name("$aws/thing/sensor-001/shadow/update")
+        .validate_topic_name("$aws/things/sensor-001/shadow/update")
         .is_ok());
     assert!(validator
-        .validate_topic_name("$aws/thing/sensor-001/jobs/get")
+        .validate_topic_name("$aws/things/sensor-001/jobs/get")
         .is_ok());
 
     // Rejected device topics
     assert!(validator
-        .validate_topic_name("$aws/thing/sensor-002/shadow/update")
+        .validate_topic_name("$aws/things/sensor-002/shadow/update")
         .is_err());
-    assert!(validator.is_reserved_topic("$aws/thing/sensor-002/shadow/update"));
+    assert!(validator.is_reserved_topic("$aws/things/sensor-002/shadow/update"));
 
     // General AWS topics should be allowed
     assert!(validator

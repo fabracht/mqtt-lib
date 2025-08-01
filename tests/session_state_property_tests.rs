@@ -254,14 +254,24 @@ mod subscription_management_tests {
                 }
 
                 // Check all subscriptions were added
+                // Note: MQTT replaces subscriptions to the same topic, so we need to count unique topics
                 let all_subs = session.all_subscriptions().await;
-                prop_assert_eq!(all_subs.len(), topics.len());
+                let unique_topics: std::collections::HashSet<_> = topics.iter().map(|(t, _)| t).collect();
+                prop_assert_eq!(all_subs.len(), unique_topics.len());
 
                 // Check specific subscription retrieval
+                // Create a map of the final subscriptions (last one wins for duplicate topics)
+                let mut expected_subs = std::collections::HashMap::new();
                 for (topic, qos) in &topics {
-                    let matching = session.matching_subscriptions(topic).await;
-                    prop_assert!(!matching.is_empty());
-                    prop_assert_eq!(matching[0].1.options.qos, *qos);
+                    expected_subs.insert(topic.clone(), *qos);
+                }
+
+                // Verify each unique subscription
+                for (topic, expected_qos) in expected_subs {
+                    let matching = session.matching_subscriptions(&topic).await;
+                    prop_assert!(!matching.is_empty(), "No subscription found for topic: {}", topic);
+                    prop_assert_eq!(matching[0].1.options.qos, expected_qos,
+                        "QoS mismatch for topic: {}", topic);
                 }
 
                 Ok(())

@@ -51,7 +51,7 @@ impl NamespaceValidator {
     /// Creates a validator configured for AWS `IoT` Core
     #[must_use]
     pub fn aws_iot() -> Self {
-        Self::new("$aws", "thing")
+        Self::new("$aws", "things")
     }
 
     /// Creates a validator configured for Azure `IoT` Hub
@@ -111,40 +111,82 @@ impl NamespaceValidator {
 
         // Check service topics
         if self.is_service_topic(topic) {
-            // Build the device namespace prefix (e.g., "$aws/thing/", "$azure/device/")
-            let device_namespace_prefix =
-                format!("{}/{}/", self.service_prefix, self.device_namespace);
+            // For AWS IoT, most service topics are read-only and shouldn't be published to
+            if self.service_prefix == "$aws" {
+                // AWS IoT reserved topics that clients should not publish to
+                let aws_reserved_prefixes = ["$aws/certificates/", "$aws/provisioning-templates/"];
 
-            // If we have a device ID, check device-specific topics
-            if let Some(ref device_id) = self.device_id {
-                let device_prefix = format!("{device_namespace_prefix}{device_id}/");
-
-                // Allow device-specific topics
-                if topic.starts_with(&device_prefix) {
-                    return Ok(());
+                // Check if it's a reserved AWS topic
+                for reserved in &aws_reserved_prefixes {
+                    if topic.starts_with(reserved) {
+                        return Err(MqttError::InvalidTopicName(format!(
+                            "Cannot publish to reserved AWS IoT topic: {topic}"
+                        )));
+                    }
                 }
 
-                // Allow general service topics that don't start with device namespace
-                if !topic.starts_with(&device_namespace_prefix) {
-                    // These are general service topics like $aws/events, $azure/operations, etc.
-                    // Allow them for now, but this could be further restricted based on requirements
-                    return Ok(());
-                }
-
-                // Reject topics for other devices
-                if topic.starts_with(&device_namespace_prefix) {
-                    return Err(MqttError::InvalidTopicName(format!(
-                        "Topic '{topic}' is for a different device. Only topics under '{device_prefix}' are allowed"
-                    )));
+                // Check device-specific topics for AWS
+                if topic.starts_with("$aws/things/") {
+                    // AWS IoT topics like $aws/things/{thing}/shadow/get/accepted are read-only
+                    // Only allow certain operations for publishing
+                    if let Some(ref device_id) = self.device_id {
+                        // Allow shadow update/delete and job operations for the configured device
+                        let allowed_patterns = [
+                            format!("$aws/things/{device_id}/shadow/update"),
+                            format!("$aws/things/{device_id}/shadow/delete"),
+                            format!("$aws/things/{device_id}/jobs/"),
+                        ];
+                        if !allowed_patterns
+                            .iter()
+                            .any(|pattern| topic.starts_with(pattern))
+                        {
+                            return Err(MqttError::InvalidTopicName(format!(
+                                "Cannot publish to reserved AWS IoT topic: {topic}"
+                            )));
+                        }
+                    } else {
+                        return Err(MqttError::InvalidTopicName(
+                            "Device-specific topics require device ID to be configured".to_string(),
+                        ));
+                    }
                 }
             } else {
-                // No device ID set - reject all device-specific topics
-                if topic.starts_with(&device_namespace_prefix) {
-                    return Err(MqttError::InvalidTopicName(format!(
-                        "Device-specific topics ({device_namespace_prefix}*) require device ID to be configured"
-                    )));
+                // Original logic for non-AWS providers
+                // Build the device namespace prefix (e.g., "$aws/thing/", "$azure/device/")
+                let device_namespace_prefix =
+                    format!("{}/{}/", self.service_prefix, self.device_namespace);
+
+                // If we have a device ID, check device-specific topics
+                if let Some(ref device_id) = self.device_id {
+                    let device_prefix = format!("{device_namespace_prefix}{device_id}/");
+
+                    // Allow device-specific topics
+                    if topic.starts_with(&device_prefix) {
+                        return Ok(());
+                    }
+
+                    // Allow general service topics that don't start with device namespace
+                    if !topic.starts_with(&device_namespace_prefix) {
+                        // These are general service topics like $aws/events, $azure/operations, etc.
+                        // Allow them for now, but this could be further restricted based on requirements
+                        return Ok(());
+                    }
+
+                    // Reject topics for other devices
+                    if topic.starts_with(&device_namespace_prefix) {
+                        return Err(MqttError::InvalidTopicName(format!(
+                            "Topic '{topic}' is for a different device. Only topics under '{device_prefix}' are allowed"
+                        )));
+                    }
+                } else {
+                    // No device ID set - reject all device-specific topics
+                    if topic.starts_with(&device_namespace_prefix) {
+                        return Err(MqttError::InvalidTopicName(format!(
+                            "Device-specific topics ({device_namespace_prefix}*) require device ID to be configured"
+                        )));
+                    }
+                    // Allow other service topics
                 }
-                // Allow other service topics
             }
         }
 
@@ -166,6 +208,13 @@ impl TopicValidator for NamespaceValidator {
         // First apply standard MQTT validation
         validate_topic_name(topic)?;
 
+        // AWS IoT has a 256 character limit
+        if self.service_prefix == "$aws" && topic.len() > 256 {
+            return Err(MqttError::InvalidTopicName(
+                "AWS IoT topics must not exceed 256 characters".to_string(),
+            ));
+        }
+
         // Then apply namespace-specific restrictions
         self.validate_namespace_restrictions(topic)
     }
@@ -173,6 +222,13 @@ impl TopicValidator for NamespaceValidator {
     fn validate_topic_filter(&self, filter: &str) -> Result<()> {
         // First apply standard MQTT validation
         validate_topic_filter(filter)?;
+
+        // AWS IoT has a 256 character limit
+        if self.service_prefix == "$aws" && filter.len() > 256 {
+            return Err(MqttError::InvalidTopicFilter(
+                "AWS IoT topic filters must not exceed 256 characters".to_string(),
+            ));
+        }
 
         // For filters, we're more lenient with wildcards
         // Only check if it's a literal reserved prefix (no wildcards)
@@ -237,16 +293,16 @@ mod tests {
 
     #[test]
     fn test_namespace_validator_with_device() {
-        let validator = NamespaceValidator::new("$aws", "thing").with_device_id("my-device");
+        let validator = NamespaceValidator::new("$aws", "things").with_device_id("my-device");
 
         // Device-specific topics should work
         assert!(validator
-            .validate_topic_name("$aws/thing/my-device/shadow/update")
+            .validate_topic_name("$aws/things/my-device/shadow/update")
             .is_ok());
 
         // Other device topics should be rejected
         assert!(validator
-            .validate_topic_name("$aws/thing/other-device/shadow/update")
+            .validate_topic_name("$aws/things/other-device/shadow/update")
             .is_err());
 
         // General AWS topics should work
@@ -284,10 +340,10 @@ mod tests {
         // Test AWS IoT
         let aws = NamespaceValidator::aws_iot().with_device_id("sensor-123");
         assert!(aws
-            .validate_topic_name("$aws/thing/sensor-123/shadow/update")
+            .validate_topic_name("$aws/things/sensor-123/shadow/update")
             .is_ok());
         assert!(aws
-            .validate_topic_name("$aws/thing/sensor-456/shadow/update")
+            .validate_topic_name("$aws/things/sensor-456/shadow/update")
             .is_err());
 
         // Test Azure IoT
