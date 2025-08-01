@@ -1,15 +1,15 @@
 //! Message routing for the MQTT broker
-//! 
+//!
 //! Routes messages between clients based on subscriptions
 
-use crate::broker::storage::{DynamicStorage, RetainedMessage, QueuedMessage, StorageBackend};
+use crate::broker::storage::{DynamicStorage, QueuedMessage, RetainedMessage, StorageBackend};
 use crate::packet::publish::PublishPacket;
 use crate::validation::topic_matches_filter;
 use crate::QoS;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, trace, error};
+use tracing::{debug, error, trace};
 
 /// Client subscription information
 #[derive(Debug, Clone)]
@@ -52,7 +52,7 @@ impl MessageRouter {
             storage: None,
         }
     }
-    
+
     /// Creates a new message router with storage backend
     #[must_use]
     pub fn with_storage(storage: Arc<DynamicStorage>) -> Self {
@@ -63,74 +63,84 @@ impl MessageRouter {
             storage: Some(storage),
         }
     }
-    
+
     /// Initializes the router by loading retained messages from storage
     pub async fn initialize(&self) -> Result<(), crate::error::MqttError> {
         if let Some(ref storage) = self.storage {
             // Load all retained messages from storage
             let stored_messages = storage.get_retained_messages("#").await?;
             let mut retained = self.retained_messages.write().await;
-            
+
             for (topic, msg) in stored_messages {
                 retained.insert(topic, msg.to_publish_packet());
             }
-            
+
             debug!("Loaded {} retained messages from storage", retained.len());
         }
         Ok(())
     }
-    
+
     /// Registers a client connection
-    pub async fn register_client(&self, client_id: String, sender: tokio::sync::mpsc::Sender<PublishPacket>) {
+    pub async fn register_client(
+        &self,
+        client_id: String,
+        sender: tokio::sync::mpsc::Sender<PublishPacket>,
+    ) {
         let mut clients = self.clients.write().await;
         clients.insert(client_id.clone(), ClientInfo { sender });
         debug!("Registered client: {}", client_id);
     }
-    
+
     /// Unregisters a client connection
     pub async fn unregister_client(&self, client_id: &str) {
         let mut clients = self.clients.write().await;
         clients.remove(client_id);
-        
+
         // Remove all subscriptions for this client
         let mut subscriptions = self.subscriptions.write().await;
         for subs in subscriptions.values_mut() {
             subs.retain(|sub| sub.client_id != client_id);
         }
-        
+
         // Clean up empty subscription lists
         subscriptions.retain(|_, subs| !subs.is_empty());
-        
+
         debug!("Unregistered client: {}", client_id);
     }
-    
+
     /// Adds a subscription for a client
-    pub async fn subscribe(&self, client_id: String, topic_filter: String, qos: QoS, subscription_id: Option<u32>) {
+    pub async fn subscribe(
+        &self,
+        client_id: String,
+        topic_filter: String,
+        qos: QoS,
+        subscription_id: Option<u32>,
+    ) {
         let mut subscriptions = self.subscriptions.write().await;
         let subscription = Subscription {
             client_id: client_id.clone(),
             qos,
             subscription_id,
         };
-        
+
         subscriptions
             .entry(topic_filter.clone())
             .or_default()
             .push(subscription);
-        
+
         debug!("Client {} subscribed to {}", client_id, topic_filter);
     }
-    
+
     /// Removes a subscription for a client
     pub async fn unsubscribe(&self, client_id: &str, topic_filter: &str) -> bool {
         let mut subscriptions = self.subscriptions.write().await;
-        
+
         if let Some(subs) = subscriptions.get_mut(topic_filter) {
             let initial_len = subs.len();
             subs.retain(|sub| sub.client_id != client_id);
-            
+
             let removed = initial_len != subs.len();
-            
+
             // Remove empty entries after calculating removed flag
             if subs.is_empty() {
                 subscriptions.remove(topic_filter);
@@ -143,11 +153,11 @@ impl MessageRouter {
             false
         }
     }
-    
+
     /// Routes a publish message to all matching subscribers
     pub async fn route_message(&self, publish: &PublishPacket) {
         trace!("Routing message to topic: {}", publish.topic_name);
-        
+
         // Handle retained messages
         if publish.retain {
             let mut retained = self.retained_messages.write().await;
@@ -155,7 +165,7 @@ impl MessageRouter {
                 // Empty payload means delete retained message
                 retained.remove(&publish.topic_name);
                 debug!("Deleted retained message for topic: {}", publish.topic_name);
-                
+
                 // Remove from storage
                 if let Some(ref storage) = self.storage {
                     if let Err(e) = storage.remove_retained_message(&publish.topic_name).await {
@@ -165,21 +175,24 @@ impl MessageRouter {
             } else {
                 retained.insert(publish.topic_name.clone(), publish.clone());
                 debug!("Stored retained message for topic: {}", publish.topic_name);
-                
+
                 // Persist to storage
                 if let Some(ref storage) = self.storage {
                     let retained_msg = RetainedMessage::new(publish.clone());
-                    if let Err(e) = storage.store_retained_message(&publish.topic_name, retained_msg).await {
+                    if let Err(e) = storage
+                        .store_retained_message(&publish.topic_name, retained_msg)
+                        .await
+                    {
                         tracing::error!("Failed to store retained message to storage: {}", e);
                     }
                 }
             }
         }
-        
+
         // Find matching subscriptions
         let subscriptions = self.subscriptions.read().await;
         let clients = self.clients.read().await;
-        
+
         for (topic_filter, subs) in subscriptions.iter() {
             if topic_matches_filter(&publish.topic_name, topic_filter) {
                 for sub in subs {
@@ -187,19 +200,20 @@ impl MessageRouter {
                         // Calculate effective QoS (minimum of publish and subscription QoS)
                         let effective_qos = match (publish.qos, sub.qos) {
                             (QoS::AtMostOnce, _) | (_, QoS::AtMostOnce) => QoS::AtMostOnce,
-                            (QoS::AtLeastOnce | QoS::ExactlyOnce, QoS::AtLeastOnce) | (QoS::AtLeastOnce, QoS::ExactlyOnce) => QoS::AtLeastOnce,
+                            (QoS::AtLeastOnce | QoS::ExactlyOnce, QoS::AtLeastOnce)
+                            | (QoS::AtLeastOnce, QoS::ExactlyOnce) => QoS::AtLeastOnce,
                             (QoS::ExactlyOnce, QoS::ExactlyOnce) => QoS::ExactlyOnce,
                         };
-                        
+
                         // Create message with effective QoS
                         let mut message = publish.clone();
                         message.qos = effective_qos;
-                        
+
                         // Add subscription identifier if present
                         if let Some(id) = sub.subscription_id {
                             message.properties.set_subscription_identifier(id);
                         }
-                        
+
                         // Send to client (non-blocking)
                         if let Err(e) = client_info.sender.try_send(message.clone()) {
                             // Client's channel is full or disconnected, queue for later
@@ -212,13 +226,20 @@ impl MessageRouter {
                                         message.packet_id,
                                     );
                                     if let Err(e) = storage.queue_message(queued_msg).await {
-                                        error!("Failed to queue message for offline client {}: {}", sub.client_id, e);
+                                        error!(
+                                            "Failed to queue message for offline client {}: {}",
+                                            sub.client_id, e
+                                        );
                                     } else {
                                         debug!("Queued message for client {}", sub.client_id);
                                     }
                                 }
                             }
-                            trace!("Failed to send message to client {}: {:?}", sub.client_id, e);
+                            trace!(
+                                "Failed to send message to client {}: {:?}",
+                                sub.client_id,
+                                e
+                            );
                         }
                     } else {
                         // Client is offline, queue message if QoS > 0
@@ -226,7 +247,7 @@ impl MessageRouter {
                             if let Some(ref storage) = self.storage {
                                 let mut message = publish.clone();
                                 message.qos = sub.qos;
-                                
+
                                 let queued_msg = QueuedMessage::new(
                                     message,
                                     sub.client_id.clone(),
@@ -234,7 +255,10 @@ impl MessageRouter {
                                     None, // Will be assigned when delivered
                                 );
                                 if let Err(e) = storage.queue_message(queued_msg).await {
-                                    error!("Failed to queue message for offline client {}: {}", sub.client_id, e);
+                                    error!(
+                                        "Failed to queue message for offline client {}: {}",
+                                        sub.client_id, e
+                                    );
                                 } else {
                                     debug!("Queued message for offline client {}", sub.client_id);
                                 }
@@ -245,7 +269,7 @@ impl MessageRouter {
             }
         }
     }
-    
+
     /// Gets retained messages matching a topic filter
     pub async fn get_retained_messages(&self, topic_filter: &str) -> Vec<PublishPacket> {
         let retained = self.retained_messages.read().await;
@@ -255,17 +279,17 @@ impl MessageRouter {
             .map(|(_, msg)| msg.clone())
             .collect()
     }
-    
+
     /// Gets the number of connected clients
     pub async fn client_count(&self) -> usize {
         self.clients.read().await.len()
     }
-    
+
     /// Gets the number of unique topic filters with subscriptions
     pub async fn topic_count(&self) -> usize {
         self.subscriptions.read().await.len()
     }
-    
+
     /// Gets the number of retained messages
     pub async fn retained_count(&self) -> usize {
         self.retained_messages.read().await.len()
@@ -281,85 +305,106 @@ impl Default for MessageRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_client_registration() {
         let router = MessageRouter::new();
         let (tx, _rx) = tokio::sync::mpsc::channel(100);
-        
+
         router.register_client("client1".to_string(), tx).await;
         assert_eq!(router.client_count().await, 1);
-        
+
         router.unregister_client("client1").await;
         assert_eq!(router.client_count().await, 0);
     }
-    
+
     #[tokio::test]
     async fn test_subscription_management() {
         let router = MessageRouter::new();
         let (tx, _rx) = tokio::sync::mpsc::channel(100);
-        
+
         router.register_client("client1".to_string(), tx).await;
-        router.subscribe("client1".to_string(), "test/+".to_string(), QoS::AtLeastOnce, None).await;
-        
+        router
+            .subscribe(
+                "client1".to_string(),
+                "test/+".to_string(),
+                QoS::AtLeastOnce,
+                None,
+            )
+            .await;
+
         assert_eq!(router.topic_count().await, 1);
-        
+
         let removed = router.unsubscribe("client1", "test/+").await;
         assert!(removed);
         assert_eq!(router.topic_count().await, 0);
     }
-    
+
     #[tokio::test]
     async fn test_message_routing() {
         let router = MessageRouter::new();
         let (tx1, mut rx1) = tokio::sync::mpsc::channel(100);
         let (tx2, mut rx2) = tokio::sync::mpsc::channel(100);
-        
+
         // Register clients
         router.register_client("client1".to_string(), tx1).await;
         router.register_client("client2".to_string(), tx2).await;
-        
+
         // Subscribe to different patterns
-        router.subscribe("client1".to_string(), "test/+".to_string(), QoS::AtLeastOnce, None).await;
-        router.subscribe("client2".to_string(), "test/data".to_string(), QoS::ExactlyOnce, None).await;
-        
+        router
+            .subscribe(
+                "client1".to_string(),
+                "test/+".to_string(),
+                QoS::AtLeastOnce,
+                None,
+            )
+            .await;
+        router
+            .subscribe(
+                "client2".to_string(),
+                "test/data".to_string(),
+                QoS::ExactlyOnce,
+                None,
+            )
+            .await;
+
         // Publish message
         let publish = PublishPacket::new("test/data", b"hello", QoS::ExactlyOnce);
-        
+
         router.route_message(&publish).await;
-        
+
         // Client 1 should receive with QoS 1 (downgraded)
         let msg1 = rx1.try_recv().unwrap();
         assert_eq!(msg1.topic_name, "test/data");
         assert_eq!(msg1.qos, QoS::AtLeastOnce);
-        
+
         // Client 2 should receive with QoS 2
         let msg2 = rx2.try_recv().unwrap();
         assert_eq!(msg2.topic_name, "test/data");
         assert_eq!(msg2.qos, QoS::ExactlyOnce);
     }
-    
+
     #[tokio::test]
     async fn test_retained_messages() {
         let router = MessageRouter::new();
-        
+
         // Store retained message
         let mut publish = PublishPacket::new("test/status", b"online", QoS::AtMostOnce);
         publish.retain = true;
         router.route_message(&publish).await;
-        
+
         assert_eq!(router.retained_count().await, 1);
-        
+
         // Get retained messages
         let retained = router.get_retained_messages("test/+").await;
         assert_eq!(retained.len(), 1);
         assert_eq!(retained[0].topic_name, "test/status");
-        
+
         // Delete retained message
         let mut delete = PublishPacket::new("test/status", b"", QoS::AtMostOnce);
         delete.retain = true;
         router.route_message(&delete).await;
-        
+
         assert_eq!(router.retained_count().await, 0);
     }
 }

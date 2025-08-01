@@ -1,12 +1,11 @@
 //! Simple MQTT v5.0 broker example
-//! 
+//!
 //! This demonstrates how to create and run a basic MQTT broker.
 
-use mqtt_v5::broker::{MqttBroker, BrokerConfig};
-use tracing_subscriber;
+use mqtt_v5::broker::{BrokerConfig, MqttBroker};
 use mqtt_v5::error::Result;
 use std::time::Duration;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,13 +24,15 @@ async fn main() -> Result<()> {
 
     // Create and start broker
     let mut broker = MqttBroker::with_config(config).await?;
-    
+
     info!("MQTT broker listening on 127.0.0.1:1883");
     info!("Press Ctrl+C to stop the broker");
 
     // Handle shutdown signal
     let shutdown_task = tokio::spawn(async {
-        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for ctrl-c");
         info!("Shutdown signal received");
     });
 

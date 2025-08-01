@@ -22,17 +22,17 @@ impl Transport for TcpStreamWrapper {
         // Already connected
         Ok(())
     }
-    
+
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         Ok(self.stream.read(buf).await?)
     }
-    
+
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
         self.stream.write_all(buf).await?;
         self.stream.flush().await?;
         Ok(())
     }
-    
+
     async fn close(&mut self) -> Result<()> {
         self.stream.shutdown().await?;
         Ok(())
