@@ -13,6 +13,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
 
 use super::tls_acceptor::TlsStreamWrapper;
+use super::websocket_server::WebSocketStreamWrapper;
 
 /// Unified transport enum for different connection types
 pub enum BrokerTransport {
@@ -20,8 +21,8 @@ pub enum BrokerTransport {
     Tcp(TcpStream),
     /// TLS-encrypted connection
     Tls(Box<TlsStreamWrapper>),
-    // WebSocket will be added later
-    // WebSocket(WebSocketStream),
+    /// WebSocket connection
+    WebSocket(Box<WebSocketStreamWrapper>),
 }
 
 impl BrokerTransport {
@@ -35,11 +36,17 @@ impl BrokerTransport {
         Self::Tls(Box::new(stream))
     }
 
+    /// Creates a new WebSocket transport
+    pub fn websocket(stream: WebSocketStreamWrapper) -> Self {
+        Self::WebSocket(Box::new(stream))
+    }
+
     /// Gets the peer address
     pub fn peer_addr(&self) -> Result<SocketAddr> {
         match self {
             Self::Tcp(stream) => Ok(stream.peer_addr()?),
             Self::Tls(stream) => stream.peer_addr(),
+            Self::WebSocket(stream) => stream.peer_addr(),
         }
     }
 
@@ -48,6 +55,7 @@ impl BrokerTransport {
         match self {
             Self::Tcp(_) => "TCP",
             Self::Tls(_) => "TLS",
+            Self::WebSocket(_) => "WebSocket",
         }
     }
 
@@ -66,7 +74,7 @@ impl BrokerTransport {
                     None
                 }
             }
-            Self::Tcp(_) => None,
+            Self::Tcp(_) | Self::WebSocket(_) => None,
         }
     }
 }
@@ -76,6 +84,7 @@ impl Debug for BrokerTransport {
         match self {
             Self::Tcp(_) => write!(f, "BrokerTransport::Tcp"),
             Self::Tls(_) => write!(f, "BrokerTransport::Tls"),
+            Self::WebSocket(_) => write!(f, "BrokerTransport::WebSocket"),
         }
     }
 }
@@ -89,6 +98,7 @@ impl AsyncRead for BrokerTransport {
         match self.get_mut() {
             Self::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_read(cx, buf),
+            Self::WebSocket(stream) => Pin::new(stream).poll_read(cx, buf),
         }
     }
 }
@@ -102,6 +112,7 @@ impl AsyncWrite for BrokerTransport {
         match self.get_mut() {
             Self::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
+            Self::WebSocket(stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
 
@@ -109,6 +120,7 @@ impl AsyncWrite for BrokerTransport {
         match self.get_mut() {
             Self::Tcp(stream) => Pin::new(stream).poll_flush(cx),
             Self::Tls(stream) => Pin::new(stream).poll_flush(cx),
+            Self::WebSocket(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
@@ -116,6 +128,7 @@ impl AsyncWrite for BrokerTransport {
         match self.get_mut() {
             Self::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::Tls(stream) => Pin::new(stream).poll_shutdown(cx),
+            Self::WebSocket(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 }

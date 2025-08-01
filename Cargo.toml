@@ -54,6 +54,14 @@ path = "examples/broker_with_monitoring.rs"
 name = "broker_with_tls"
 path = "examples/broker_with_tls.rs"
 
+[[example]]
+name = "broker_with_websocket"
+path = "examples/broker_with_websocket.rs"
+
+[[example]]
+name = "broker_all_transports"
+path = "examples/broker_all_transports.rs"
+
 [[bench]]
 name = "mqtt_benchmarks"
 harness = false
@@ -83,6 +91,7 @@ base64 = "0.22.1"
 bcrypt = "0.17.0"
 bebytes = "2.7.0"
 bytes = "1.10.1"
+futures-util = "0.3.31"
 hex = "0.4.3"
 rand = "0.9.2"
 rustls = "0.23.29"
@@ -91,9 +100,9 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
 sha2 = "0.10.8"
 thiserror = "2.0.12"
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.47.1", features = ["full"] }
 tokio-rustls = "0.26.2"
-tokio-tungstenite = "0.25.0"
+tokio-tungstenite = "0.27.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [
     "env-filter",

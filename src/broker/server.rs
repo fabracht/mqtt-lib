@@ -10,6 +10,7 @@ use crate::broker::storage::{DynamicStorage, FileBackend, MemoryBackend, Storage
 use crate::broker::sys_topics::{BrokerStats, SysTopicsProvider};
 use crate::broker::tls_acceptor::{accept_tls_connection, TlsAcceptorConfig};
 use crate::broker::transport::BrokerTransport;
+use crate::broker::websocket_server::{accept_websocket_connection, WebSocketServerConfig};
 use crate::error::{MqttError, Result};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -26,6 +27,8 @@ pub struct MqttBroker {
     listener: Option<TcpListener>,
     tls_listener: Option<TcpListener>,
     tls_acceptor: Option<TlsAcceptor>,
+    ws_listener: Option<TcpListener>,
+    ws_config: Option<WebSocketServerConfig>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
 }
 
@@ -57,6 +60,23 @@ impl MqttBroker {
         // Bind to TCP port
         let listener = TcpListener::bind(&config.bind_address).await?;
         info!("MQTT broker listening on {}", config.bind_address);
+
+        // Set up WebSocket if configured
+        let (ws_listener, ws_config) = if let Some(ref ws_config) = config.websocket_config {
+            let ws_listener = TcpListener::bind(&ws_config.bind_address).await?;
+            info!(
+                "MQTT broker WebSocket listening on {}",
+                ws_config.bind_address
+            );
+
+            let server_config = WebSocketServerConfig::new()
+                .with_path(ws_config.path.clone())
+                .with_subprotocol(ws_config.subprotocol.clone());
+
+            (Some(ws_listener), Some(server_config))
+        } else {
+            (None, None)
+        };
 
         // Set up TLS if configured
         let (tls_listener, tls_acceptor) = if let Some(ref tls_config) = config.tls_config {
@@ -123,6 +143,8 @@ impl MqttBroker {
             listener: Some(listener),
             tls_listener,
             tls_acceptor,
+            ws_listener,
+            ws_config,
             shutdown_tx: Some(shutdown_tx),
         })
     }
@@ -198,6 +220,8 @@ impl MqttBroker {
 
         let tls_listener = self.tls_listener.take();
         let tls_acceptor = self.tls_acceptor.take();
+        let ws_listener = self.ws_listener.take();
+        let ws_config = self.ws_config.take();
 
         let Some(shutdown_tx) = self.shutdown_tx.take() else {
             return Err(MqttError::InvalidState(
@@ -217,6 +241,69 @@ impl MqttBroker {
         sys_provider.start();
 
         let mut shutdown_rx = shutdown_tx.subscribe();
+
+        // Spawn WebSocket accept task if enabled
+        if let (Some(ws_listener), Some(ws_config)) = (ws_listener, ws_config) {
+            let config = Arc::clone(&self.config);
+            let router = Arc::clone(&self.router);
+            let auth_provider = Arc::clone(&self.auth_provider);
+            let storage = self.storage.clone();
+            let stats = Arc::clone(&self.stats);
+            let shutdown_tx_clone = shutdown_tx.clone();
+            let mut shutdown_rx_ws = shutdown_tx.subscribe();
+
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        // Accept WebSocket connections
+                        accept_result = ws_listener.accept() => {
+                            match accept_result {
+                                Ok((tcp_stream, addr)) => {
+                                    debug!("New WebSocket connection from {}", addr);
+
+                                    // Perform WebSocket handshake
+                                    match accept_websocket_connection(tcp_stream, &ws_config, addr).await {
+                                        Ok(ws_stream) => {
+                                            let transport = BrokerTransport::websocket(ws_stream);
+
+                                            // Spawn handler task for this client
+                                            let handler = ClientHandler::new(
+                                                transport,
+                                                addr,
+                                                Arc::clone(&config),
+                                                Arc::clone(&router),
+                                                Arc::clone(&auth_provider),
+                                                storage.clone(),
+                                                Arc::clone(&stats),
+                                                shutdown_tx_clone.subscribe(),
+                                            );
+
+                                            tokio::spawn(async move {
+                                                if let Err(e) = handler.run().await {
+                                                    error!("Client handler error: {}", e);
+                                                }
+                                            });
+                                        }
+                                        Err(e) => {
+                                            error!("WebSocket handshake failed: {}", e);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("WebSocket accept error: {}", e);
+                                }
+                            }
+                        }
+
+                        // Shutdown signal
+                        _ = shutdown_rx_ws.recv() => {
+                            debug!("WebSocket accept task shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+        }
 
         // Spawn TLS accept task if enabled
         if let (Some(tls_listener), Some(tls_acceptor)) = (tls_listener, tls_acceptor) {
