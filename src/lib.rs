@@ -110,6 +110,7 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod broker;
 pub mod callback;
 pub mod client;
 pub mod constants;

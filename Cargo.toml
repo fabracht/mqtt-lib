@@ -35,10 +35,15 @@ serde_json = "1.0.141"
 rand = "0.9.2"
 futures = "0.3.31"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
 chrono = { version = "0.4.41", features = ["serde"] }
 url = "2.5.4"
 hyper = { version = "1.6.0", features = ["full"] }
 hyper-util = { version = "0.1.16", features = ["full"] }
+
+[[example]]
+name = "simple_broker"
+path = "examples/simple_broker.rs"
 
 [[bench]]
 name = "mqtt_benchmarks"
@@ -65,6 +70,7 @@ panic = "abort"
 debug = true
 
 [dependencies]
+async-trait = "0.1.83"
 bebytes = "2.7.0"
 bytes = "1.10.1"
 rustls = "0.23.29"
@@ -74,6 +80,7 @@ thiserror = "2.0.12"
 tokio = { version = "1.46.1", features = ["full"] }
 tokio-rustls = "0.26.2"
 tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"], optional = true }
 url = "2.5.4"
 webpki-roots = "1.0.2"
 
