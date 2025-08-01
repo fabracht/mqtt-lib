@@ -30,7 +30,7 @@ pub mod server;
 mod tcp_stream_wrapper;
 
 pub use acl::{AclManager, AclRule, Permission};
-pub use auth::{AllowAllAuthProvider, AuthProvider, AuthResult, ComprehensiveAuthProvider, PasswordAuthProvider};
+pub use auth::{AllowAllAuthProvider, AuthProvider, AuthResult, CertificateAuthProvider, ComprehensiveAuthProvider, PasswordAuthProvider};
 pub use config::BrokerConfig;
 pub use server::MqttBroker;
 
