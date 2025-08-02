@@ -3,6 +3,7 @@
 //! These tests verify system behavior during network failures
 //! and partitions in a deterministic environment.
 
+#[cfg(feature = "turmoil-testing")]
 use std::time::Duration;
 
 #[cfg(feature = "turmoil-testing")]

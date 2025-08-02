@@ -2,6 +2,7 @@
 //!
 //! Routes messages between clients based on subscriptions
 
+use crate::broker::bridge::BridgeManager;
 use crate::broker::storage::{DynamicStorage, QueuedMessage, RetainedMessage, StorageBackend};
 use crate::packet::publish::PublishPacket;
 use crate::validation::topic_matches_filter;
@@ -37,6 +38,8 @@ pub struct MessageRouter {
     storage: Option<Arc<DynamicStorage>>,
     /// Round-robin counters for shared subscription groups
     share_group_counters: Arc<RwLock<HashMap<String, Arc<AtomicUsize>>>>,
+    /// Bridge manager for broker-to-broker connections
+    bridge_manager: Option<Arc<BridgeManager>>,
 }
 
 /// Information about a connected client
@@ -56,6 +59,7 @@ impl MessageRouter {
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: None,
             share_group_counters: Arc::new(RwLock::new(HashMap::new())),
+            bridge_manager: None,
         }
     }
 
@@ -68,7 +72,13 @@ impl MessageRouter {
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: Some(storage),
             share_group_counters: Arc::new(RwLock::new(HashMap::new())),
+            bridge_manager: None,
         }
+    }
+
+    /// Sets the bridge manager for this router
+    pub fn set_bridge_manager(&mut self, bridge_manager: Arc<BridgeManager>) {
+        self.bridge_manager = Some(bridge_manager);
     }
 
     /// Initializes the router by loading retained messages from storage
@@ -293,6 +303,13 @@ impl MessageRouter {
         for sub in regular_subs {
             self.deliver_to_subscriber(sub, publish, &clients, self.storage.as_ref())
                 .await;
+        }
+
+        // Forward to bridges if configured
+        if let Some(ref bridge_manager) = self.bridge_manager {
+            if let Err(e) = bridge_manager.handle_outgoing(publish).await {
+                error!("Failed to forward message to bridges: {}", e);
+            }
         }
     }
 

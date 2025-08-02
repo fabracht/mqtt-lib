@@ -23,6 +23,7 @@
 
 pub mod acl;
 pub mod auth;
+pub mod bridge;
 pub mod client_handler;
 pub mod config;
 pub mod router;

@@ -66,6 +66,10 @@ path = "examples/broker_with_websocket.rs"
 name = "broker_all_transports"
 path = "examples/broker_all_transports.rs"
 
+[[example]]
+name = "broker_bridge_demo"
+path = "examples/broker_bridge_demo.rs"
+
 [[bench]]
 name = "mqtt_benchmarks"
 harness = false
@@ -97,6 +101,7 @@ bebytes = "2.7.0"
 bytes = "1.10.1"
 futures-util = "0.3.31"
 hex = "0.4.3"
+humantime-serde = "1.1"
 rand = "0.9.2"
 rustls = "0.23.29"
 rustls-pemfile = "2.2.0"
