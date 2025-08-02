@@ -26,6 +26,10 @@ exclude = [
     "PROPERTY_TEST_FINDINGS.md",
 ]
 
+[features]
+default = []
+turmoil-testing = ["turmoil"]
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.7.0", features = ["html_reports"] }
@@ -107,5 +111,6 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [
     "env-filter",
 ], optional = true }
+turmoil = { version = "0.6.6", optional = true }
 url = "2.5.4"
 webpki-roots = "1.0.2"

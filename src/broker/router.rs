@@ -7,6 +7,7 @@ use crate::packet::publish::PublishPacket;
 use crate::validation::topic_matches_filter;
 use crate::QoS;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, trace};
@@ -20,6 +21,8 @@ pub struct Subscription {
     pub qos: QoS,
     /// Subscription identifier (MQTT v5.0)
     pub subscription_id: Option<u32>,
+    /// Shared subscription group name (if this is a shared subscription)
+    pub share_group: Option<String>,
 }
 
 /// Message router for the broker
@@ -32,6 +35,8 @@ pub struct MessageRouter {
     clients: Arc<RwLock<HashMap<String, ClientInfo>>>,
     /// Storage backend for persistence
     storage: Option<Arc<DynamicStorage>>,
+    /// Round-robin counters for shared subscription groups
+    share_group_counters: Arc<RwLock<HashMap<String, Arc<AtomicUsize>>>>,
 }
 
 /// Information about a connected client
@@ -50,6 +55,7 @@ impl MessageRouter {
             retained_messages: Arc::new(RwLock::new(HashMap::new())),
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: None,
+            share_group_counters: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -61,6 +67,7 @@ impl MessageRouter {
             retained_messages: Arc::new(RwLock::new(HashMap::new())),
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: Some(storage),
+            share_group_counters: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -116,26 +123,53 @@ impl MessageRouter {
         qos: QoS,
         subscription_id: Option<u32>,
     ) {
+        let (actual_filter, share_group) = Self::parse_shared_subscription(&topic_filter);
+
         let mut subscriptions = self.subscriptions.write().await;
         let subscription = Subscription {
             client_id: client_id.clone(),
             qos,
             subscription_id,
+            share_group: share_group.clone(),
         };
 
         subscriptions
-            .entry(topic_filter.clone())
+            .entry(actual_filter.to_string())
             .or_default()
             .push(subscription);
+
+        // Initialize share group counter if needed
+        if let Some(group) = share_group {
+            let mut counters = self.share_group_counters.write().await;
+            counters
+                .entry(group)
+                .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
+        }
 
         debug!("Client {} subscribed to {}", client_id, topic_filter);
     }
 
+    /// Parses a shared subscription topic filter
+    /// Returns (actual_topic_filter, Option<share_group_name>)
+    fn parse_shared_subscription(topic_filter: &str) -> (&str, Option<String>) {
+        if let Some(after_share) = topic_filter.strip_prefix("$share/") {
+            // Find the second '/' after $share/
+            if let Some(slash_pos) = after_share.find('/') {
+                let group_name = &after_share[..slash_pos];
+                let actual_filter = &after_share[slash_pos + 1..];
+                return (actual_filter, Some(group_name.to_string()));
+            }
+        }
+        (topic_filter, None)
+    }
+
     /// Removes a subscription for a client
     pub async fn unsubscribe(&self, client_id: &str, topic_filter: &str) -> bool {
+        let (actual_filter, _) = Self::parse_shared_subscription(topic_filter);
+
         let mut subscriptions = self.subscriptions.write().await;
 
-        if let Some(subs) = subscriptions.get_mut(topic_filter) {
+        if let Some(subs) = subscriptions.get_mut(actual_filter) {
             let initial_len = subs.len();
             subs.retain(|sub| sub.client_id != client_id);
 
@@ -143,7 +177,7 @@ impl MessageRouter {
 
             // Remove empty entries after calculating removed flag
             if subs.is_empty() {
-                subscriptions.remove(topic_filter);
+                subscriptions.remove(actual_filter);
             }
             if removed {
                 debug!("Client {} unsubscribed from {}", client_id, topic_filter);
@@ -193,77 +227,148 @@ impl MessageRouter {
         let subscriptions = self.subscriptions.read().await;
         let clients = self.clients.read().await;
 
+        // Group subscriptions by share group
+        let mut share_groups: HashMap<String, Vec<&Subscription>> = HashMap::new();
+        let mut regular_subs: Vec<&Subscription> = Vec::new();
+
         for (topic_filter, subs) in subscriptions.iter() {
             if topic_matches_filter(&publish.topic_name, topic_filter) {
                 for sub in subs {
-                    if let Some(client_info) = clients.get(&sub.client_id) {
-                        // Calculate effective QoS (minimum of publish and subscription QoS)
-                        let effective_qos = match (publish.qos, sub.qos) {
-                            (QoS::AtMostOnce, _) | (_, QoS::AtMostOnce) => QoS::AtMostOnce,
-                            (QoS::AtLeastOnce | QoS::ExactlyOnce, QoS::AtLeastOnce)
-                            | (QoS::AtLeastOnce, QoS::ExactlyOnce) => QoS::AtLeastOnce,
-                            (QoS::ExactlyOnce, QoS::ExactlyOnce) => QoS::ExactlyOnce,
-                        };
+                    if let Some(ref group) = sub.share_group {
+                        share_groups.entry(group.clone()).or_default().push(sub);
+                    } else {
+                        regular_subs.push(sub);
+                    }
+                }
+            }
+        }
 
-                        // Create message with effective QoS
+        // Process shared subscriptions - one delivery per group
+        for (group_name, group_subs) in share_groups {
+            // Find online subscribers in this group
+            let online_subs: Vec<&Subscription> = group_subs
+                .iter()
+                .filter(|sub| clients.contains_key(&sub.client_id))
+                .copied()
+                .collect();
+
+            if !online_subs.is_empty() {
+                // Get round-robin counter for this group
+                let counters = self.share_group_counters.read().await;
+                if let Some(counter) = counters.get(&group_name) {
+                    let index = counter.fetch_add(1, Ordering::Relaxed) % online_subs.len();
+                    let chosen_sub = online_subs[index];
+
+                    // Deliver to chosen subscriber
+                    self.deliver_to_subscriber(
+                        chosen_sub,
+                        publish,
+                        &clients,
+                        self.storage.as_ref(),
+                    )
+                    .await;
+                }
+            } else if !group_subs.is_empty() {
+                // All subscribers offline - queue for first subscriber if QoS > 0
+                let sub = group_subs[0];
+                if self.storage.is_some() && sub.qos != QoS::AtMostOnce {
+                    if let Some(ref storage) = self.storage {
                         let mut message = publish.clone();
-                        message.qos = effective_qos;
+                        message.qos = sub.qos;
 
-                        // Add subscription identifier if present
-                        if let Some(id) = sub.subscription_id {
-                            message.properties.set_subscription_identifier(id);
-                        }
-
-                        // Send to client (non-blocking)
-                        if let Err(e) = client_info.sender.try_send(message.clone()) {
-                            // Client's channel is full or disconnected, queue for later
-                            if self.storage.is_some() && effective_qos != QoS::AtMostOnce {
-                                if let Some(ref storage) = self.storage {
-                                    let queued_msg = QueuedMessage::new(
-                                        message.clone(),
-                                        sub.client_id.clone(),
-                                        effective_qos,
-                                        message.packet_id,
-                                    );
-                                    if let Err(e) = storage.queue_message(queued_msg).await {
-                                        error!(
-                                            "Failed to queue message for offline client {}: {}",
-                                            sub.client_id, e
-                                        );
-                                    } else {
-                                        debug!("Queued message for client {}", sub.client_id);
-                                    }
-                                }
-                            }
-                            trace!(
-                                "Failed to send message to client {}: {:?}",
-                                sub.client_id,
-                                e
+                        let queued_msg =
+                            QueuedMessage::new(message, sub.client_id.clone(), sub.qos, None);
+                        if let Err(e) = storage.queue_message(queued_msg).await {
+                            error!(
+                                "Failed to queue message for offline shared subscriber {}: {}",
+                                sub.client_id, e
                             );
                         }
-                    } else {
-                        // Client is offline, queue message if QoS > 0
-                        if self.storage.is_some() && sub.qos != QoS::AtMostOnce {
-                            if let Some(ref storage) = self.storage {
-                                let mut message = publish.clone();
-                                message.qos = sub.qos;
+                    }
+                }
+            }
+        }
 
-                                let queued_msg = QueuedMessage::new(
-                                    message,
-                                    sub.client_id.clone(),
-                                    sub.qos,
-                                    None, // Will be assigned when delivered
-                                );
-                                if let Err(e) = storage.queue_message(queued_msg).await {
-                                    error!(
-                                        "Failed to queue message for offline client {}: {}",
-                                        sub.client_id, e
-                                    );
-                                } else {
-                                    debug!("Queued message for offline client {}", sub.client_id);
-                                }
-                            }
+        // Process regular (non-shared) subscriptions
+        for sub in regular_subs {
+            self.deliver_to_subscriber(sub, publish, &clients, self.storage.as_ref())
+                .await;
+        }
+    }
+
+    /// Delivers a message to a specific subscriber
+    async fn deliver_to_subscriber(
+        &self,
+        sub: &Subscription,
+        publish: &PublishPacket,
+        clients: &HashMap<String, ClientInfo>,
+        storage: Option<&Arc<DynamicStorage>>,
+    ) {
+        if let Some(client_info) = clients.get(&sub.client_id) {
+            // Calculate effective QoS (minimum of publish and subscription QoS)
+            let effective_qos = match (publish.qos, sub.qos) {
+                (QoS::AtMostOnce, _) | (_, QoS::AtMostOnce) => QoS::AtMostOnce,
+                (QoS::AtLeastOnce | QoS::ExactlyOnce, QoS::AtLeastOnce)
+                | (QoS::AtLeastOnce, QoS::ExactlyOnce) => QoS::AtLeastOnce,
+                (QoS::ExactlyOnce, QoS::ExactlyOnce) => QoS::ExactlyOnce,
+            };
+
+            // Create message with effective QoS
+            let mut message = publish.clone();
+            message.qos = effective_qos;
+
+            // Add subscription identifier if present
+            if let Some(id) = sub.subscription_id {
+                message.properties.set_subscription_identifier(id);
+            }
+
+            // Send to client (non-blocking)
+            if let Err(e) = client_info.sender.try_send(message.clone()) {
+                // Client's channel is full or disconnected, queue for later
+                if let Some(storage) = storage {
+                    if effective_qos != QoS::AtMostOnce {
+                        let queued_msg = QueuedMessage::new(
+                            message.clone(),
+                            sub.client_id.clone(),
+                            effective_qos,
+                            message.packet_id,
+                        );
+                        if let Err(e) = storage.queue_message(queued_msg).await {
+                            error!(
+                                "Failed to queue message for offline client {}: {}",
+                                sub.client_id, e
+                            );
+                        } else {
+                            debug!("Queued message for client {}", sub.client_id);
                         }
+                    }
+                }
+                trace!(
+                    "Failed to send message to client {}: {:?}",
+                    sub.client_id,
+                    e
+                );
+            }
+        } else {
+            // Client is offline, queue message if QoS > 0
+            if let Some(storage) = storage {
+                if sub.qos != QoS::AtMostOnce {
+                    let mut message = publish.clone();
+                    message.qos = sub.qos;
+
+                    let queued_msg = QueuedMessage::new(
+                        message,
+                        sub.client_id.clone(),
+                        sub.qos,
+                        None, // Will be assigned when delivered
+                    );
+                    if let Err(e) = storage.queue_message(queued_msg).await {
+                        error!(
+                            "Failed to queue message for offline client {}: {}",
+                            sub.client_id, e
+                        );
+                    } else {
+                        debug!("Queued message for offline client {}", sub.client_id);
                     }
                 }
             }
@@ -406,5 +511,140 @@ mod tests {
         router.route_message(&delete).await;
 
         assert_eq!(router.retained_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_shared_subscription_parsing() {
+        let (filter, group) = MessageRouter::parse_shared_subscription("$share/group1/test/topic");
+        assert_eq!(filter, "test/topic");
+        assert_eq!(group, Some("group1".to_string()));
+
+        let (filter, group) = MessageRouter::parse_shared_subscription("test/topic");
+        assert_eq!(filter, "test/topic");
+        assert_eq!(group, None);
+
+        let (filter, group) = MessageRouter::parse_shared_subscription("$share/group/test/+/data");
+        assert_eq!(filter, "test/+/data");
+        assert_eq!(group, Some("group".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_shared_subscription_round_robin() {
+        let router = MessageRouter::new();
+        let (tx1, mut rx1) = tokio::sync::mpsc::channel(100);
+        let (tx2, mut rx2) = tokio::sync::mpsc::channel(100);
+        let (tx3, mut rx3) = tokio::sync::mpsc::channel(100);
+
+        // Register three clients
+        router.register_client("client1".to_string(), tx1).await;
+        router.register_client("client2".to_string(), tx2).await;
+        router.register_client("client3".to_string(), tx3).await;
+
+        // All subscribe to same shared subscription
+        router
+            .subscribe(
+                "client1".to_string(),
+                "$share/workers/test/data".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+        router
+            .subscribe(
+                "client2".to_string(),
+                "$share/workers/test/data".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+        router
+            .subscribe(
+                "client3".to_string(),
+                "$share/workers/test/data".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+
+        // Publish 6 messages
+        for i in 0..6 {
+            let publish =
+                PublishPacket::new("test/data", format!("msg{}", i).as_bytes(), QoS::AtMostOnce);
+            router.route_message(&publish).await;
+        }
+
+        // Each client should receive exactly 2 messages
+        let mut count1 = 0;
+        let mut count2 = 0;
+        let mut count3 = 0;
+
+        while rx1.try_recv().is_ok() {
+            count1 += 1;
+        }
+        while rx2.try_recv().is_ok() {
+            count2 += 1;
+        }
+        while rx3.try_recv().is_ok() {
+            count3 += 1;
+        }
+
+        assert_eq!(count1, 2);
+        assert_eq!(count2, 2);
+        assert_eq!(count3, 2);
+    }
+
+    #[tokio::test]
+    async fn test_shared_and_regular_subscriptions() {
+        let router = MessageRouter::new();
+        let (tx1, mut rx1) = tokio::sync::mpsc::channel(100);
+        let (tx2, mut rx2) = tokio::sync::mpsc::channel(100);
+        let (tx3, mut rx3) = tokio::sync::mpsc::channel(100);
+
+        // Register clients
+        router.register_client("shared1".to_string(), tx1).await;
+        router.register_client("shared2".to_string(), tx2).await;
+        router.register_client("regular".to_string(), tx3).await;
+
+        // Two clients with shared subscription
+        router
+            .subscribe(
+                "shared1".to_string(),
+                "$share/group/test/+".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+        router
+            .subscribe(
+                "shared2".to_string(),
+                "$share/group/test/+".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+
+        // One client with regular subscription
+        router
+            .subscribe(
+                "regular".to_string(),
+                "test/+".to_string(),
+                QoS::AtMostOnce,
+                None,
+            )
+            .await;
+
+        // Publish message
+        let publish = PublishPacket::new("test/data", b"hello", QoS::AtMostOnce);
+        router.route_message(&publish).await;
+
+        // Regular subscriber should receive the message
+        let regular_msg = rx3.try_recv().unwrap();
+        assert_eq!(regular_msg.payload, b"hello");
+
+        // Only one of the shared subscribers should receive it
+        let shared1_received = rx1.try_recv().is_ok();
+        let shared2_received = rx2.try_recv().is_ok();
+
+        assert!(shared1_received ^ shared2_received); // XOR - exactly one should be true
     }
 }

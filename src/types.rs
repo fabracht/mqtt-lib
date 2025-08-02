@@ -180,6 +180,12 @@ impl ConnectOptions {
     }
 
     #[must_use]
+    pub fn with_receive_maximum(mut self, receive_maximum: u16) -> Self {
+        self.properties.receive_maximum = Some(receive_maximum);
+        self
+    }
+
+    #[must_use]
     pub fn with_automatic_reconnect(mut self, enabled: bool) -> Self {
         self.reconnect_config.enabled = enabled;
         self

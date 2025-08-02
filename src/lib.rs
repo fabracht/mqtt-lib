@@ -135,6 +135,8 @@ pub mod protocol;
 pub mod session;
 pub mod tasks; // Direct async tasks - NO event loops
 pub mod test_utils;
+#[cfg(any(test, feature = "turmoil-testing"))]
+pub mod testing;
 pub mod topic_matching;
 pub mod transport;
 pub mod types;
