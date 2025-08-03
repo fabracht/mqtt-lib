@@ -84,16 +84,6 @@ let auth_config = AuthConfig {
 };
 ```
 
-### External Authentication
-
-```rust
-let auth_config = AuthConfig {
-    allow_anonymous: false,
-    password_file: None,
-    auth_method: AuthMethod::External,
-    auth_data: Some(b"external_auth_config".to_vec()),
-};
-```
 
 ## TLS Client Certificate Authentication
 

@@ -226,8 +226,6 @@ pub enum AuthMethod {
     Password,
     /// SCRAM-SHA-256
     ScramSha256,
-    /// External authentication
-    External,
 }
 
 /// TLS configuration

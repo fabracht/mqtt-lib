@@ -86,7 +86,6 @@ let config = BrokerConfig::new().with_auth(auth_config);
 | `AuthMethod::None` | No authentication | Development, internal networks |
 | `AuthMethod::Password` | Username/password from file | Basic security |
 | `AuthMethod::ScramSha256` | SCRAM-SHA-256 | Enhanced security |
-| `AuthMethod::External` | External authentication | Enterprise integration |
 
 ### Password File Format
 
