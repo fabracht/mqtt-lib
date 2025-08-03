@@ -307,6 +307,7 @@ cargo make ci-verify
 ```bash
 # Development
 cargo make build          # Build the project  
+cargo make build-release  # Build optimized release version
 cargo make test           # Run all tests
 cargo make fmt            # Format code
 cargo make clippy         # Run linter
@@ -315,13 +316,13 @@ cargo make clippy         # Run linter
 cargo make ci-verify      # Run ALL CI checks (must pass before push)
 cargo make pre-commit     # Run before committing (fmt + clippy + test)
 
-# Examples
+# Examples (use raw cargo for specific targets)
 cargo run --example simple_broker           # Start basic broker
 cargo run --example broker_with_tls         # TLS-enabled broker
 cargo run --example broker_with_websocket   # WebSocket-enabled broker
 cargo run --example broker_bridge_demo      # Broker bridging demo
 
-# Benchmarks
+# Benchmarks (use raw cargo for specific targets)
 cargo bench --bench broker_performance      # Broker performance tests
 cargo bench --bench mqtt_benchmarks         # Core MQTT benchmarks
 ```
@@ -338,7 +339,7 @@ cargo make test-fast
 # Run all tests including integration tests
 cargo make test
 
-# Run specific test suites
+# Run specific test suites (use raw cargo for specific targets)
 cargo test --test broker_performance_tests
 cargo test --test connection_pool_performance
 ```
@@ -408,4 +409,4 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ---
 
-**Built with ❤️ in Rust. No event loops. Just fast, reliable MQTT.**
+**Built with ❤️ in Rust. One reliable state machine.**

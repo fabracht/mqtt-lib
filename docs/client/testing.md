@@ -598,7 +598,7 @@ jobs:
       
       - name: Run tests
         run: |
-          cargo test --all-features
+          cargo make test
           cargo test --doc
       
       - name: Run integration tests

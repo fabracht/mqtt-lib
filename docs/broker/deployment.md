@@ -105,7 +105,7 @@ git clone https://github.com/fabriciobracht/mqtt-lib.git
 cd mqtt-lib
 
 # Build release binary
-cargo build --release --bin mqtt-broker
+cargo make build-release
 
 # Install
 sudo cp target/release/mqtt-broker /usr/local/bin/

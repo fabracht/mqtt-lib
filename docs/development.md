@@ -32,6 +32,8 @@ cargo make test
 
 This project uses **cargo-make** to ensure consistent command execution between local development and CI/CD pipelines.
 
+> **Note**: The cargo-make commands are provided as development luxuries to improve the development experience. While convenient, they are not strictly required - you can always fall back to raw cargo commands if needed.
+
 ### Why cargo-make?
 
 1. **Consistency**: Same commands work locally and in CI
@@ -443,7 +445,7 @@ cargo make doc
 # Build docs with private items
 cargo doc --document-private-items
 
-# Check doc examples
+# Check doc examples (use raw cargo for doc tests)
 cargo test --doc
 ```
 
@@ -492,7 +494,7 @@ git commit -m "feat: Add new feature"
 sudo apt install linux-tools-common
 
 # Profile with perf
-cargo build --release
+cargo make build-release
 perf record --call-graph=dwarf target/release/mqtt-broker
 perf report
 ```
@@ -524,7 +526,7 @@ cargo flamegraph --bench broker_performance
 
 ```bash
 # Debug build with symbols
-cargo build
+cargo make build
 
 # Run with debug logging
 RUST_LOG=mqtt_v5=debug cargo run
@@ -537,7 +539,7 @@ RUST_BACKTRACE=1 cargo run
 
 ```bash
 # Compile with debug info
-cargo build
+cargo make build
 
 # Run with GDB
 gdb target/debug/mqtt-broker
@@ -598,7 +600,7 @@ cargo publish
 ```bash
 # Clean build
 cargo clean
-cargo build
+cargo make build
 
 # Update dependencies
 cargo update
@@ -610,13 +612,13 @@ cargo outdated
 ### Test Failures
 
 ```bash
-# Run single test with output
+# Run single test with output (use raw cargo for specific tests)
 cargo test test_name -- --nocapture
 
-# Run tests sequentially
+# Run tests sequentially (use raw cargo for specific test options)
 cargo test -- --test-threads=1
 
-# Show test timings
+# Show test timings (use raw cargo for specific test options)
 cargo test -- --show-output
 ```
 

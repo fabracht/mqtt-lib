@@ -64,7 +64,7 @@ Start with these examples to understand the fundamentals:
 2. Clone the repository
 3. Build the project:
    ```bash
-   cargo build --examples
+   cargo make build
    ```
 
 ### Basic Usage

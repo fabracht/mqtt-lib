@@ -14,6 +14,7 @@ echo "==================================="
 echo ""
 echo "Development Commands:"
 echo "  cargo make build          - Build the project"
+echo "  cargo make build-release  - Build optimized release version"
 echo "  cargo make test           - Run all tests"
 echo "  cargo make fmt            - Format code"
 echo "  cargo make clippy         - Run linter"
@@ -68,6 +69,11 @@ description = "Run only unit tests and binary tests (excludes integration tests)
 [tasks.build]
 command = "cargo"
 args = ["build", "--all-features", "--verbose"]
+
+[tasks.build-release]
+command = "cargo"
+args = ["build", "--release", "--all-features", "--verbose"]
+description = "Build optimized release version"
 
 [tasks.check]
 command = "cargo"
