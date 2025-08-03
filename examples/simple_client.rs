@@ -20,7 +20,7 @@
 //! MQTT_BROKER=mqtt://test.mosquitto.org:1883 cargo run --example simple_client
 //! ```
 
-use mqtt_v5::{ConnectOptions, ConnectionEvent, MqttClient, broker::MqttBroker};
+use mqtt_v5::{broker::MqttBroker, ConnectOptions, ConnectionEvent, MqttClient};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -31,19 +31,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if using external broker
     let broker_url = std::env::var("MQTT_BROKER").ok();
-    
+
     // Start embedded broker if no external broker specified
     let broker_handle = if broker_url.is_none() {
         println!("🚀 Starting embedded MQTT broker...");
-        
+
         // Start a simple broker on localhost
-        let mut broker = MqttBroker::new();
-        broker.bind("127.0.0.1:1883").await?;
-        
+        let broker = MqttBroker::bind("127.0.0.1:1883").await?;
+
         println!("✅ Broker listening on mqtt://localhost:1883");
-        
+
         // Run broker in background
         Some(tokio::spawn(async move {
+            let mut broker = broker;
             if let Err(e) = broker.run().await {
                 eprintln!("❌ Broker error: {}", e);
             }

@@ -1,6 +1,6 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-Common issues and solutions when using the MQTT v5.0 client library.
+Common issues and solutions for the MQTT v5.0 client library.
 
 ## Connection Issues
 

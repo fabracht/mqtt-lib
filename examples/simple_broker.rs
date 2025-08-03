@@ -37,37 +37,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================\n");
 
     // Create broker configuration
-    let mut config = BrokerConfig::default();
-    
-    // Basic settings
-    config.bind_address = "127.0.0.1:1883".parse::<SocketAddr>()?;
-    config.max_clients = 1000;
-    config.max_packet_size = 10 * 1024 * 1024; // 10MB
-    config.session_expiry_interval = Some(Duration::from_secs(3600)); // 1 hour
-    
-    // MQTT v5.0 feature settings
-    config.maximum_qos = 2;
-    config.retain_available = true;
-    config.wildcard_subscription_available = true;
-    config.subscription_identifier_available = true;
-    config.shared_subscription_available = true;
-    config.topic_alias_maximum = 100;
-    
+    let mut config = BrokerConfig {
+        bind_address: "127.0.0.1:1883".parse::<SocketAddr>()?,
+        max_clients: 1000,
+        max_packet_size: 10 * 1024 * 1024,                  // 10MB
+        session_expiry_interval: Duration::from_secs(3600), // 1 hour
+        maximum_qos: 2,
+        retain_available: true,
+        wildcard_subscription_available: true,
+        subscription_identifier_available: true,
+        shared_subscription_available: true,
+        topic_alias_maximum: 100,
+        ..Default::default()
+    };
+
     // Authentication - allow anonymous for demo
     config.auth_config.allow_anonymous = true;
-    
+
     info!("📋 Broker Configuration:");
     info!("   Address: {}", config.bind_address);
     info!("   Max clients: {}", config.max_clients);
     info!("   Max QoS: {}", config.maximum_qos);
-    info!("   Anonymous allowed: {}", config.auth_config.allow_anonymous);
-    info!("   Shared subscriptions: {}", config.shared_subscription_available);
+    info!(
+        "   Anonymous allowed: {}",
+        config.auth_config.allow_anonymous
+    );
+    info!(
+        "   Shared subscriptions: {}",
+        config.shared_subscription_available
+    );
 
     // Create and bind the broker
-    let mut broker = MqttBroker::with_config(config);
-    let addr = broker.bind("127.0.0.1:1883").await?;
-    
-    info!("✅ MQTT broker listening on {}", addr);
+    let mut broker = MqttBroker::with_config(config).await?;
+
+    info!("✅ MQTT broker listening on 127.0.0.1:1883");
     info!("📡 Clients can connect to mqtt://localhost:1883");
     info!("🛑 Press Ctrl+C to stop the broker\n");
 

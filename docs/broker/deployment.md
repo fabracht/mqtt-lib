@@ -1,6 +1,6 @@
-# Production Deployment Guide
+# Production Deployment
 
-Complete guide for deploying the MQTT broker in production environments.
+Deploying the MQTT broker in production environments.
 
 ## Pre-Deployment Checklist
 

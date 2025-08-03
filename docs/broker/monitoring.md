@@ -1,6 +1,6 @@
 # Monitoring and Metrics
 
-Comprehensive guide to monitoring your MQTT broker for performance, health, and troubleshooting.
+Monitoring the MQTT broker for performance, health, and troubleshooting.
 
 ## Overview
 

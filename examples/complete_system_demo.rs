@@ -19,7 +19,7 @@
 
 use mqtt_v5::{
     broker::{BrokerConfig, MqttBroker},
-    ConnectOptions, LastWill, MqttClient, PublishOptions, QoS,
+    ConnectOptions, MqttClient, PublishOptions, QoS,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -36,14 +36,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure and start broker
     println!("📡 Starting MQTT broker...");
-    let mut config = BrokerConfig::default();
-    config.bind_address = "127.0.0.1:1883".to_string();
-    config.max_clients = 1000;
-    config.allow_anonymous = true; // For demo simplicity
+    let mut config = BrokerConfig {
+        bind_address: "127.0.0.1:1883".parse()?,
+        max_clients: 1000,
+        ..Default::default()
+    };
+    config.auth_config.allow_anonymous = true; // For demo simplicity
 
-    let mut broker = MqttBroker::with_config(config);
-    broker.bind("127.0.0.1:1883").await?;
-    
+    let mut broker = MqttBroker::with_config(config).await?;
+
     println!("✅ Broker listening on mqtt://localhost:1883");
 
     // Run broker in background
@@ -103,14 +104,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown
     println!("\n🛑 Shutting down demo...");
-    
+
     sensor_handle.abort();
     control_handle.abort();
-    
+
     dashboard_client.disconnect().await?;
     processor1.disconnect().await?;
     processor2.disconnect().await?;
-    
+
     broker_handle.abort();
 
     println!("✅ Demo completed successfully!");
@@ -119,19 +120,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn create_sensor_client() -> Result<MqttClient, Box<dyn std::error::Error>> {
-    // Configure with last will
-    let will = LastWill {
-        topic: "sensors/status".to_string(),
-        payload: b"OFFLINE".to_vec(),
-        qos: QoS::AtLeastOnce,
-        retain: true,
-        properties: Default::default(),
-    };
-
     let options = ConnectOptions::new("sensor-device-001")
         .with_keep_alive(Duration::from_secs(30))
-        .with_clean_start(false) // Persistent session
-        .with_will(will);
+        .with_clean_start(false); // Persistent session
 
     let client = MqttClient::with_options(options);
     client.connect("mqtt://localhost:1883").await?;
@@ -143,16 +134,17 @@ async fn create_processor_client(id: &str) -> Result<MqttClient, Box<dyn std::er
     let client = MqttClient::new(id);
     client.connect("mqtt://localhost:1883").await?;
 
+    let id_string = id.to_string();
     // Subscribe to shared subscription for load balancing
     client
         .subscribe("$share/processors/sensors/+/data", move |msg| {
             println!(
                 "🔧 [{}] Processing: {} = {}",
-                id,
+                id_string,
                 msg.topic,
                 String::from_utf8_lossy(&msg.payload)
             );
-            
+
             // Simulate processing time
             std::thread::sleep(Duration::from_millis(100));
         })
@@ -172,7 +164,7 @@ async fn create_dashboard_client() -> Result<MqttClient, Box<dyn std::error::Err
         .subscribe("sensors/+/data", move |msg| {
             let mut s = stats_clone.blocking_write();
             s.messages_received += 1;
-            
+
             if let Ok(value) = String::from_utf8_lossy(&msg.payload).parse::<f64>() {
                 s.last_value = value;
                 s.total_value += value;
@@ -265,8 +257,10 @@ async fn simulate_sensors(client: MqttClient) {
                 _ => QoS::ExactlyOnce,
             };
 
-            let mut options = PublishOptions::default();
-            options.qos = qos;
+            let options = PublishOptions {
+                qos,
+                ..Default::default()
+            };
 
             if let Err(e) = client
                 .publish_with_options(&topic, format!("{:.2}", value).as_bytes(), options)
@@ -279,15 +273,13 @@ async fn simulate_sensors(client: MqttClient) {
 
         // Periodically publish status
         if counter % 5 == 0 {
-            let _ = client
-                .publish_qos1("sensors/status", b"ACTIVE")
-                .await;
+            let _ = client.publish_qos1("sensors/status", b"ACTIVE").await;
         }
     }
 }
 
 async fn control_loop(client: MqttClient) {
-    let commands = vec![
+    let commands = [
         ("calibrate", "START_CALIBRATION"),
         ("reset", "RESET_COUNTERS"),
         ("report", "GENERATE_REPORT"),
@@ -298,7 +290,7 @@ async fn control_loop(client: MqttClient) {
 
     loop {
         ticker.tick().await;
-        
+
         let (cmd_type, cmd_value) = commands[index % commands.len()];
         let topic = format!("commands/{}", cmd_type);
 

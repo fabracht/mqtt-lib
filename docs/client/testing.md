@@ -1,6 +1,6 @@
-# Testing Guide
+# Testing
 
-Comprehensive guide for testing MQTT client applications.
+Testing MQTT client applications.
 
 ## Mock Client
 

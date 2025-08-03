@@ -20,7 +20,7 @@ This project provides everything you need for MQTT v5.0 development:
 
 ## 🚀 Quick Start
 
-### Start an MQTT Broker (5 minutes)
+### Start an MQTT Broker
 
 ```rust
 use mqtt_v5::broker::{BrokerConfig, MqttBroker};
@@ -243,31 +243,43 @@ async fn my_iot_function<T: MqttClientTrait>(client: &T) -> Result<(), Box<dyn s
 }
 ```
 
-## ☁️ AWS IoT Integration
+## ☁️ AWS IoT Support
 
-The client library is fully compatible with AWS IoT requirements:
+The client library includes AWS IoT compatibility features:
 
 ```rust
 use mqtt_v5::{MqttClient, ConnectOptions};
 use std::time::Duration;
 
-// Configure for AWS IoT
-let mut options = ConnectOptions::new("aws-iot-device-12345");
-options.clean_start = false;  // Persistent session
-options.keep_alive = Duration::from_secs(30);
-options.reconnect_config.enabled = true;
-options.reconnect_config.max_attempts = 10;
+// AWS IoT endpoint detection and connection handling
+let client = MqttClient::new("aws-iot-device-12345");
 
-let client = MqttClient::with_options(options);
-
-// Connect to AWS IoT endpoint
+// Connect to AWS IoT endpoint (automatically detects AWS IoT and optimizes connection)
 client.connect("mqtts://abcdef123456.iot.us-east-1.amazonaws.com:8883").await?;
 
-// Subscribe returns (packet_id, qos) tuple like Python SDK
-let (packet_id, qos) = client.subscribe("$aws/things/+/shadow/update/accepted", |msg| {
+// Subscribe returns (packet_id, qos) tuple for compatibility
+let (packet_id, qos) = client.subscribe("$aws/things/device-123/shadow/update/accepted", |msg| {
     println!("Shadow update accepted: {:?}", msg.payload);
 }).await?;
+
+// AWS IoT topic validation prevents publishing to reserved topics
+use mqtt_v5::validation::namespace::NamespaceValidator;
+
+let validator = NamespaceValidator::aws_iot().with_device_id("device-123");
+
+// This will succeed - device can update its own shadow
+client.publish("$aws/things/device-123/shadow/update", shadow_data).await?;
+
+// This will be rejected - device cannot publish to shadow response topics
+// client.publish("$aws/things/device-123/shadow/update/accepted", data).await?; // Error!
 ```
+
+Key AWS IoT features:
+- **Endpoint detection**: Automatically detects AWS IoT endpoints and optimizes connection behavior
+- **Topic validation**: Built-in validation for AWS IoT topic restrictions and limits
+- **ALPN support**: TLS configuration with AWS IoT ALPN protocol support
+- **Certificate loading**: Load client certificates from bytes (PEM/DER formats)
+- **SDK compatibility**: Subscribe method returns `(packet_id, qos)` tuple like other AWS SDKs
 
 ## 🛠️ Development & Building
 

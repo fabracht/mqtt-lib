@@ -1,6 +1,6 @@
 # Authentication and Access Control
 
-Complete guide to securing your MQTT broker with authentication and fine-grained access control.
+Securing the MQTT broker with authentication and fine-grained access control.
 
 ## Overview
 

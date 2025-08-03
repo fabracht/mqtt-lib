@@ -4,11 +4,11 @@ Comprehensive documentation for the MQTT v5.0 client library.
 
 ## Quick Navigation
 
-- [Getting Started](getting-started.md) - Quick start guide and basic examples
+- [Getting Started](getting-started.md) - Basic examples
 - [API Reference](api-reference.md) - Complete API documentation
 - [AWS IoT Integration](aws-iot.md) - Using the client with AWS IoT Core
 - [Advanced Features](advanced-features.md) - QoS, retained messages, will messages
-- [Testing Guide](testing.md) - Unit testing with mock client
+- [Testing](testing.md) - Unit testing with mock client
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
 ## Client Features
@@ -78,6 +78,6 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for detailed architectural principl
 
 ## Next Steps
 
-- [Getting Started Guide](getting-started.md) - Start building with the client
+- [Getting Started](getting-started.md) - Basic client usage
 - [API Reference](api-reference.md) - Detailed API documentation
 - [Examples](../../examples/) - Complete working examples

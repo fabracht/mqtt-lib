@@ -1,6 +1,6 @@
-# Development Guide
+# Development
 
-Complete guide for developing and contributing to the MQTT v5.0 platform.
+Developing and contributing to the MQTT v5.0 platform.
 
 ## Development Setup
 

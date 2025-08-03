@@ -1,6 +1,6 @@
-# Transport Configuration Guide
+# Transport Configuration
 
-Complete guide to configuring TCP, TLS/SSL, and WebSocket transports for the MQTT broker.
+Configuring TCP, TLS/SSL, and WebSocket transports for the MQTT broker.
 
 ## Overview
 

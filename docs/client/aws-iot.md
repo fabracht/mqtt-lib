@@ -1,6 +1,6 @@
 # AWS IoT Integration
 
-Complete guide for using the MQTT client with AWS IoT Core.
+Using the MQTT client with AWS IoT Core.
 
 ## Overview
 

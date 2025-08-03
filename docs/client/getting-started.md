@@ -1,6 +1,6 @@
-# Getting Started with MQTT Client
+# MQTT Client
 
-Quick guide to start using the MQTT v5.0 client library.
+Using the MQTT v5.0 client library.
 
 ## Installation
 

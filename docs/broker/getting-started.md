@@ -1,8 +1,8 @@
-# Getting Started with MQTT Broker
+# MQTT Broker
 
-This guide will help you get up and running with the MQTT v5.0 broker implementation.
+Running the MQTT v5.0 broker implementation.
 
-## Quick Start
+## Basic Setup
 
 ### Basic Broker
 
@@ -52,12 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Next Steps
+## Reference
 
-- [Configuration Reference](configuration.md) - Learn about all configuration options
-- [Authentication Setup](authentication.md) - Secure your broker
-- [Transport Configuration](transports.md) - Enable TLS and WebSocket
-- [Production Deployment](deployment.md) - Deploy to production
+- [Configuration Reference](configuration.md) - All configuration options
+- [Authentication Setup](authentication.md) - Broker security
+- [Transport Configuration](transports.md) - TLS and WebSocket
+- [Production Deployment](deployment.md) - Production deployment
 
 ## Examples
 

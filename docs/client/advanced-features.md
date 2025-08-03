@@ -1,6 +1,6 @@
 # Advanced Client Features
 
-Guide to advanced MQTT v5.0 client features and patterns.
+Advanced MQTT v5.0 client features and patterns.
 
 ## Quality of Service (QoS)
 
