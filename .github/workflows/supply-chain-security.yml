@@ -122,7 +122,7 @@ jobs:
         run: cargo install cargo-cyclonedx
       - name: Generate SBOM
         run: |
-          cargo cyclonedx --format json --output-cdx sbom.json
+          cargo cyclonedx --format json --override-filename sbom
           echo "📦 Generated Software Bill of Materials (SBOM)"
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
