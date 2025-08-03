@@ -70,16 +70,12 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Start Mosquitto
+      - name: Setup Test Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients
-          sudo systemctl stop mosquitto || true
-          mkdir -p /tmp/mosquitto
-          mosquitto -c comparative_benchmarks/test_configs/mosquitto-ci.conf -d
-          sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
-          nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
+          # We are the broker now! No need for external MQTT brokers
+          # Our tests use our own broker implementation or mock clients
+          echo "MQTT broker implementation ready for testing"
+          echo "Tests will use our built-in broker or mock clients as needed"
       
       - name: Install cargo-make
         run: cargo install --force cargo-make
@@ -135,16 +131,12 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Start Mosquitto
+      - name: Setup Test Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients
-          sudo systemctl stop mosquitto || true
-          mkdir -p /tmp/mosquitto
-          mosquitto -c comparative_benchmarks/test_configs/mosquitto-ci.conf -d
-          sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
-          nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
+          # We are the broker now! No need for external MQTT brokers
+          # Our tests use our own broker implementation or mock clients
+          echo "MQTT broker implementation ready for testing"
+          echo "Tests will use our built-in broker or mock clients as needed"
       
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
