@@ -4,12 +4,13 @@
 //! direct async patterns as the client.
 
 use crate::error::Result;
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
 /// Broker configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct BrokerConfig {
     /// TCP listener address
@@ -190,7 +191,7 @@ impl BrokerConfig {
 }
 
 /// Authentication configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
     /// Whether anonymous connections are allowed
     pub allow_anonymous: bool,
@@ -217,7 +218,7 @@ impl Default for AuthConfig {
 }
 
 /// Authentication method
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthMethod {
     /// No authentication
     None,
@@ -230,7 +231,7 @@ pub enum AuthMethod {
 }
 
 /// TLS configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
     /// Path to certificate file
     pub cert_file: PathBuf,
@@ -284,7 +285,7 @@ impl TlsConfig {
 }
 
 /// WebSocket configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSocketConfig {
     /// WebSocket listener address
     pub bind_address: SocketAddr,
@@ -340,7 +341,7 @@ impl WebSocketConfig {
 }
 
 /// Storage configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend type
     pub backend: StorageBackend,
@@ -403,7 +404,7 @@ impl StorageConfig {
 }
 
 /// Storage backend type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StorageBackend {
     /// File-based storage
     File,

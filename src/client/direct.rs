@@ -42,12 +42,7 @@ impl PacketReader for UnifiedReader {
         match self {
             Self::Tcp(reader) => reader.read_packet().await,
             Self::Tls(reader) => reader.read_packet().await,
-            Self::WebSocket(_reader) => {
-                // TODO: Implement WebSocket packet reading
-                Err(MqttError::ProtocolError(
-                    "WebSocket packet reading not implemented".to_string(),
-                ))
-            }
+            Self::WebSocket(reader) => reader.read_packet().await,
         }
     }
 }
@@ -64,12 +59,7 @@ impl PacketWriter for UnifiedWriter {
         match self {
             Self::Tcp(writer) => writer.write_packet(packet).await,
             Self::Tls(writer) => writer.write_packet(packet).await,
-            Self::WebSocket(_writer) => {
-                // TODO: Implement WebSocket packet writing
-                Err(MqttError::ProtocolError(
-                    "WebSocket packet writing not implemented".to_string(),
-                ))
-            }
+            Self::WebSocket(writer) => writer.write_packet(packet).await,
         }
     }
 }
@@ -237,7 +227,9 @@ impl DirectClientInner {
                 }
 
                 // Start background tasks with reader half
+                tracing::info!("Starting background tasks (packet reader and keepalive)");
                 self.start_background_tasks(reader)?;
+                tracing::info!("Background tasks started successfully");
 
                 Ok(ConnectResult {
                     session_present: connack.session_present,
@@ -827,7 +819,9 @@ impl DirectClientInner {
         };
 
         self.packet_reader_handle = Some(tokio::spawn(async move {
+            tracing::warn!("📦 PACKET READER - Task starting");
             packet_reader_task_with_responses(reader, ctx).await;
+            tracing::error!("📦 PACKET READER - Task exited!");
         }));
 
         // Start keepalive task
@@ -835,7 +829,9 @@ impl DirectClientInner {
         let keepalive_interval = self.options.keep_alive;
 
         self.keepalive_handle = Some(tokio::spawn(async move {
+            tracing::warn!("💓 KEEPALIVE - Task starting");
             keepalive_task_with_writer(keepalive_writer, keepalive_interval).await;
+            tracing::error!("💓 KEEPALIVE - Task exited!");
         }));
 
         Ok(())
@@ -866,12 +862,14 @@ struct PacketReaderContext {
 
 /// Packet reader task that handles response channels
 async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: PacketReaderContext) {
+    tracing::info!("Packet reader task started and ready to process incoming packets");
     loop {
         // Read packet directly from reader - no mutex needed!
         let packet = reader.read_packet().await;
 
         match packet {
             Ok(packet) => {
+                tracing::trace!("Received packet: {:?}", packet);
                 // Check if this is a response we're waiting for
                 match &packet {
                     Packet::SubAck(suback) => {

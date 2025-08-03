@@ -40,11 +40,16 @@
 //! ```
 
 use crate::error::{MqttError, Result};
+use crate::packet::Packet;
+use crate::transport::packet_io::{PacketReader, PacketWriter};
 use crate::transport::tls::TlsConfig;
 use crate::transport::Transport;
+use futures_util::{stream::SplitSink, stream::SplitStream, SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream};
 use url::Url;
 
 /// WebSocket transport configuration
@@ -341,15 +346,10 @@ impl WebSocketConfig {
 }
 
 /// WebSocket transport implementation
-///
-/// Note: This is a placeholder implementation. A full implementation would
-/// require a WebSocket library like `tokio-tungstenite` or `async-tungstenite`.
-#[derive(Debug)]
 pub struct WebSocketTransport {
     config: WebSocketConfig,
     connected: bool,
-    // In a real implementation, this would hold the WebSocket connection
-    // connection: Option<WebSocketStream<...>>,
+    connection: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
 }
 
 impl WebSocketTransport {
@@ -359,6 +359,7 @@ impl WebSocketTransport {
         Self {
             config,
             connected: false,
+            connection: None,
         }
     }
 
@@ -383,9 +384,6 @@ impl WebSocketTransport {
 
     /// Splits the WebSocket into read and write halves
     ///
-    /// Note: WebSocket is message-based, not stream-based. In a real implementation,
-    /// this would likely use channels or shared state rather than true splitting.
-    ///
     /// # Errors
     ///
     /// Returns an error if the transport is not connected
@@ -394,31 +392,92 @@ impl WebSocketTransport {
             return Err(MqttError::NotConnected);
         }
 
-        // In a real implementation, this would set up channels or shared state
-        // for communicating between the read and write halves
-        let read_handle = WebSocketReadHandle {
-            url: self.config.url.clone(),
-        };
-        let write_handle = WebSocketWriteHandle {
-            url: self.config.url.clone(),
-        };
+        let connection = self.connection.ok_or(MqttError::NotConnected)?;
+        let (write, read) = connection.split();
+
+        let read_handle = WebSocketReadHandle { reader: read };
+        let write_handle = WebSocketWriteHandle { writer: write };
 
         Ok((read_handle, write_handle))
     }
 }
 
 /// WebSocket read handle for split operations
-#[derive(Debug)]
 pub struct WebSocketReadHandle {
-    #[allow(dead_code)] // Used for future WebSocket implementation
-    url: Url,
+    reader: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
 }
 
-/// WebSocket write handle for split operations  
-#[derive(Debug)]
+/// WebSocket write handle for split operations
 pub struct WebSocketWriteHandle {
-    #[allow(dead_code)] // Used for future WebSocket implementation
-    url: Url,
+    writer: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+}
+
+impl WebSocketReadHandle {
+    /// Reads data from the WebSocket
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match self.reader.next().await {
+            Some(Ok(Message::Binary(data))) => {
+                let len = data.len().min(buf.len());
+                buf[..len].copy_from_slice(&data[..len]);
+                Ok(len)
+            }
+            Some(Ok(Message::Close(_))) | None => Err(MqttError::ClientClosed),
+            Some(Ok(_)) => Ok(0), // Ignore other message types
+            Some(Err(e)) => Err(MqttError::Io(e.to_string())),
+        }
+    }
+}
+
+impl WebSocketWriteHandle {
+    /// Writes data to the WebSocket
+    pub async fn write(&mut self, buf: &[u8]) -> Result<()> {
+        use futures_util::SinkExt;
+        self.writer
+            .send(Message::Binary(buf.to_vec().into()))
+            .await
+            .map_err(|e| MqttError::Io(e.to_string()))
+    }
+}
+
+impl PacketReader for WebSocketReadHandle {
+    async fn read_packet(&mut self) -> Result<Packet> {
+        use crate::packet::FixedHeader;
+        use bytes::BytesMut;
+        use futures_util::StreamExt;
+
+        // WebSocket messages are already framed, so we get complete packets
+        match self.reader.next().await {
+            Some(Ok(Message::Binary(data))) => {
+                let mut buf = BytesMut::from(&data[..]);
+
+                // Parse fixed header first
+                let fixed_header = FixedHeader::decode(&mut buf)?;
+
+                // Then decode the packet body
+                Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut buf)
+            }
+            Some(Ok(Message::Close(_))) | None => Err(MqttError::ClientClosed),
+            Some(Ok(_)) => Err(MqttError::ProtocolError(
+                "Unexpected WebSocket message type".to_string(),
+            )),
+            Some(Err(e)) => Err(MqttError::Io(e.to_string())),
+        }
+    }
+}
+
+impl PacketWriter for WebSocketWriteHandle {
+    async fn write_packet(&mut self, packet: Packet) -> Result<()> {
+        use futures_util::SinkExt;
+
+        // Encode the packet to bytes using the public encode function
+        let buf = crate::test_utils::encode_packet(&packet)?;
+
+        // Send as WebSocket binary frame
+        self.writer
+            .send(Message::Binary(buf.into()))
+            .await
+            .map_err(|e| MqttError::Io(e.to_string()))
+    }
 }
 
 impl Transport for WebSocketTransport {
@@ -427,46 +486,71 @@ impl Transport for WebSocketTransport {
             return Err(MqttError::AlreadyConnected);
         }
 
-        // TODO: Implement actual WebSocket connection using tokio-tungstenite
-        // This is a placeholder implementation for demonstration
         tracing::info!(
             url = %self.config.url,
             subprotocols = ?self.config.subprotocols,
             "Connecting to WebSocket broker"
         );
 
-        // Simulate connection delay
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Set up timeout and connect
+        let connect_future = tokio::time::timeout(
+            self.config.timeout,
+            tokio_tungstenite::connect_async(self.config.url.as_str()),
+        );
 
-        // For now, we'll just mark as connected
-        // In a real implementation, this would:
-        // 1. Create TLS connector if wss://
-        // 2. Establish TCP connection
-        // 3. Perform WebSocket handshake
-        // 4. Negotiate subprotocol
-        // 5. Store the WebSocket stream
+        match connect_future.await {
+            Ok(Ok((ws_stream, response))) => {
+                // Check if subprotocol was negotiated
+                if let Some(protocol) = response.headers().get("Sec-WebSocket-Protocol") {
+                    tracing::info!(
+                        "WebSocket connected with subprotocol: {:?}",
+                        protocol.to_str().unwrap_or("<invalid>")
+                    );
+                }
 
-        self.connected = true;
-        tracing::info!("WebSocket connection established");
-        Ok(())
+                self.connection = Some(ws_stream);
+                self.connected = true;
+                tracing::info!("WebSocket connection established");
+                Ok(())
+            }
+            Ok(Err(e)) => {
+                tracing::error!("WebSocket connection failed: {}", e);
+                Err(MqttError::ConnectionError(e.to_string()))
+            }
+            Err(_) => {
+                tracing::error!("WebSocket connection timed out");
+                Err(MqttError::Timeout)
+            }
+        }
     }
 
-    async fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if !self.connected {
             return Err(MqttError::NotConnected);
         }
 
-        // TODO: Implement actual WebSocket frame reading
-        // This would:
-        // 1. Read WebSocket frames
-        // 2. Handle control frames (ping, pong, close)
-        // 3. Extract binary data from data frames
-        // 4. Return the data to the caller
+        let connection = self.connection.as_mut().ok_or(MqttError::NotConnected)?;
 
-        // Placeholder implementation
-        Err(MqttError::ProtocolError(
-            "WebSocket read not implemented".to_string(),
-        ))
+        match connection.next().await {
+            Some(Ok(Message::Binary(data))) => {
+                let len = data.len().min(buf.len());
+                buf[..len].copy_from_slice(&data[..len]);
+                Ok(len)
+            }
+            Some(Ok(Message::Close(_))) | None => {
+                self.connected = false;
+                Err(MqttError::ClientClosed)
+            }
+            Some(Ok(Message::Ping(_))) => {
+                // Auto-pong is handled by tokio-tungstenite
+                Ok(0)
+            }
+            Some(Ok(_)) => Ok(0), // Ignore pong and text frames
+            Some(Err(e)) => {
+                self.connected = false;
+                Err(MqttError::Io(e.to_string()))
+            }
+        }
     }
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
@@ -474,16 +558,17 @@ impl Transport for WebSocketTransport {
             return Err(MqttError::NotConnected);
         }
 
-        // TODO: Implement actual WebSocket frame writing
-        // This would:
-        // 1. Wrap data in WebSocket binary frames
-        // 2. Send frames over the connection
-        // 3. Handle flow control
+        let connection = self.connection.as_mut().ok_or(MqttError::NotConnected)?;
 
         tracing::debug!(bytes = buf.len(), "Writing WebSocket frame");
 
-        // Placeholder implementation
-        Ok(())
+        connection
+            .send(Message::Binary(buf.to_vec().into()))
+            .await
+            .map_err(|e| {
+                self.connected = false;
+                MqttError::Io(e.to_string())
+            })
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -491,13 +576,13 @@ impl Transport for WebSocketTransport {
             return Ok(());
         }
 
-        // TODO: Implement WebSocket close handshake
-        // This would:
-        // 1. Send WebSocket close frame
-        // 2. Wait for close response
-        // 3. Close underlying TCP connection
-
         tracing::info!("Closing WebSocket connection");
+
+        if let Some(mut connection) = self.connection.take() {
+            // Send close frame
+            let _ = connection.close(None).await;
+        }
+
         self.connected = false;
         Ok(())
     }
@@ -570,10 +655,14 @@ mod tests {
         let mut transport = WebSocketTransport::new(config);
 
         assert!(!transport.is_connected());
-        transport.connect().await.unwrap();
-        assert!(transport.is_connected());
 
-        // Should fail to connect again
+        // Connection will fail since there's no WebSocket server at localhost:8080,
+        // but this tests that the connect method works as expected
+        let result = transport.connect().await;
+        assert!(result.is_err());
+        assert!(!transport.is_connected());
+
+        // Should fail to connect again (already failed state)
         let result = transport.connect().await;
         assert!(result.is_err());
     }
@@ -596,9 +685,10 @@ mod tests {
         let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
-        transport.connect().await.unwrap();
-        assert!(transport.is_connected());
+        // Connection will fail, but we can still test the close method
+        let _result = transport.connect().await;
 
+        // Close should work even if not connected
         transport.close().await.unwrap();
         assert!(!transport.is_connected());
     }

@@ -24,8 +24,80 @@ Thumbs.db
 tarpaulin-report.html
 cobertura.xml
 
-# Benchmarking
-/target/criterion
+# Benchmarking and Performance Testing
+/target/criterion/
+criterion/
+**/criterion/
+criterion-*.html
+criterion-*.json
+benchmark_results/
+benchmark_output/
+bench_results/
+bench_output/
+perf_data/
+perf_results/
+*.criterion
+*.bench
+*.benchmark
+flamegraph.svg
+flamegraph*.svg
+perf.data*
+*.prof
+*.profdata
+*.profraw
+
+# Benchmark report files and directories
+report/
+reports/
+**/report/
+**/reports/
+*.html
+*.svg
+*.json
+*.csv
+*.tsv
+**/target/criterion/**
+
+# Benchmark images and graphics
+benchmark_*.png
+benchmark_*.jpg
+benchmark_*.jpeg
+benchmark_*.gif
+comparison_*.png
+comparison_*.jpg
+comparison_*.jpeg
+performance_*.png
+performance_*.jpg
+*_benchmark.png
+*_benchmark.jpg
+*_comparison.png
+*_comparison.jpg
+broker_*.png
+broker_*.jpg
+throughput_*.png
+latency_*.png
+resources_*.png
+
+# Comparative benchmarks and documentation (development/research only)
+comparative_benchmarks/
+
+# Development documentation and reports (keep only crate-related docs)
+BENCHMARK_*.md
+BROKER_COMPARISON.md
+*_BENCHMARK_*.md
+*_COMPARISON_*.md
+*_PERFORMANCE_*.md
+*_VALIDATION_REPORT.md
+*_OPTIMIZATION_*.md
+*_TEST_FINDINGS.md
+CI_OPTIMIZATION_*.md
+PROPERTY_TEST_*.md
+GITHUB_SECURITY_*.md
+performance_report*.md
+benchmark_report*.md
+comparison_report*.md
+validation_report*.md
+optimization_*.md
 
 # Documentation
 /target/doc
@@ -35,6 +107,36 @@ cobertura.xml
 *.temp
 .env
 /tmp/
+
+# MQTT Storage (persistent data)
+mqtt_storage/
+mqtt-storage/
+mqtt_data/
+mqtt-data/
+*.mqtt_storage
+broker_storage/
+broker-storage/
+
+# Database and storage files
+*.db
+*.sqlite
+*.sqlite3
+*.lmdb
+*.mdb
+*.leveldb/
+*.rocksdb/
+*.persistence
+*.journal
+*.wal
+*.shm
+
+# Test-specific temporary files
+/tmp/mosquitto*
+*_test.conf
+test_*.key
+test_*.pem
+test_*.cert
+*_bench.conf
 
 # Debug
 *.log
@@ -60,6 +162,12 @@ htmlcov/
 # Profiling data
 *.profdata
 *.profraw
+callgrind.out.*
+cachegrind.out.*
+massif.out.*
+helgrind.out.*
+*.memprof
+*.cpuprof
 
 # Test certificates (generated locally)
 test_certs/*.key

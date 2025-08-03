@@ -26,6 +26,10 @@ pub mod auth;
 pub mod bridge;
 pub mod client_handler;
 pub mod config;
+pub mod connection_pool;
+pub mod hot_reload;
+pub mod optimized_router;
+pub mod resource_monitor;
 pub mod router;
 pub mod server;
 pub mod storage;
@@ -41,6 +45,7 @@ pub use auth::{
     ComprehensiveAuthProvider, PasswordAuthProvider,
 };
 pub use config::{BrokerConfig, StorageBackend as StorageBackendType, StorageConfig};
+pub use resource_monitor::{ResourceLimits, ResourceMonitor, ResourceStats};
 pub use server::MqttBroker;
 pub use storage::{DynamicStorage, FileBackend, MemoryBackend, Storage, StorageBackend};
 

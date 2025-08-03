@@ -2,6 +2,7 @@
 
 use crate::broker::auth::AuthProvider;
 use crate::broker::config::BrokerConfig;
+use crate::broker::resource_monitor::ResourceMonitor;
 use crate::broker::router::MessageRouter;
 use crate::broker::storage::{ClientSession, DynamicStorage, StorageBackend};
 use crate::broker::sys_topics::BrokerStats;
@@ -40,6 +41,7 @@ pub struct ClientHandler {
     auth_provider: Arc<dyn AuthProvider>,
     storage: Option<Arc<DynamicStorage>>,
     stats: Arc<BrokerStats>,
+    resource_monitor: Arc<ResourceMonitor>,
     shutdown_rx: tokio::sync::broadcast::Receiver<()>,
     client_id: Option<String>,
     user_id: Option<String>,
@@ -61,6 +63,7 @@ impl ClientHandler {
         auth_provider: Arc<dyn AuthProvider>,
         storage: Option<Arc<DynamicStorage>>,
         stats: Arc<BrokerStats>,
+        resource_monitor: Arc<ResourceMonitor>,
         shutdown_rx: tokio::sync::broadcast::Receiver<()>,
     ) -> Self {
         let (publish_tx, publish_rx) = mpsc::channel(100);
@@ -73,6 +76,7 @@ impl ClientHandler {
             auth_provider,
             storage,
             stats,
+            resource_monitor,
             shutdown_rx,
             client_id: None,
             user_id: None,
@@ -99,15 +103,22 @@ impl ClientHandler {
         match timeout(connect_timeout, self.wait_for_connect()).await {
             Ok(Ok(())) => {
                 // Successfully connected
+                let client_id = self.client_id.as_ref().unwrap().clone();
                 info!(
                     "Client {} connected from {} ({})",
-                    self.client_id.as_ref().unwrap(),
+                    client_id,
                     self.client_addr,
                     self.transport.transport_type()
                 );
                 if let Some(cert_info) = self.transport.client_cert_info() {
                     debug!("Client certificate: {}", cert_info);
                 }
+
+                // Register connection with resource monitor
+                self.resource_monitor
+                    .register_connection(client_id, self.client_addr.ip())
+                    .await;
+
                 self.stats.client_connected();
             }
             Ok(Err(e)) => {
@@ -135,6 +146,11 @@ impl ClientHandler {
 
         // Cleanup
         self.router.unregister_client(&client_id).await;
+
+        // Unregister connection from resource monitor
+        self.resource_monitor
+            .unregister_connection(&client_id, self.client_addr.ip())
+            .await;
 
         // Handle session cleanup based on session expiry
         if let Some(ref storage) = self.storage {
@@ -481,6 +497,32 @@ impl ClientHandler {
                     QoS::ExactlyOnce => {
                         let mut pubrec = PubRecPacket::new(publish.packet_id.unwrap());
                         pubrec.reason_code = ReasonCode::NotAuthorized;
+                        self.transport.write_packet(Packet::PubRec(pubrec)).await?;
+                    }
+                    QoS::AtMostOnce => {}
+                }
+            }
+            return Ok(());
+        }
+
+        // Check rate limits
+        if !self
+            .resource_monitor
+            .can_send_message(client_id, payload_size)
+            .await
+        {
+            warn!("Message from {} dropped due to rate limit", client_id);
+            if publish.qos != QoS::AtMostOnce {
+                // Send negative acknowledgment for rate limit exceeded
+                match publish.qos {
+                    QoS::AtLeastOnce => {
+                        let mut puback = PubAckPacket::new(publish.packet_id.unwrap());
+                        puback.reason_code = ReasonCode::QuotaExceeded;
+                        self.transport.write_packet(Packet::PubAck(puback)).await?;
+                    }
+                    QoS::ExactlyOnce => {
+                        let mut pubrec = PubRecPacket::new(publish.packet_id.unwrap());
+                        pubrec.reason_code = ReasonCode::QuotaExceeded;
                         self.transport.write_packet(Packet::PubRec(pubrec)).await?;
                     }
                     QoS::AtMostOnce => {}

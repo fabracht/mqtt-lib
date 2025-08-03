@@ -73,6 +73,19 @@ impl RecoverableError {
 
         match error {
             MqttError::ConnectionError(msg) => {
+                // AWS IoT-specific errors that should NOT be retried
+                if msg.contains("Connection reset by peer")
+                    || msg.contains("RST")
+                    || msg.contains("TCP RST")
+                    || msg.contains("reset by peer")
+                    || msg.contains("connection limit")
+                    || msg.contains("client limit")
+                {
+                    // These are AWS IoT's way of saying "you already have a connection"
+                    return None;
+                }
+
+                // Other connection errors that may be recoverable
                 if (msg.contains("temporarily unavailable")
                     || msg.contains("Connection refused")
                     || msg.contains("Network is unreachable"))

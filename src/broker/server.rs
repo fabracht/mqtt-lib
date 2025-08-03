@@ -5,6 +5,7 @@
 use crate::broker::auth::{AllowAllAuthProvider, AuthProvider};
 use crate::broker::client_handler::ClientHandler;
 use crate::broker::config::{BrokerConfig, StorageBackend as StorageBackendType};
+use crate::broker::resource_monitor::{ResourceLimits, ResourceMonitor};
 use crate::broker::router::MessageRouter;
 use crate::broker::storage::{DynamicStorage, FileBackend, MemoryBackend, StorageBackend};
 use crate::broker::sys_topics::{BrokerStats, SysTopicsProvider};
@@ -15,7 +16,7 @@ use crate::error::{MqttError, Result};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 /// MQTT v5.0 Broker
 pub struct MqttBroker {
@@ -24,6 +25,7 @@ pub struct MqttBroker {
     auth_provider: Arc<dyn AuthProvider>,
     storage: Option<Arc<DynamicStorage>>,
     stats: Arc<BrokerStats>,
+    resource_monitor: Arc<ResourceMonitor>,
     listener: Option<TcpListener>,
     tls_listener: Option<TcpListener>,
     tls_acceptor: Option<TlsAcceptor>,
@@ -132,6 +134,19 @@ impl MqttBroker {
         };
         let auth_provider: Arc<dyn AuthProvider> = Arc::new(AllowAllAuthProvider);
         let stats = Arc::new(BrokerStats::new());
+
+        // Create resource monitor with limits from config
+        let resource_limits = ResourceLimits {
+            max_connections: config.max_clients,
+            max_connections_per_ip: 100,          // Default per-IP limit
+            max_memory_bytes: 1024 * 1024 * 1024, // 1GB default
+            max_message_rate_per_client: 1000,
+            max_bandwidth_per_client: 10 * 1024 * 1024, // 10MB/sec
+            max_connection_rate: 100,
+            rate_limit_window: std::time::Duration::from_secs(60),
+        };
+        let resource_monitor = Arc::new(ResourceMonitor::new(resource_limits));
+
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
 
         Ok(Self {
@@ -140,6 +155,7 @@ impl MqttBroker {
             auth_provider,
             storage,
             stats,
+            resource_monitor,
             listener: Some(listener),
             tls_listener,
             tls_acceptor,
@@ -173,7 +189,10 @@ impl MqttBroker {
     }
 
     /// Initialize storage and start cleanup tasks
-    async fn initialize_storage(&self) -> Result<()> {
+    async fn initialize_storage(
+        &self,
+        shutdown_tx: &tokio::sync::broadcast::Sender<()>,
+    ) -> Result<()> {
         if let Some(ref storage) = self.storage {
             // Perform initial cleanup
             storage.cleanup_expired().await?;
@@ -181,7 +200,7 @@ impl MqttBroker {
             // Start periodic cleanup task
             let storage_clone = Arc::clone(storage);
             let cleanup_interval = self.config.storage_config.cleanup_interval;
-            let mut shutdown_rx = self.shutdown_tx.as_ref().unwrap().subscribe();
+            let mut shutdown_rx = shutdown_tx.subscribe();
 
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(cleanup_interval);
@@ -230,7 +249,7 @@ impl MqttBroker {
         };
 
         // Initialize storage and cleanup tasks
-        self.initialize_storage().await?;
+        self.initialize_storage(&shutdown_tx).await?;
 
         // Initialize router (load retained messages)
         self.router.initialize().await?;
@@ -239,6 +258,24 @@ impl MqttBroker {
         let sys_provider =
             SysTopicsProvider::new(Arc::clone(&self.router), Arc::clone(&self.stats));
         sys_provider.start();
+
+        // Start resource monitor cleanup task
+        let resource_monitor_clone = Arc::clone(&self.resource_monitor);
+        let mut shutdown_rx_cleanup = shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        resource_monitor_clone.cleanup_expired_windows().await;
+                    }
+                    _ = shutdown_rx_cleanup.recv() => {
+                        debug!("Resource monitor cleanup task shutting down");
+                        break;
+                    }
+                }
+            }
+        });
 
         let mut shutdown_rx = shutdown_tx.subscribe();
 
@@ -249,6 +286,7 @@ impl MqttBroker {
             let auth_provider = Arc::clone(&self.auth_provider);
             let storage = self.storage.clone();
             let stats = Arc::clone(&self.stats);
+            let resource_monitor = Arc::clone(&self.resource_monitor);
             let shutdown_tx_clone = shutdown_tx.clone();
             let mut shutdown_rx_ws = shutdown_tx.subscribe();
 
@@ -260,6 +298,12 @@ impl MqttBroker {
                             match accept_result {
                                 Ok((tcp_stream, addr)) => {
                                     debug!("New WebSocket connection from {}", addr);
+
+                                    // Check connection limits
+                                    if !resource_monitor.can_accept_connection(addr.ip()).await {
+                                        warn!("WebSocket connection rejected from {}: resource limits exceeded", addr);
+                                        continue;
+                                    }
 
                                     // Perform WebSocket handshake
                                     match accept_websocket_connection(tcp_stream, &ws_config, addr).await {
@@ -275,6 +319,7 @@ impl MqttBroker {
                                                 Arc::clone(&auth_provider),
                                                 storage.clone(),
                                                 Arc::clone(&stats),
+                                                Arc::clone(&resource_monitor),
                                                 shutdown_tx_clone.subscribe(),
                                             );
 
@@ -312,6 +357,7 @@ impl MqttBroker {
             let auth_provider = Arc::clone(&self.auth_provider);
             let storage = self.storage.clone();
             let stats = Arc::clone(&self.stats);
+            let resource_monitor = Arc::clone(&self.resource_monitor);
             let shutdown_tx_clone = shutdown_tx.clone();
             let mut shutdown_rx_tls = shutdown_tx.subscribe();
 
@@ -323,6 +369,12 @@ impl MqttBroker {
                             match accept_result {
                                 Ok((tcp_stream, addr)) => {
                                     debug!("New TLS connection from {}", addr);
+
+                                    // Check connection limits
+                                    if !resource_monitor.can_accept_connection(addr.ip()).await {
+                                        warn!("TLS connection rejected from {}: resource limits exceeded", addr);
+                                        continue;
+                                    }
 
                                     // Perform TLS handshake
                                     match accept_tls_connection(&tls_acceptor, tcp_stream, addr).await {
@@ -338,6 +390,7 @@ impl MqttBroker {
                                                 Arc::clone(&auth_provider),
                                                 storage.clone(),
                                                 Arc::clone(&stats),
+                                                Arc::clone(&resource_monitor),
                                                 shutdown_tx_clone.subscribe(),
                                             );
 
@@ -376,6 +429,12 @@ impl MqttBroker {
                         Ok((stream, addr)) => {
                             debug!("New TCP connection from {}", addr);
 
+                            // Check connection limits
+                            if !self.resource_monitor.can_accept_connection(addr.ip()).await {
+                                warn!("TCP connection rejected from {}: resource limits exceeded", addr);
+                                continue;
+                            }
+
                             let transport = BrokerTransport::tcp(stream);
 
                             // Spawn handler task for this client
@@ -387,6 +446,7 @@ impl MqttBroker {
                                 Arc::clone(&self.auth_provider),
                                 self.storage.clone(),
                                 Arc::clone(&self.stats),
+                                Arc::clone(&self.resource_monitor),
                                 shutdown_tx.subscribe(),
                             );
 
@@ -437,6 +497,17 @@ impl MqttBroker {
     #[must_use]
     pub fn stats(&self) -> Arc<BrokerStats> {
         Arc::clone(&self.stats)
+    }
+
+    /// Gets resource monitor
+    #[must_use]
+    pub fn resource_monitor(&self) -> Arc<ResourceMonitor> {
+        Arc::clone(&self.resource_monitor)
+    }
+
+    /// Gets the local address the broker is bound to
+    pub fn local_addr(&self) -> Option<std::net::SocketAddr> {
+        self.listener.as_ref()?.local_addr().ok()
     }
 }
 
