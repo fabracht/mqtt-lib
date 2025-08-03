@@ -1,6 +1,7 @@
-//! # MQTT v5.0 Client Library
+//! # Complete MQTT v5.0 Platform
 //!
-//! A complete MQTT v5.0 client library with certificate loading from bytes, WebSocket transport, and comprehensive property testing.
+//! A complete MQTT v5.0 platform providing both high-performance async client library and full-featured broker implementation.
+//! Features include certificate loading from bytes, multi-transport support (TCP, TLS, WebSocket), authentication, bridging, and comprehensive testing.
 //!
 //! ## CRITICAL: NO EVENT LOOPS
 //!
@@ -104,6 +105,60 @@
 //!     // Keep running
 //!     tokio::time::sleep(Duration::from_secs(3600)).await;
 //!     
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Broker Example
+//!
+//! This library also provides a complete MQTT broker implementation:
+//!
+//! ```rust,no_run
+//! use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {  
+//!     // Create a basic broker
+//!     let mut broker = MqttBroker::bind("0.0.0.0:1883").await?;
+//!     
+//!     println!("🚀 MQTT broker running on port 1883");
+//!     
+//!     // Run until shutdown
+//!     broker.run().await?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ### Advanced Broker with Multi-Transport
+//!
+//! ```rust,no_run
+//! use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let config = BrokerConfig::default()
+//!         // TCP on port 1883
+//!         .with_bind_address("0.0.0.0:1883".parse()?)
+//!         // TLS on port 8883
+//!         .with_tls(
+//!             TlsConfig::new("certs/server.crt".into(), "certs/server.key".into())
+//!                 .with_bind_address("0.0.0.0:8883".parse()?)
+//!         )
+//!         // WebSocket on port 8080
+//!         .with_websocket(
+//!             WebSocketConfig::default()
+//!                 .with_bind_address("0.0.0.0:8080".parse()?)
+//!                 .with_path("/mqtt")
+//!         );
+//!
+//!     let mut broker = MqttBroker::with_config(config).await?;
+//!     
+//!     println!("🚀 Multi-transport MQTT broker running");
+//!     println!("  📡 TCP:       mqtt://localhost:1883");
+//!     println!("  🔒 TLS:       mqtts://localhost:8883");  
+//!     println!("  🌐 WebSocket: ws://localhost:8080/mqtt");
+//!     
+//!     broker.run().await?;
 //!     Ok(())
 //! }
 //! ```

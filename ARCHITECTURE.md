@@ -1,4 +1,6 @@
-# MQTT v5.0 Client Library Architecture
+# MQTT v5.0 Platform Architecture
+
+This document describes the architecture of both the MQTT client library and broker implementation.
 
 ## CRITICAL ARCHITECTURAL PRINCIPLE: NO EVENT LOOPS
 
@@ -177,3 +179,240 @@ If you're coming from Node.js, Python asyncio, or other event-loop-based systems
 - Let Tokio do the hard work
 
 **Remember: In Rust async, we write straight-line async code and let the compiler and runtime handle the complexity.**
+
+## Broker Architecture
+
+The MQTT broker follows the same architectural principles as the client - NO EVENT LOOPS.
+
+### Broker Core Components
+
+1. **MqttBroker**: The main broker struct
+   - Manages configuration and lifecycle
+   - Spawns listening tasks for each transport
+   - NO event loop, direct async operations
+
+2. **Server Listeners**: One per transport type
+   - TCP listener: Direct `accept()` loop
+   - TLS listener: TLS wrapper around TCP
+   - WebSocket listener: HTTP upgrade handling
+   - Each spawns client handlers directly
+
+3. **ClientHandler**: Per-client connection handler
+   - Direct async packet reading and writing
+   - Manages client session state
+   - Handles MQTT protocol directly
+   - NO command channels, NO event loops
+
+4. **Message Router**: Subscription matching and delivery
+   - Optimized trie-based topic matching
+   - Direct message routing to subscribers
+   - Shared subscription support
+   - Thread-safe concurrent access
+
+5. **Storage Backend**: Persistence layer
+   - Sessions, retained messages, queued messages
+   - File-based or in-memory implementations
+   - Direct async I/O operations
+
+### Broker Data Flow
+
+1. **Connection Acceptance**:
+   ```
+   TCP/TLS/WS Listener -> accept() -> spawn(ClientHandler::new())
+   ```
+
+2. **Packet Processing**:
+   ```
+   Client -> Transport.read_packet() -> ClientHandler.handle_packet() -> Router/Storage
+   ```
+
+3. **Message Routing**:
+   ```
+   Publisher -> Router.route_message() -> matching subscribers -> Transport.write_packet()
+   ```
+
+### Key Broker Patterns
+
+```rust
+// CORRECT: Direct connection handling
+impl Server {
+    async fn run(&mut self) -> Result<()> {
+        loop {
+            let (stream, addr) = self.listener.accept().await?;
+            let handler = ClientHandler::new(stream, addr, self.router.clone());
+            tokio::spawn(handler.run());
+            // Direct spawn, no event loop needed
+        }
+    }
+}
+```
+
+```rust
+// CORRECT: Direct packet handling in ClientHandler
+impl ClientHandler {
+    async fn run(mut self) -> Result<()> {
+        while let Ok(packet) = self.transport.read_packet().await {
+            match packet {
+                Packet::Publish(pub_packet) => {
+                    self.handle_publish(pub_packet).await?;
+                }
+                Packet::Subscribe(sub_packet) => {
+                    self.handle_subscribe(sub_packet).await?;
+                }
+                // ... direct handling for each packet type
+            }
+        }
+        Ok(())
+    }
+}
+```
+
+```rust
+// CORRECT: Direct message routing
+impl MessageRouter {
+    pub async fn route_message(&self, topic: &str, message: PublishPacket) {
+        let subscribers = self.find_matching_subscribers(topic).await;
+        for subscriber in subscribers {
+            // Direct delivery, no event loop
+            subscriber.deliver_message(message.clone()).await;
+        }
+    }
+}
+```
+
+### Broker-Specific Components
+
+1. **Authentication Manager**:
+   - Direct auth checks during CONNECT
+   - Pluggable auth providers (password, certificate, etc.)
+   - No separate auth service or event loop
+
+2. **ACL Manager**:
+   - Direct authorization checks for publish/subscribe
+   - Rule-based access control
+   - Integrated with packet handlers
+
+3. **Resource Monitor**:
+   - Tracks connections, bandwidth, messages
+   - Enforces rate limits and quotas
+   - Direct checks, no monitoring loops
+
+4. **Bridge Manager**:
+   - Manages broker-to-broker connections
+   - Each bridge is a client to remote broker
+   - Direct message forwarding based on rules
+
+5. **$SYS Topics Provider**:
+   - Publishes broker statistics
+   - Simple periodic task, not an event loop
+   - Direct publish to router
+
+### Performance Optimizations
+
+1. **Connection Pooling**:
+   - Reuse buffers and resources
+   - Pre-allocated packet buffers
+   - Efficient memory management
+
+2. **Optimized Router**:
+   - Trie-based topic matching
+   - O(log n) subscription lookups
+   - Lock-free read operations
+
+3. **Zero-Copy Operations**:
+   - Direct buffer passing where possible
+   - Avoid unnecessary allocations
+   - Efficient packet serialization
+
+### Scalability Patterns
+
+1. **Horizontal Scaling**:
+   - Multiple broker instances
+   - Shared-nothing architecture
+   - Bridge connections for clustering
+
+2. **Vertical Scaling**:
+   - Multi-core utilization via Tokio
+   - Work-stealing task scheduler
+   - Concurrent client handling
+
+3. **Resource Limits**:
+   - Per-client and global limits
+   - Backpressure mechanisms
+   - Graceful degradation
+
+### Broker Implementation Guidelines
+
+1. **Every operation should be direct async**:
+   - No broker-wide event loop
+   - No central message bus
+   - Direct handling at each layer
+
+2. **Per-client isolation**:
+   - Each ClientHandler is independent
+   - Failure isolation
+   - No shared mutable state beyond router
+
+3. **Lock-free where possible**:
+   - RwLock for read-heavy operations
+   - Arc for shared immutable data
+   - Atomic operations for counters
+
+4. **Monitoring without loops**:
+   - Metrics updated inline during operations
+   - Periodic tasks for aggregation only
+   - No separate monitoring loops
+
+## Platform Integration
+
+Both client and broker share:
+
+1. **Common Protocol Implementation**:
+   - Shared packet encoding/decoding
+   - Same MQTT v5.0 compliance
+   - Reusable validation logic
+
+2. **Transport Abstraction**:
+   - Same TCP/TLS/WebSocket code
+   - Unified connection handling
+   - Shared TLS configuration
+
+3. **Architectural Principles**:
+   - NO EVENT LOOPS anywhere
+   - Direct async/await throughout
+   - Shared error handling patterns
+
+## Testing Architecture
+
+1. **Unit Tests**:
+   - Direct testing of components
+   - No event loop complexity
+   - Fast and deterministic
+
+2. **Integration Tests**:
+   - Full client-broker communication
+   - Network simulation with Turmoil
+   - Property-based testing
+
+3. **Performance Tests**:
+   - Direct benchmarking
+   - No event loop overhead
+   - Realistic load testing
+
+## Future Considerations
+
+When adding new features:
+
+1. **Maintain the NO EVENT LOOPS principle**
+2. **Keep operations direct and async**
+3. **Avoid indirection and message passing**
+4. **Trust Rust's async/await model**
+5. **Let Tokio handle concurrency**
+
+The architecture is designed for:
+- Maximum performance
+- Code clarity
+- Maintainability
+- Idiomatic Rust patterns
+
+**Both client and broker prove that complex networked systems can be built without event loops, resulting in cleaner, faster, and more maintainable code.**

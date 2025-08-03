@@ -4,12 +4,12 @@ version = "0.3.0"
 edition = "2021"
 rust-version = "1.82"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
-description = "High-performance async MQTT v5.0 client with certificate loading from bytes, WebSocket transport, and comprehensive property testing"
+description = "Complete MQTT v5.0 platform with high-performance async client and full-featured broker supporting TCP, TLS, WebSocket, authentication, bridging, and resource monitoring"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fabriciobracht/mqtt-lib"
 documentation = "https://docs.rs/mqtt-v5"
 readme = "README.md"
-keywords = ["mqtt", "iot", "messaging", "async", "websocket"]
+keywords = ["mqtt", "iot", "messaging", "async", "broker"]
 categories = ["network-programming", "asynchronous"]
 exclude = [
     "CLAUDE.md",

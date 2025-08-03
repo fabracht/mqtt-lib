@@ -1,54 +1,97 @@
-//! Simple MQTT v5.0 broker example
+//! Simple MQTT v5.0 Broker Example
 //!
-//! This demonstrates how to create and run a basic MQTT broker.
+//! This example demonstrates how to start and run a basic MQTT broker.
+//! The broker will:
+//! - Listen on localhost:1883 (standard MQTT port)
+//! - Accept anonymous connections
+//! - Support all MQTT v5.0 features
+//! - Show basic logging of client connections
+//!
+//! ## Usage
+//!
+//! ```bash
+//! # Run the broker
+//! cargo run --example simple_broker
+//!
+//! # In another terminal, connect with any MQTT client:
+//! mosquitto_sub -h localhost -t '#' -v
+//! mosquitto_pub -h localhost -t 'test/topic' -m 'Hello MQTT!'
+//!
+//! # Or run the simple_client example:
+//! cargo run --example simple_client
+//! ```
 
 use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::error::Result;
+use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing for logging
+    tracing_subscriber::fmt()
+        .with_env_filter("mqtt_v5=info")
+        .init();
 
-    info!("Starting MQTT v5.0 broker");
+    println!("🚀 MQTT v5.0 Simple Broker Example");
+    println!("==================================\n");
 
     // Create broker configuration
-    let config = BrokerConfig::new()
-        .with_bind_address(([127, 0, 0, 1], 1883))
-        .with_max_clients(1000)
-        .with_session_expiry(Duration::from_secs(3600)) // 1 hour
-        .with_maximum_qos(2)
-        .with_retain_available(true);
+    let mut config = BrokerConfig::default();
+    
+    // Basic settings
+    config.bind_address = "127.0.0.1:1883".parse::<SocketAddr>()?;
+    config.max_clients = 1000;
+    config.max_packet_size = 10 * 1024 * 1024; // 10MB
+    config.session_expiry_interval = Some(Duration::from_secs(3600)); // 1 hour
+    
+    // MQTT v5.0 feature settings
+    config.maximum_qos = 2;
+    config.retain_available = true;
+    config.wildcard_subscription_available = true;
+    config.subscription_identifier_available = true;
+    config.shared_subscription_available = true;
+    config.topic_alias_maximum = 100;
+    
+    // Authentication - allow anonymous for demo
+    config.auth_config.allow_anonymous = true;
+    
+    info!("📋 Broker Configuration:");
+    info!("   Address: {}", config.bind_address);
+    info!("   Max clients: {}", config.max_clients);
+    info!("   Max QoS: {}", config.maximum_qos);
+    info!("   Anonymous allowed: {}", config.auth_config.allow_anonymous);
+    info!("   Shared subscriptions: {}", config.shared_subscription_available);
 
-    // Create and start broker
-    let mut broker = MqttBroker::with_config(config).await?;
-
-    info!("MQTT broker listening on 127.0.0.1:1883");
-    info!("Press Ctrl+C to stop the broker");
+    // Create and bind the broker
+    let mut broker = MqttBroker::with_config(config);
+    let addr = broker.bind("127.0.0.1:1883").await?;
+    
+    info!("✅ MQTT broker listening on {}", addr);
+    info!("📡 Clients can connect to mqtt://localhost:1883");
+    info!("🛑 Press Ctrl+C to stop the broker\n");
 
     // Handle shutdown signal
-    let shutdown_task = tokio::spawn(async {
+    let shutdown = tokio::spawn(async {
         tokio::signal::ctrl_c()
             .await
             .expect("Failed to listen for ctrl-c");
-        info!("Shutdown signal received");
+        info!("\n⚠️  Shutdown signal received");
     });
 
-    // Run broker in a separate task
-    let _broker_task = tokio::spawn(async move {
-        if let Err(e) = broker.run().await {
-            error!("Broker error: {}", e);
+    // Run the broker
+    tokio::select! {
+        result = broker.run() => {
+            match result {
+                Ok(()) => info!("Broker stopped normally"),
+                Err(e) => error!("Broker error: {}", e),
+            }
         }
-    });
+        _ = shutdown => {
+            info!("Shutting down broker...");
+        }
+    }
 
-    // Wait for shutdown signal
-    shutdown_task.await.expect("Shutdown task failed");
-
-    // Gracefully shutdown broker
-    // Note: In a real implementation, you'd want to signal the broker to stop
-    info!("Broker shutting down");
-
+    info!("✅ Broker shutdown complete");
     Ok(())
 }
