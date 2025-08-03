@@ -136,9 +136,14 @@ Before implementing anything, ask yourself:
 
 ## CRITICAL: Git Commit Rules
 
-**FORBIDDEN: Never use `--no-verify` flag with git commits**
+**FORBIDDEN: Never use `--no-verify`, `--no-hooks`, or any bypass flags with git commits**
 
-You MUST NOT bypass pre-commit hooks. If CI verification fails, you MUST fix the issues before committing. This ensures code quality and prevents broken builds from being pushed.
+You MUST NOT bypass pre-commit hooks under ANY circumstances. If CI verification fails, you MUST:
+1. Investigate the root cause of the failure
+2. Fix the underlying issues (code, tests, lints, etc.)
+3. Only commit when ALL checks pass naturally
+
+This ensures code quality and prevents broken builds. No exceptions, no shortcuts, no bypassing.
 
 ## CRITICAL: Output Handling and Verification Instructions
 
