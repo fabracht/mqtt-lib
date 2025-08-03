@@ -564,39 +564,54 @@ const ALERT_THRESHOLDS: AlertThresholds = AlertThresholds {
 
 ```bash
 # Check message queue sizes
+# Using our mqttv5 CLI (recommended)
+mqttv5 sub --host localhost --topic '$SYS/broker/queues/+/size' --verbose
+# Or with mosquitto
 mosquitto_sub -h localhost -t '$SYS/broker/queues/+/size' -v
 
 # Check retained message count
-mosquitto_sub -h localhost -t '$SYS/broker/retained/count' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/retained/count' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/retained/count' -v
 
 # Check session count
-mosquitto_sub -h localhost -t '$SYS/broker/sessions/active' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/sessions/active' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/sessions/active' -v
 ```
 
 ### Connection Issues
 
 ```bash
 # Monitor connection rate
+# Using our mqttv5 CLI (recommended)
+watch -n 1 'mqttv5 sub --host localhost --topic "$SYS/broker/clients/connected" --count 1'
+# Or with mosquitto
 watch -n 1 'mosquitto_sub -h localhost -t "$SYS/broker/clients/connected" -C 1'
 
 # Check connection errors
-mosquitto_sub -h localhost -t '$SYS/broker/errors/connection' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/errors/connection' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/errors/connection' -v
 
 # Monitor specific client connections
-mosquitto_sub -h localhost -t '$SYS/broker/clients/+/connected' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/clients/+/connected' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/clients/+/connected' -v
 ```
 
 ### Performance Degradation
 
 ```bash
 # Check message rates
+# Using our mqttv5 CLI (recommended)
+mqttv5 sub --host localhost --topic '$SYS/broker/messages/+' --verbose
+# Or with mosquitto
 mosquitto_sub -h localhost -t '$SYS/broker/messages/+' -v
 
 # Monitor error rates
-mosquitto_sub -h localhost -t '$SYS/broker/errors/+' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/errors/+' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/errors/+' -v
 
 # Check resource limits
-mosquitto_sub -h localhost -t '$SYS/broker/rate_limits/+' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/rate_limits/+' --verbose
+# mosquitto_sub -h localhost -t '$SYS/broker/rate_limits/+' -v
 ```
 
 ## Complete Monitoring Example

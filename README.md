@@ -63,6 +63,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## 🚀 Command Line Interface (mqttv5)
+
+**Superior CLI tool that replaces mosquitto_pub, mosquitto_sub, and mosquitto with unified ergonomics:**
+
+### Installation
+
+```bash
+# Install from the CLI crate
+cargo install --path crates/mqttv5-cli
+
+# Or build locally  
+cargo build --release -p mqttv5-cli
+# Binary available at: ./target/release/mqttv5
+```
+
+### Usage Examples
+
+```bash
+# Start a broker (replaces mosquitto daemon)
+mqttv5 broker --host 0.0.0.0:1883
+
+# Publish a message (replaces mosquitto_pub)
+mqttv5 pub --topic "sensors/temperature" --message "23.5"
+
+# Subscribe to topics (replaces mosquitto_sub)  
+mqttv5 sub --topic "sensors/+" --verbose
+
+# Smart prompting when arguments are missing
+mqttv5 pub
+# ? MQTT topic › sensors/
+# ? Message content › Hello World!
+# ? Quality of Service level › ● 0 (At most once)
+```
+
+### Key CLI Advantages
+
+- **🎯 Unified interface** - One command instead of mosquitto_pub/mosquitto_sub/mosquitto
+- **🧠 Smart prompting** - Guides users instead of showing walls of help text  
+- **✅ Input validation** - Catches errors early with helpful suggestions
+- **📝 Descriptive flags** - `--topic` instead of `-t`, with short aliases available
+- **🔄 Interactive & non-interactive** - Works great for both humans and scripts
+
 ## 🎯 Why This Platform?
 
 ### ✅ Production-Ready Broker

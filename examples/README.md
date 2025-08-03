@@ -97,13 +97,18 @@ Some examples support configuration via environment variables:
 
 ### Using External Tools
 
-Test with standard MQTT tools:
+Test with MQTT tools:
 
 ```bash
+# Using our superior mqttv5 CLI (recommended)
 # Subscribe to all topics
-mosquitto_sub -h localhost -t '#' -v
+mqttv5 sub --host localhost --topic '#' --verbose
 
-# Publish a message
+# Publish a message  
+mqttv5 pub --host localhost --topic 'test/topic' --message 'Hello!'
+
+# Or with traditional mosquitto tools
+mosquitto_sub -h localhost -t '#' -v
 mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 
 # Monitor with MQTT Explorer

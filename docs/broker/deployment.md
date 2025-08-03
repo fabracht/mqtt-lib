@@ -308,14 +308,24 @@ BROKER_HOST="${1:-localhost}"
 BROKER_PORT="${2:-1883}"
 TIMEOUT=5
 
-# Try to connect
-timeout $TIMEOUT mosquitto_pub \
-    -h $BROKER_HOST \
-    -p $BROKER_PORT \
-    -t "health/check" \
-    -m "ping" \
-    -q 0 \
+# Try to connect using our mqttv5 CLI (recommended)
+timeout $TIMEOUT mqttv5 pub \
+    --host $BROKER_HOST \
+    --port $BROKER_PORT \
+    --topic "health/check" \
+    --message "ping" \
+    --qos 0 \
+    --non-interactive \
     2>/dev/null
+
+# Or with traditional mosquitto
+# timeout $TIMEOUT mosquitto_pub \
+#     -h $BROKER_HOST \
+#     -p $BROKER_PORT \
+#     -t "health/check" \
+#     -m "ping" \
+#     -q 0 \
+#     2>/dev/null
 
 if [ $? -eq 0 ]; then
     echo "OK - MQTT broker is responding"
@@ -527,8 +537,11 @@ mqtt hard nproc 32768
 BROKER=$1
 PORT=${2:-1883}
 
-# Check connection
-timeout 5 mosquitto_sub -h $BROKER -p $PORT -t '$SYS/broker/uptime' -C 1 > /dev/null 2>&1
+# Check connection using our mqttv5 CLI (recommended)
+timeout 5 mqttv5 sub --host $BROKER --port $PORT --topic '$SYS/broker/uptime' --count 1 --non-interactive > /dev/null 2>&1
+
+# Or with traditional mosquitto
+# timeout 5 mosquitto_sub -h $BROKER -p $PORT -t '$SYS/broker/uptime' -C 1 > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
     echo "MQTT OK - Broker is responding"
@@ -586,10 +599,14 @@ ls -la /var/lib/mqtt /etc/mqtt
 perf top -p $(pgrep mqtt-broker)
 
 # Check connection count
+# Using our mqttv5 CLI (recommended)
+mqttv5 sub --host localhost --topic '$SYS/broker/clients/connected' --count 1
+# Or with mosquitto
 mosquitto_sub -h localhost -t '$SYS/broker/clients/connected' -C 1
 
 # Monitor message rate
-watch -n 1 'mosquitto_sub -h localhost -t "$SYS/broker/messages/sent" -C 1'
+watch -n 1 'mqttv5 sub --host localhost --topic "$SYS/broker/messages/sent" --count 1'
+# watch -n 1 'mosquitto_sub -h localhost -t "$SYS/broker/messages/sent" -C 1'
 ```
 
 **Memory issues**

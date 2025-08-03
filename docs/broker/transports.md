@@ -558,9 +558,15 @@ curl -i -N \
 
 ```bash
 # Test TCP connection
+# Using our mqttv5 CLI (recommended)
+mqttv5 sub --host localhost --port 1883 --topic "test/#" --verbose
+# Or with mosquitto
 mosquitto_sub -h localhost -p 1883 -t "test/#" -v
 
-# Test TLS connection
+# Test TLS connection  
+# Using our mqttv5 CLI (recommended - TLS auto-configured)
+mqttv5 sub --host localhost --port 8883 --topic "test/#" --verbose
+# Or with mosquitto
 mosquitto_sub -h localhost -p 8883 -t "test/#" -v \
   --cafile ca.crt --cert client.crt --key client.key
 

@@ -508,6 +508,10 @@ openssl verify -CAfile ca.crt client.crt
 ls -la users.txt acl.txt
 
 # Test MQTT connection
+# Using our mqttv5 CLI (recommended)
+mqttv5 pub --host localhost --port 1883 --username sensor01 --password password --topic "test/topic" --message "test"
+
+# Or with traditional mosquitto
 mosquitto_pub -h localhost -p 1883 -u sensor01 -P password -t "test/topic" -m "test"
 ```
 

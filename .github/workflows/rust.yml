@@ -85,6 +85,24 @@ jobs:
       
       - name: Run unit tests
         run: cargo make test-fast
+        
+      - name: Build and test CLI
+        run: |
+          echo "🚀 Building and testing our mqttv5 CLI..."
+          cargo make build-cli
+          
+          # Test CLI help works
+          ./target/release/mqttv5 --help
+          ./target/release/mqttv5 pub --help
+          ./target/release/mqttv5 sub --help  
+          ./target/release/mqttv5 broker --help
+          
+          echo "✅ CLI help tests passed"
+          
+          # Run CLI functionality tests
+          cargo make test-cli
+          
+          echo "🎉 CLI validation completed successfully!"
 
   # Test with minimal supported Rust version
   msrv:

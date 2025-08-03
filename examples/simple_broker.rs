@@ -14,6 +14,11 @@
 //! cargo run --example simple_broker
 //!
 //! # In another terminal, connect with any MQTT client:
+//! # Using our mqttv5 CLI (recommended):
+//! mqttv5 sub --host localhost --topic '#' --verbose
+//! mqttv5 pub --host localhost --topic 'test/topic' --message 'Hello MQTT!'
+//!
+//! # Or with traditional mosquitto tools:
 //! mosquitto_sub -h localhost -t '#' -v
 //! mosquitto_pub -h localhost -t 'test/topic' -m 'Hello MQTT!'
 //!

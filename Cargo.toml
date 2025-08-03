@@ -90,6 +90,12 @@ panic = "abort"
 [profile.dev]
 debug = true
 
+[workspace]
+members = [
+    ".",
+    "crates/mqttv5-cli",
+]
+
 [dependencies]
 base64 = "0.22.1"
 bcrypt = "0.17.0"
