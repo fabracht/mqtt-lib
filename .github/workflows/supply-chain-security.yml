@@ -26,16 +26,17 @@ jobs:
       - name: Run security audit
         run: cargo audit
 
-  # Check for supply chain attacks via dependency confusion
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
+  # Dependency review requires GitHub Advanced Security (not available on private repos)
+  # Uncomment if you upgrade to GitHub Enterprise or make the repo public
+  # dependency-review:
+  #   name: Dependency Review
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - name: Dependency Review
+  #       uses: actions/dependency-review-action@v4
+  #       with:
+  #         fail-on-severity: moderate
 
   # Verify commit signatures (when signing is enabled)
   verify-signatures:
@@ -121,7 +122,7 @@ jobs:
         run: cargo install cargo-cyclonedx
       - name: Generate SBOM
         run: |
-          cargo cyclonedx --format json --output-cdx sbom.json
+          cargo cyclonedx --format json --override-filename sbom
           echo "📦 Generated Software Bill of Materials (SBOM)"
       - name: Upload SBOM
         uses: actions/upload-artifact@v4

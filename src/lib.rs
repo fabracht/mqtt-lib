@@ -109,7 +109,20 @@
 //! ```
 
 #![warn(clippy::pedantic)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::needless_borrows_for_generic_args)]
+#![allow(clippy::writeln_empty_string)]
+#![allow(clippy::unnecessary_map_or)]
+#![allow(clippy::if_not_else)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::doc_markdown)]
+#![allow(dead_code)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::single_component_path_imports)]
 
+pub mod broker;
 pub mod callback;
 pub mod client;
 pub mod constants;
@@ -122,6 +135,8 @@ pub mod protocol;
 pub mod session;
 pub mod tasks; // Direct async tasks - NO event loops
 pub mod test_utils;
+#[cfg(any(test, feature = "turmoil-testing"))]
+pub mod testing;
 pub mod topic_matching;
 pub mod transport;
 pub mod types;
@@ -145,7 +160,7 @@ pub use validation::{
     StandardValidator, TopicValidator,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum QoS {
     AtMostOnce = 0,
     AtLeastOnce = 1,

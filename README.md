@@ -156,6 +156,17 @@ options.reconnect_config.backoff_multiplier = 2.0;
 
 - Rust 1.75 or later
 - Docker and Docker Compose (for integration testing)
+- cargo-make (`cargo install cargo-make`)
+
+### Setup
+
+```bash
+# Install git hooks for automatic CI checks before commits
+./scripts/install-hooks.sh
+```
+
+This will install a pre-commit hook that runs `cargo make ci-verify` before each commit,
+ensuring your code passes all CI checks (formatting, linting, tests) before being committed.
 
 ### Building
 
@@ -186,9 +197,19 @@ cargo clippy -- -D warnings
 
 ### Benchmarks
 
+Run performance benchmarks to evaluate the library's performance:
+
 ```bash
+# Run all intrinsic benchmarks
 cargo bench
+
+# Run specific benchmarks
+cargo bench --bench broker_performance
+cargo bench --bench mqtt_benchmarks
+cargo bench --bench simple_broker_bench
 ```
+
+**Note**: Additional comparative benchmarks are available for development purposes (not included in the crate).
 
 ## Testing Infrastructure
 

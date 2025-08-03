@@ -198,6 +198,9 @@ pub enum MqttError {
 
     #[error("String too long: {0} bytes exceeds maximum of 65535")]
     StringTooLong(usize),
+
+    #[error("Configuration error: {0}")]
+    Configuration(String),
 }
 
 impl From<std::io::Error> for MqttError {

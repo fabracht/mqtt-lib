@@ -4,10 +4,10 @@
 //! This client uses direct async/await patterns throughout.
 //! We do NOT use event loops, command channels, or actor patterns.
 
-use crate::callback::PublishCallback;
+use crate::callback::{CallbackId, PublishCallback};
 use crate::error::{MqttError, Result};
 use crate::packet::publish::PublishPacket;
-use crate::packet::subscribe::{SubscribePacket, TopicFilter};
+use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsubscribe::UnsubscribePacket;
 use crate::protocol::v5::properties::Properties;
 use crate::transport::tcp::TcpConfig;
@@ -119,6 +119,8 @@ pub struct MqttClient {
     error_callbacks: Arc<RwLock<Vec<ErrorCallback>>>,
     /// Error recovery configuration
     error_recovery_config: Arc<RwLock<ErrorRecoveryConfig>>,
+    /// Connection attempt synchronization - prevents multiple concurrent connection attempts
+    connection_mutex: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl MqttClient {
@@ -132,7 +134,9 @@ impl MqttClient {
     /// let client = MqttClient::new("my-device-001");
     /// ```
     pub fn new(client_id: impl Into<String>) -> Self {
-        let options = ConnectOptions::new(client_id); // Use default clean_start=true
+        let client_id_str = client_id.into();
+        tracing::error!(client_id = %client_id_str, "🚀 MQTT CLIENT - new() method called");
+        let options = ConnectOptions::new(client_id_str); // Use default clean_start=true
         Self::with_options(options)
     }
 
@@ -153,6 +157,7 @@ impl MqttClient {
     /// ```
     #[must_use]
     pub fn with_options(options: ConnectOptions) -> Self {
+        tracing::error!(client_id = %options.client_id, "🚀 MQTT CLIENT - with_options() method called");
         let inner = DirectClientInner::new(options);
 
         Self {
@@ -160,6 +165,7 @@ impl MqttClient {
             connection_event_callbacks: Arc::new(RwLock::new(Vec::new())),
             error_callbacks: Arc::new(RwLock::new(Vec::new())),
             error_recovery_config: Arc::new(RwLock::new(ErrorRecoveryConfig::default())),
+            connection_mutex: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
@@ -273,12 +279,24 @@ impl MqttClient {
     #[instrument(skip(self))]
     pub async fn connect(&self, address: &str) -> Result<()> {
         let client_id = self.client_id().await;
+        tracing::error!(client_id = %client_id, address = %address, "🚀 MQTT CLIENT - connect() method called");
         tracing::info!(client_id = %client_id, address = %address, "Initiating MQTT connection");
 
-        let options = self.inner.read().await.options.clone();
-        match self.connect_with_options(address, options).await {
-            Ok(result) => {
-                tracing::info!(client_id = %client_id, session_present = %result.session_present, "Successfully connected to MQTT broker");
+        let result = {
+            // Acquire connection mutex to prevent concurrent connection attempts
+            let connection_guard = self.connection_mutex.lock().await;
+
+            let options = self.inner.read().await.options.clone();
+            let result = self.connect_with_options_internal(address, options).await;
+
+            // Explicitly drop guard to show we're done with the critical section
+            drop(connection_guard);
+            result
+        };
+
+        match result {
+            Ok(connect_result) => {
+                tracing::info!(client_id = %client_id, session_present = %connect_result.session_present, "Successfully connected to MQTT broker");
                 Ok(())
             }
             Err(e) => {
@@ -302,6 +320,26 @@ impl MqttClient {
         address: &str,
         options: ConnectOptions,
     ) -> Result<ConnectResult> {
+        // Acquire connection mutex to prevent concurrent connection attempts
+        let connection_guard = self.connection_mutex.lock().await;
+        let result = self.connect_with_options_internal(address, options).await;
+
+        // Explicitly drop guard to show we're done with the critical section
+        drop(connection_guard);
+        result
+    }
+
+    /// Internal connection method with custom options (no mutex guard)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails
+    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start))]
+    async fn connect_with_options_internal(
+        &self,
+        address: &str,
+        options: ConnectOptions,
+    ) -> Result<ConnectResult> {
         // Check if already connected
         if self.is_connected().await {
             return Err(MqttError::AlreadyConnected);
@@ -318,27 +356,36 @@ impl MqttClient {
         // Try to connect
         let result = self.connect_internal(address).await;
 
-        // Handle reconnection if enabled and initial connection fails
+        // Handle connection result
         if let Err(ref error) = result {
-            if options.reconnect_config.enabled {
-                // Trigger initial disconnection event
-                self.trigger_connection_event(ConnectionEvent::Disconnected {
-                    reason: DisconnectReason::NetworkError(error.to_string()),
-                })
-                .await;
+            // For initial connection failures, don't trigger disconnect events
+            // Only connections that were previously established should trigger disconnect events
 
-                // Start reconnection attempts in background
-                let client = self.clone();
-                let address_clone = address.to_string();
-                let config = options.reconnect_config.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = client.attempt_reconnection(&address_clone, &config).await {
-                        tracing::error!("All reconnection attempts failed: {}", e);
-                    }
-                });
+            // Check if this error should trigger automatic reconnection
+            let error_recovery_config =
+                crate::client::error_recovery::ErrorRecoveryConfig::default();
+            if let Some(_recoverable_error) =
+                crate::client::error_recovery::RecoverableError::is_recoverable(
+                    error,
+                    &error_recovery_config,
+                )
+            {
+                // This is a recoverable error and automatic reconnection is enabled
+                if options.reconnect_config.enabled {
+                    tracing::warn!(error = %error, "🔄 SPAWN MONITOR - Initial connection failed with recoverable error, starting background reconnection");
+                    let client = self.clone();
+                    tokio::spawn(async move {
+                        client.monitor_connection().await;
+                    });
+                } else {
+                    tracing::debug!(error = %error, "Initial connection failed with recoverable error, but automatic reconnection is disabled");
+                }
+            } else {
+                tracing::debug!(error = %error, "Initial connection failed with non-recoverable error, not starting background reconnection");
             }
         } else if result.is_ok() && options.reconnect_config.enabled {
-            // Start monitoring for future disconnections
+            // Start monitoring for future disconnections only after successful connection
+            tracing::warn!("🔄 SPAWN MONITOR - Successful connection, starting monitor task for future disconnections");
             let client = self.clone();
             tokio::spawn(async move {
                 client.monitor_connection().await;
@@ -383,15 +430,34 @@ impl MqttClient {
     }
 
     async fn connect_internal(&self, address: &str) -> Result<ConnectResult> {
-        // Parse address to determine transport type
-        let (client_transport_type, host, port) = Self::parse_address(address)?;
+        let client_id = self.inner.read().await.options.client_id.clone();
+        tracing::warn!(
+            address = %address,
+            client_id = %client_id,
+            "🔄 CONNECTION ATTEMPT - Tracking source of connection attempt"
+        );
 
-        // Resolve address - try all resolved addresses
+        let (client_transport_type, host, port) = Self::parse_address(address)?;
+        let addrs = self.resolve_addresses(host, port)?;
+        let addresses_to_try = self.select_addresses_for_connection(&addrs, host);
+
+        self.try_connect_to_addresses(addresses_to_try, client_transport_type, host)
+            .await
+    }
+
+    fn resolve_addresses(&self, host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>> {
         let addr_str = format!("{host}:{port}");
+        tracing::warn!(addr_str = %addr_str, "🌐 DNS RESOLUTION - Starting address resolution");
+
         let addrs: Vec<_> = addr_str
             .to_socket_addrs()
-            .map_err(|e| MqttError::ConnectionError(format!("Failed to resolve address: {e}")))?
+            .map_err(|e| {
+                tracing::error!(addr_str = %addr_str, error = %e, "🌐 DNS RESOLUTION - Failed to resolve address");
+                MqttError::ConnectionError(format!("Failed to resolve address: {e}"))
+            })?
             .collect();
+
+        tracing::warn!(addr_str = %addr_str, resolved_count = addrs.len(), "🌐 DNS RESOLUTION - Address resolved successfully");
 
         if addrs.is_empty() {
             return Err(MqttError::ConnectionError(
@@ -399,17 +465,36 @@ impl MqttClient {
             ));
         }
 
+        Ok(addrs)
+    }
+
+    fn select_addresses_for_connection<'a>(
+        &self,
+        addrs: &'a [std::net::SocketAddr],
+        host: &str,
+    ) -> &'a [std::net::SocketAddr] {
+        let is_aws_iot = Self::is_aws_iot_endpoint(host);
+
+        if is_aws_iot {
+            tracing::debug!("AWS IoT endpoint detected, limiting to first resolved address");
+            &addrs[0..1]
+        } else {
+            addrs
+        }
+    }
+
+    async fn try_connect_to_addresses(
+        &self,
+        addresses: &[std::net::SocketAddr],
+        transport_type: ClientTransportType,
+        host: &str,
+    ) -> Result<ConnectResult> {
         let mut last_error = None;
 
-        // Try each resolved address
-        for addr in &addrs {
+        for addr in addresses {
             tracing::debug!("Trying to connect to address: {}", addr);
 
-            // Try to create and connect transport
-            let transport = match self
-                .try_connect_address(*addr, client_transport_type, host)
-                .await
-            {
+            let transport = match self.try_connect_address(*addr, transport_type, host).await {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::debug!("Failed to connect to {}: {}", addr, e);
@@ -418,65 +503,19 @@ impl MqttClient {
                 }
             };
 
-            // Reset reconnect attempt counter
-            {
-                let mut inner = self.inner.write().await;
-                inner.reconnect_attempt = 0;
-            }
+            self.reset_reconnect_counter().await;
 
-            // Try to connect using direct async method - NO event loop!
             let mut inner = self.inner.write().await;
             match inner.connect(transport).await {
                 Ok(result) => {
-                    // Get stored subscriptions before releasing the lock
                     let stored_subs = inner.stored_subscriptions.read().await.clone();
                     let session_present = result.session_present;
-                    drop(inner); // Release lock before potentially resubscribing
+                    drop(inner);
 
-                    // Trigger connected event
                     self.trigger_connection_event(ConnectionEvent::Connected { session_present })
                         .await;
-
-                    // Restore callbacks and subscriptions
-                    if !stored_subs.is_empty() {
-                        if session_present {
-                            // Session was resumed - broker has subscriptions, but we need to restore callbacks
-                            tracing::info!(
-                                "Session resumed, restoring {} callbacks",
-                                stored_subs.len()
-                            );
-                            let inner = self.inner.read().await;
-                            for (topic, _, callback_id) in stored_subs {
-                                if let Err(e) =
-                                    inner.callback_manager.restore_callback(callback_id).await
-                                {
-                                    tracing::warn!(
-                                        "Failed to restore callback for {}: {}",
-                                        topic,
-                                        e
-                                    );
-                                }
-                            }
-                        } else {
-                            // Session was not resumed - need to resubscribe and restore callbacks
-                            tracing::info!(
-                                "Session not resumed, restoring {} subscriptions",
-                                stored_subs.len()
-                            );
-                            for (topic, options, callback_id) in stored_subs {
-                                if let Err(e) = self
-                                    .resubscribe_internal(&topic, options, callback_id)
-                                    .await
-                                {
-                                    tracing::warn!(
-                                        "Failed to restore subscription to {}: {}",
-                                        topic,
-                                        e
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    self.restore_subscriptions_after_connect(stored_subs, session_present)
+                        .await;
 
                     return Ok(result);
                 }
@@ -487,10 +526,47 @@ impl MqttClient {
             }
         }
 
-        // If we get here, all addresses failed
         Err(last_error.unwrap_or_else(|| {
             MqttError::ConnectionError("Failed to connect to any address".to_string())
         }))
+    }
+
+    async fn reset_reconnect_counter(&self) {
+        let mut inner = self.inner.write().await;
+        inner.reconnect_attempt = 0;
+    }
+
+    async fn restore_subscriptions_after_connect(
+        &self,
+        stored_subs: Vec<(String, SubscriptionOptions, CallbackId)>,
+        session_present: bool,
+    ) {
+        if stored_subs.is_empty() {
+            return;
+        }
+
+        if session_present {
+            tracing::info!("Session resumed, restoring {} callbacks", stored_subs.len());
+            let inner = self.inner.read().await;
+            for (topic, _, callback_id) in stored_subs {
+                if let Err(e) = inner.callback_manager.restore_callback(callback_id).await {
+                    tracing::warn!("Failed to restore callback for {}: {}", topic, e);
+                }
+            }
+        } else {
+            tracing::info!(
+                "Session not resumed, restoring {} subscriptions",
+                stored_subs.len()
+            );
+            for (topic, options, callback_id) in stored_subs {
+                if let Err(e) = self
+                    .resubscribe_internal(&topic, options, callback_id)
+                    .await
+                {
+                    tracing::warn!("Failed to restore subscription to {}: {}", topic, e);
+                }
+            }
+        }
     }
 
     /// Internal connection method using custom TLS configuration
@@ -610,10 +686,17 @@ impl MqttClient {
         &self,
         tls_config: crate::transport::tls::TlsConfig,
     ) -> Result<()> {
+        // Acquire connection mutex to prevent concurrent connection attempts
+        let connection_guard = self.connection_mutex.lock().await;
+
         let options = self.inner.read().await.options.clone();
-        self.connect_with_tls_and_options(tls_config, options)
-            .await
-            .map(|_| ())
+        let result = self
+            .connect_with_tls_and_options_internal(tls_config, options)
+            .await;
+
+        // Explicitly drop guard to show we're done with the critical section
+        drop(connection_guard);
+        result.map(|_| ())
     }
 
     /// Connects to the MQTT broker using custom TLS configuration and connect options
@@ -654,6 +737,27 @@ impl MqttClient {
     ///
     /// Returns an error if connection fails or configuration is invalid
     pub async fn connect_with_tls_and_options(
+        &self,
+        tls_config: crate::transport::tls::TlsConfig,
+        options: ConnectOptions,
+    ) -> Result<ConnectResult> {
+        // Acquire connection mutex to prevent concurrent connection attempts
+        let connection_guard = self.connection_mutex.lock().await;
+        let result = self
+            .connect_with_tls_and_options_internal(tls_config, options)
+            .await;
+
+        // Explicitly drop guard to show we're done with the critical section
+        drop(connection_guard);
+        result
+    }
+
+    /// Internal TLS connection method (no mutex guard)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if connection fails or configuration is invalid
+    async fn connect_with_tls_and_options_internal(
         &self,
         tls_config: crate::transport::tls::TlsConfig,
         options: ConnectOptions,
@@ -1369,6 +1473,12 @@ impl MqttClient {
         inner.disconnect_with_packet(false).await
     }
 
+    /// Detects if the hostname is an AWS IoT endpoint
+    fn is_aws_iot_endpoint(hostname: &str) -> bool {
+        // AWS IoT Core endpoints follow the pattern: *.iot.*.amazonaws.com
+        hostname.contains(".iot.") && hostname.ends_with(".amazonaws.com")
+    }
+
     /// Parses an address string to determine transport type and components
     ///
     /// # Errors
@@ -1414,27 +1524,42 @@ impl MqttClient {
 
     /// Monitor connection and handle automatic reconnection
     async fn monitor_connection(&self) {
+        tracing::info!("🔍 MONITOR TASK - Starting connection monitor task");
+
         loop {
             // Wait for disconnection
             tokio::time::sleep(Duration::from_secs(1)).await;
 
             let inner = self.inner.read().await;
             if !inner.is_connected() {
+                tracing::warn!(
+                    "🔍 MONITOR TASK - Detected disconnection, triggering reconnection logic"
+                );
+
                 // Get reconnection config
                 let reconnect_config = inner.options.reconnect_config.clone();
                 let last_address = inner.last_address.clone();
                 drop(inner); // Release lock before potentially long-running operation
 
                 if !reconnect_config.enabled {
+                    tracing::info!("🔍 MONITOR TASK - Reconnection disabled, exiting monitor");
                     break;
                 }
 
                 if let Some(address) = last_address {
+                    tracing::warn!(
+                        address = %address,
+                        "🔍 MONITOR TASK - Starting reconnection attempt"
+                    );
+
                     // Attempt reconnection with exponential backoff
                     if let Err(e) = self.attempt_reconnection(&address, &reconnect_config).await {
-                        tracing::error!("Reconnection failed: {}", e);
+                        tracing::error!("🔍 MONITOR TASK - Reconnection failed: {}", e);
                         break;
                     }
+                } else {
+                    tracing::warn!("🔍 MONITOR TASK - No last address available for reconnection");
+                    break;
                 }
             }
         }
@@ -1450,9 +1575,24 @@ impl MqttClient {
         address: &str,
         config: &crate::types::ReconnectConfig,
     ) -> Result<()> {
+        tracing::warn!(
+            address = %address,
+            max_attempts = config.max_attempts,
+            initial_delay = ?config.initial_delay,
+            "🔄 RECONNECTION - Starting reconnection loop"
+        );
+
         let mut delay = config.initial_delay;
 
         loop {
+            // Check if already connected (might have been connected manually)
+            if self.is_connected().await {
+                tracing::info!(
+                    "🔄 RECONNECTION - Already connected, stopping reconnection attempts"
+                );
+                return Ok(());
+            }
+
             // Increment attempt counter
             let attempt = {
                 let mut inner = self.inner.write().await;
@@ -1460,8 +1600,20 @@ impl MqttClient {
                 inner.reconnect_attempt
             };
 
+            tracing::warn!(
+                attempt = attempt,
+                max_attempts = config.max_attempts,
+                delay = ?delay,
+                "🔄 RECONNECTION - Attempting reconnection #{}", attempt
+            );
+
             // Check max attempts
             if config.max_attempts > 0 && attempt > config.max_attempts {
+                tracing::error!(
+                    attempt = attempt,
+                    max_attempts = config.max_attempts,
+                    "🔄 RECONNECTION - Max attempts exceeded"
+                );
                 return Err(MqttError::ConnectionError(
                     "Max reconnection attempts exceeded".to_string(),
                 ));
@@ -1471,13 +1623,35 @@ impl MqttClient {
             self.trigger_connection_event(ConnectionEvent::Reconnecting { attempt })
                 .await;
 
-            // Wait before attempting
+            // Wait before attempting (release mutex during wait)
             tokio::time::sleep(delay).await;
 
-            // Try to reconnect using internal method to avoid recursion
-            match self.connect_internal(address).await {
+            // Acquire connection mutex only for the actual connection attempt
+            let connection_guard = self.connection_mutex.lock().await;
+
+            // Double-check connection status after acquiring mutex
+            if self.is_connected().await {
+                tracing::info!("Connected during wait, stopping reconnection attempts");
+                return Ok(());
+            }
+
+            // Try to reconnect using internal method
+            tracing::warn!(
+                attempt = attempt,
+                address = %address,
+                "🔄 RECONNECTION - Making connection attempt #{} to {}", attempt, address
+            );
+            let reconnection_result = self.connect_internal(address).await;
+
+            // Release connection guard before restoration logic
+            drop(connection_guard);
+
+            match reconnection_result {
                 Ok(_) => {
-                    tracing::info!("Reconnected successfully after {} attempts", attempt);
+                    tracing::info!(
+                        "🔄 RECONNECTION - Reconnected successfully after {} attempts",
+                        attempt
+                    );
 
                     // Restore subscriptions if session was not resumed
                     let inner = self.inner.read().await;

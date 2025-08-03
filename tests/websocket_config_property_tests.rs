@@ -379,16 +379,12 @@ mod edge_case_tests {
         // Initial state
         assert!(!transport.is_connected());
 
-        // Connect (placeholder implementation)
+        // Try to connect - should fail since no server is running
         let result = transport.connect().await;
-        assert!(result.is_ok());
-        assert!(transport.is_connected());
+        assert!(result.is_err());
+        assert!(!transport.is_connected());
 
-        // Try to connect again - should fail
-        let result2 = transport.connect().await;
-        assert!(result2.is_err());
-
-        // Close
+        // Close when not connected - should be ok
         let close_result = transport.close().await;
         assert!(close_result.is_ok());
         assert!(!transport.is_connected());
@@ -408,14 +404,13 @@ mod edge_case_tests {
         assert!(transport.read(&mut buf).await.is_err());
         assert!(transport.write(b"test").await.is_err());
 
-        // Connect first
-        transport.connect().await.unwrap();
+        // Try to connect - should fail since no server is running
+        let connect_result = transport.connect().await;
+        assert!(connect_result.is_err());
 
-        // Read should still fail (placeholder implementation)
+        // Operations should still fail since connection failed
         assert!(transport.read(&mut buf).await.is_err());
-
-        // Write should succeed (placeholder implementation)
-        assert!(transport.write(b"test").await.is_ok());
+        assert!(transport.write(b"test").await.is_err());
     }
 
     #[test]

@@ -92,7 +92,7 @@ cargo test --test integration_complete_flow test_complete_mqtt_flow
 The tests use a Mosquitto broker configured in `docker-compose.yml` with:
 - Standard MQTT port: 1883
 - TLS port: 8883
-- Configuration files in `mosquitto.conf` and `mosquitto-tls.conf`
+- Configuration files in `comparative_benchmarks/test_configs/`
 
 ## Writing New Tests
 

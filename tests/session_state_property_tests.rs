@@ -117,7 +117,7 @@ mod clean_start_tests {
 
         #[test]
         fn prop_clean_start_false_preserves_unacked(
-            packet_ids in prop::collection::vec(valid_packet_id(), 1..10),
+            packet_ids in prop::collection::hash_set(valid_packet_id(), 1..10),
             qos in qos_level().prop_filter("QoS > 0", |&q| q != QoS::AtMostOnce)
         ) {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -280,7 +280,7 @@ mod subscription_management_tests {
 
         #[test]
         fn prop_subscription_removal(
-            topics in prop::collection::vec("[a-zA-Z0-9/]{1,50}", 5..15)
+            topics in prop::collection::hash_set("[a-zA-Z0-9/]{1,50}", 5..15)
         ) {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
@@ -299,8 +299,9 @@ mod subscription_management_tests {
                 prop_assert_eq!(session.all_subscriptions().await.len(), topics.len());
 
                 // Remove half of them
-                let to_remove = topics.len() / 2;
-                for topic in &topics[..to_remove] {
+                let topics_vec: Vec<_> = topics.iter().cloned().collect();
+                let to_remove = topics_vec.len() / 2;
+                for topic in &topics_vec[..to_remove] {
                     let removed = session.remove_subscription(topic).await.unwrap();
                     prop_assert!(removed);
                 }
@@ -308,7 +309,7 @@ mod subscription_management_tests {
                 prop_assert_eq!(session.all_subscriptions().await.len(), topics.len() - to_remove);
 
                 // Verify correct ones remain
-                for topic in &topics[to_remove..] {
+                for topic in &topics_vec[to_remove..] {
                     let matching = session.matching_subscriptions(topic).await;
                     prop_assert!(!matching.is_empty());
                 }

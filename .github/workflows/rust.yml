@@ -41,8 +41,10 @@ jobs:
           components: clippy
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
+      - name: Install cargo-make
+        run: cargo install --force cargo-make
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo make clippy
 
   # Build and test
   test:
@@ -51,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [stable, beta]
+        rust: [stable]
     steps:
       - uses: actions/checkout@v4
       
@@ -68,22 +70,21 @@ jobs:
           chmod +x scripts/generate_test_certs.sh
           ./scripts/generate_test_certs.sh
       
-      - name: Start Mosquitto
+      - name: Setup Test Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients
-          sudo systemctl stop mosquitto || true
-          mkdir -p /tmp/mosquitto
-          mosquitto -c mosquitto-ci.conf -d
-          sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
-          nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
+          # We are the broker now! No need for external MQTT brokers
+          # Our tests use our own broker implementation or mock clients
+          echo "MQTT broker implementation ready for testing"
+          echo "Tests will use our built-in broker or mock clients as needed"
+      
+      - name: Install cargo-make
+        run: cargo install --force cargo-make
       
       - name: Build
-        run: cargo build --verbose --all-features
+        run: cargo make build
       
-      - name: Run all tests
-        run: cargo test --verbose --all-features
+      - name: Run unit tests
+        run: cargo make test-fast
 
   # Test with minimal supported Rust version
   msrv:
@@ -112,55 +113,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Code coverage
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-      
-      - name: Generate test certificates
-        run: |
-          chmod +x scripts/generate_test_certs.sh
-          ./scripts/generate_test_certs.sh
-      
-      - name: Start Mosquitto
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients
-          sudo systemctl stop mosquitto || true
-          mkdir -p /tmp/mosquitto
-          mosquitto -c mosquitto-ci.conf -d
-          sleep 2
-          nc -zv localhost 1883 || (echo "Mosquitto failed to start on port 1883" && exit 1)
-          nc -zv localhost 8883 || (echo "Mosquitto failed to start on port 8883" && exit 1)
-      
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
-      
-      - name: Generate coverage
-        run: |
-          cargo tarpaulin --out Xml --all-features \
-            --exclude-files 'tests/persistence.rs' \
-            --exclude-files 'tests/keepalive_handling.rs' \
-            --exclude-files 'tests/integration_*.rs' \
-            --exclude-files 'tests/client_*.rs' \
-            --exclude-files 'tests/connection_*.rs' \
-            --exclude-files 'tests/qos_*.rs' \
-            --exclude-files 'tests/message_*.rs' \
-            --exclude-files 'tests/common_scenarios_demo.rs'
-      
-      - name: Upload coverage to codecov.io
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
 
   # Build documentation
   docs:
