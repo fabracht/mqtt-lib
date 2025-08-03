@@ -96,7 +96,7 @@ impl WebSocketConfig {
             timeout: Duration::from_secs(30),
             subprotocols: vec!["mqtt".to_string()],
             headers: HashMap::new(),
-            user_agent: Some("mqtt-v5/0.3.0".to_string()),
+            user_agent: Some("mqtt-v5/0.4.0".to_string()),
             tls_config: None,
             #[allow(deprecated)]
             verify_tls: true,

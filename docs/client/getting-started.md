@@ -8,7 +8,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mqtt-v5 = "0.3.0"
+mqtt-v5 = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
