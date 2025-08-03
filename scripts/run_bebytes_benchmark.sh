@@ -59,4 +59,4 @@ fi
 
 echo
 echo "For detailed results, open: target/criterion/report/index.html"
-echo "For comparison report, see: BENCHMARK_REPORT.md"
+echo "Note: Detailed comparison reports are available for development purposes"

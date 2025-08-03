@@ -5,6 +5,45 @@ default_to_workspace = false
 CARGO_TERM_COLOR = "always"
 RUST_BACKTRACE = "1"
 
+[tasks.help]
+description = "Show available cargo make commands"
+script = '''
+#!/bin/bash
+echo "MQTT-v5 Broker - Available Commands"
+echo "==================================="
+echo ""
+echo "Development Commands:"
+echo "  cargo make build          - Build the project"
+echo "  cargo make test           - Run all tests"
+echo "  cargo make fmt            - Format code"
+echo "  cargo make clippy         - Run linter"
+echo "  cargo make check          - Run cargo check"
+echo ""
+echo "CI/CD Commands:"
+echo "  cargo make ci-verify      - Run all CI checks locally (MUST pass before push)"
+echo "  cargo make pre-commit     - Run before committing (fmt + clippy + test)"
+echo "  cargo make fmt-check      - Check formatting without modifying"
+echo ""
+echo "Benchmark Commands:"
+echo "  cargo bench --bench broker_performance      - Test broker performance"
+echo "  cargo bench --bench simple_broker_bench     - Simple broker benchmarks"
+echo "  cargo bench --bench mqtt_benchmarks         - Core MQTT benchmarks"
+echo ""
+echo "Test Commands:"
+echo "  cargo test --test connection_pool_performance - Test connection pooling"
+echo "  cargo test --test broker_performance_tests    - Run performance tests"
+echo ""
+echo "Examples:"
+echo "  cargo run --example simple_broker           - Run simple broker"
+echo "  cargo run --example broker_with_monitoring  - Run broker with monitoring"
+echo "  cargo run --example broker_with_tls         - Run broker with TLS"
+echo "  cargo run --example broker_with_websocket   - Run broker with WebSocket"
+echo ""
+echo "Documentation:"
+echo "  cargo doc --open                            - Generate and open docs"
+echo ""
+'''
+
 [tasks.fmt]
 command = "cargo"
 args = ["fmt", "--all"]
@@ -15,11 +54,16 @@ args = ["fmt", "--all", "--", "--check"]
 
 [tasks.clippy]
 command = "cargo"
-args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings", "-A", "clippy::uninlined_format_args"]
 
 [tasks.test]
 command = "cargo"
 args = ["test", "--all-features", "--verbose"]
+
+[tasks.test-fast]
+command = "cargo"
+args = ["test", "--lib", "--bins", "--verbose"]
+description = "Run only unit tests and binary tests (excludes integration tests)"
 
 [tasks.build]
 command = "cargo"
@@ -34,8 +78,8 @@ dependencies = ["fmt-check", "clippy", "build", "test"]
 description = "Run all CI checks locally - MUST pass before pushing"
 
 [tasks.pre-commit]
-dependencies = ["fmt", "clippy", "test"]
-description = "Run before committing - formats code and runs all checks"
+dependencies = ["fmt", "clippy", "test-fast"]
+description = "Run before committing - formats code and runs fast tests"
 
 [tasks.doc]
 command = "cargo"

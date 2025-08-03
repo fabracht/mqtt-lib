@@ -197,9 +197,19 @@ cargo clippy -- -D warnings
 
 ### Benchmarks
 
+Run performance benchmarks to evaluate the library's performance:
+
 ```bash
+# Run all intrinsic benchmarks
 cargo bench
+
+# Run specific benchmarks
+cargo bench --bench broker_performance
+cargo bench --bench mqtt_benchmarks
+cargo bench --bench simple_broker_bench
 ```
+
+**Note**: Additional comparative benchmarks are available for development purposes (not included in the crate).
 
 ## Testing Infrastructure
 

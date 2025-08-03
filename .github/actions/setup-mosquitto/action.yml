@@ -19,7 +19,7 @@ runs:
       shell: bash
       run: |
         # Start mosquitto in background
-        mosquitto -c mosquitto-ci.conf -d
+        mosquitto -c comparative_benchmarks/test_configs/mosquitto-ci.conf -d
         
         # Wait for it to start and verify
         for i in {1..30}; do

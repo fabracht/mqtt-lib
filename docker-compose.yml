@@ -8,8 +8,8 @@ services:
       - "1883:1883"
       - "8883:8883"
     volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./mosquitto-tls.conf:/mosquitto/config/mosquitto-tls.conf
+      - ./comparative_benchmarks/test_configs/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./comparative_benchmarks/test_configs/mosquitto-tls.conf:/mosquitto/config/mosquitto-tls.conf
       - ./test_certs:/mosquitto/certs
       - mosquitto-data:/mosquitto/data
     command: mosquitto -c /mosquitto/config/mosquitto.conf
@@ -20,7 +20,7 @@ services:
     ports:
       - "8884:8883"
     volumes:
-      - ./mosquitto-tls.conf:/mosquitto/config/mosquitto.conf
+      - ./comparative_benchmarks/test_configs/mosquitto-tls.conf:/mosquitto/config/mosquitto.conf
       - ./test_certs:/mosquitto/certs
       - mosquitto-tls-data:/mosquitto/data
     command: mosquitto -c /mosquitto/config/mosquitto.conf
