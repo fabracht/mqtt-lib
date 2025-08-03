@@ -75,7 +75,7 @@ This directory contains comprehensive integration tests for the MQTT v5.0 client
 # Start the broker
 docker-compose up -d mosquitto
 
-# Run specific test
+# Run specific test (use raw cargo for specific tests)
 cargo test --test integration_complete_flow
 
 # Stop the broker
@@ -84,6 +84,7 @@ docker-compose down
 
 ### Running Specific Tests
 ```bash
+# Use raw cargo for specific tests with filters
 cargo test --test integration_complete_flow test_complete_mqtt_flow
 ```
 
@@ -117,6 +118,7 @@ When adding new integration tests:
 
 Run tests with debug output:
 ```bash
+# Use raw cargo for specific test debugging
 RUST_LOG=debug cargo test --test integration_complete_flow -- --nocapture
 ```
 

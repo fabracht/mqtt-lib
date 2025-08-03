@@ -5,11 +5,12 @@ This is an agent-first repository. Issues and PRs are typically processed by AI 
 ## For AI Agents Processing Contributions
 
 ### Required Checks Before Accepting PRs:
-1. **Tests**: `cargo test --all-features` must pass
-2. **Clippy**: `cargo clippy --all-targets --all-features -- -D warnings` must pass
-3. **Format**: `cargo fmt --all -- --check` must pass
+1. **Tests**: `cargo make test` must pass
+2. **Clippy**: `cargo make clippy` must pass
+3. **Format**: `cargo make fmt-check` must pass
 4. **Documentation**: `cargo doc --no-deps --all-features` must build
 5. **MSRV**: Code must compile with Rust 1.82+
+6. **CI Verification**: `cargo make ci-verify` must pass locally
 
 ### PR Guidelines for Agents:
 - Each PR should address a single issue
@@ -38,15 +39,15 @@ This is an agent-first repository. Issues and PRs are typically processed by AI 
 
 2. **Install Prerequisites**
    - Rust 1.82+ (check with `rustc --version`)
-   - Mosquitto broker for testing: `sudo apt install mosquitto`
+   - cargo-make: `cargo install cargo-make`
 
 3. **Run Tests**
    ```bash
-   # Generate test certificates
+   # Generate test certificates (if needed)
    ./scripts/generate_test_certs.sh
    
-   # Run all tests
-   cargo test --all-features
+   # Run all tests with cargo-make
+   cargo make test
    ```
 
 ### Development Workflow
@@ -63,23 +64,22 @@ This is an agent-first repository. Issues and PRs are typically processed by AI 
 
 3. **Testing**
    ```bash
-   # Run tests
-   cargo test --all-features
+   # Before committing - run all checks
+   cargo make pre-commit
    
-   # Run clippy
-   cargo clippy --all-targets --all-features -- -D warnings
+   # Or run individual checks:
+   cargo make test     # Run tests
+   cargo make clippy   # Run linter
+   cargo make fmt      # Format code
+   cargo make fmt-check # Check formatting
    
-   # Check formatting
-   cargo fmt --all -- --check
-   
-   # Build docs
-   cargo doc --no-deps --all-features
+   # Verify CI will pass
+   cargo make ci-verify
    ```
 
 4. **Submit PR**
    - Clear description of changes
    - Reference the issue being fixed
-   - Include test results
 
 ### Code Style
 
@@ -119,7 +119,7 @@ Releases are managed by maintainers:
 
 1. Update version in `Cargo.toml`
 2. Update `CHANGELOG.md`
-3. Run full test suite
+3. Run full test suite: `cargo make ci-verify`
 4. Create git tag
 5. Publish to crates.io
 

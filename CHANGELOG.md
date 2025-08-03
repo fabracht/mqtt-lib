@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-08-03
+
+### Added
+- **Complete MQTT v5.0 Broker Implementation**
+  - Production-ready broker with full MQTT v5.0 compliance
+  - Multi-transport support: TCP, TLS, WebSocket in single binary
+  - Built-in authentication: Username/password, file-based, bcrypt
+  - Access Control Lists (ACL) for fine-grained topic permissions
+  - Broker-to-broker bridging with loop prevention
+  - Resource monitoring with connection limits and rate limiting
+  - Session persistence and retained message storage
+  - Shared subscriptions for load balancing
+  - Hot configuration reload without restart
+
+### Changed
+- **Platform Transformation**: Project evolved from client library to complete MQTT v5.0 platform
+- **Comprehensive Documentation Overhaul**:
+  - Restructured docs/ with separate client/ and broker/ sections
+  - Added complete broker configuration reference
+  - Added authentication and security guides
+  - Added deployment and monitoring documentation
+  - Updated all examples to show dual-platform usage
+- **Development Workflow**: Standardized on cargo-make for consistent CI/build commands
+- **Architecture**: Maintained NO EVENT LOOPS principle throughout broker implementation
+
+### Removed
+- Unimplemented AuthMethod::External references from documentation
+
 ## [0.2.0] - 2025-07-30
 
 ### Added

@@ -29,6 +29,8 @@ You (Claude) seem to have a strong bias toward implementing event loops, likely 
 
 **In Rust, this is WRONG. Rust async is based on state machines and futures, NOT event loops.**
 
+> **Clarification**: We're not against `loop` constructs in general - those are fine for iteration, packet reading, etc. We're specifically against the **event loop coordination pattern** where you have a central loop dispatching commands/events to handlers.
+
 ### FORBIDDEN Patterns - Do NOT Write These
 
 ```rust
@@ -84,9 +86,16 @@ impl MqttClient {
 ```rust
 // CORRECT - Background tasks that wait, not poll
 async fn packet_reader(transport: Arc<Transport>) {
-    // This will efficiently wait for packets, not poll
+    // This loop is FINE - it's for packet processing, not event coordination
     while let Ok(packet) = transport.read_packet().await {
         handle_packet(packet).await;
+    }
+}
+
+// CORRECT - Loops for iteration are perfectly fine
+async fn process_messages(messages: Vec<Message>) {
+    for message in messages {  // This loop is fine
+        process_message(message).await;
     }
 }
 ```
@@ -99,9 +108,9 @@ async fn packet_reader(transport: Arc<Transport>) {
    - No commands, no channels, no event loops
 
 2. **Background tasks are spawned for continuous operations**
-   - Packet reading: One task that loops reading packets
-   - Keep-alive: One task that sends pings on a timer
-   - These are NOT event loops, they're focused async tasks
+   - Packet reading: One task that loops reading packets (loop = good)
+   - Keep-alive: One task that sends pings on a timer (loop = good)
+   - These are NOT event loops, they're focused async tasks with simple loops
 
 3. **State is shared via Arc<RwLock<T>>**
    - Multiple tasks can access shared state
@@ -137,7 +146,9 @@ Before implementing anything, ask yourself:
 - Am I creating an event loop or letting Tokio handle it?
 - Is this idiomatic Rust async or am I writing Node.js in Rust?
 
-**If you find yourself writing `loop { tokio::select! { ... } }`, STOP and reconsider.**
+**If you find yourself writing `loop { tokio::select! { ... } }` for event coordination, STOP and reconsider.**
+
+**Note**: Simple loops like `while let Ok(packet) = read().await` or `for item in items` are perfectly fine and encouraged!
 
 ## For This Specific Codebase
 
