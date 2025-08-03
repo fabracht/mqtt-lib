@@ -375,7 +375,7 @@ impl MetricsCollector {
             }
         }).await?;
 
-        // Periodically process metrics
+        // Periodically process metrics (simple processing loop - not event coordination)
         let mut interval = interval(Duration::from_secs(60));
         loop {
             interval.tick().await;
