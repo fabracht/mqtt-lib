@@ -53,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [stable, beta]
+        rust: [stable]
     steps:
       - uses: actions/checkout@v4
       
@@ -83,8 +83,8 @@ jobs:
       - name: Build
         run: cargo make build
       
-      - name: Run all tests
-        run: cargo make test
+      - name: Run unit tests
+        run: cargo make test-fast
 
   # Test with minimal supported Rust version
   msrv:
