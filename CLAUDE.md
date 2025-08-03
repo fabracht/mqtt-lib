@@ -1,5 +1,21 @@
 # Instructions for Claude - MQTT v5.0 Client Library
 
+## 🚨🚨🚨 CRITICAL: NEVER USE PRINT STATEMENTS - ALWAYS USE TRACING 🚨🚨🚨
+
+**ABSOLUTELY FORBIDDEN:**
+- println!(), print!(), eprintln!(), eprint!()
+- dbg!() macro
+- Any console output except tracing
+
+**ALWAYS REQUIRED:**
+- tracing::debug!(), info!(), warn!(), error!(), trace!()
+- Structured logging with fields: debug!(field = value, "message")
+- #[instrument] attribute on functions
+
+**NO EXCEPTIONS. NO DEBUGGING WITH PRINT. NO TEMPORARY PRINTLN. NEVER.**
+
+If you use any print statement, you are violating the core debugging philosophy of this project and will cause debugging failures.
+
 ## CRITICAL: NO EVENT LOOPS - THIS IS RUST ASYNC
 
 **STOP! Before you write ANY code, remember: This is a Rust async library. We do NOT use event loops.**

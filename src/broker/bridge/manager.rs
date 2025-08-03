@@ -186,11 +186,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_bridge_manager_lifecycle() {
+        use crate::broker::server::MqttBroker;
+
         let router = Arc::new(MessageRouter::new());
         let manager = BridgeManager::new(router);
 
-        // Create test bridge config
-        let config = BridgeConfig::new("test-bridge", "localhost:1883").add_topic(
+        // Start our own MQTT broker for testing
+        let mut broker = MqttBroker::bind("127.0.0.1:0")
+            .await
+            .expect("Failed to start broker");
+        let broker_addr = broker.local_addr().expect("Failed to get broker address");
+
+        // Run broker in background
+        let broker_handle = tokio::spawn(async move { broker.run().await });
+
+        // Give broker time to start
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Create test bridge config pointing to our test broker
+        let config = BridgeConfig::new("test-bridge", &format!("{}", broker_addr)).add_topic(
             "test/#",
             BridgeDirection::Both,
             QoS::AtMostOnce,
@@ -206,6 +220,9 @@ mod tests {
 
         // Try to add duplicate
         assert!(manager.add_bridge(config).await.is_err());
+
+        // Clean up
+        broker_handle.abort();
 
         // Remove bridge
         assert!(manager.remove_bridge("test-bridge").await.is_ok());

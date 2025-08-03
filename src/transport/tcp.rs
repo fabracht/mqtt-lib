@@ -170,6 +170,7 @@ impl Transport for TcpTransport {
 mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr};
+    use tracing::{error, info};
 
     #[test]
     fn test_tcp_config() {
@@ -230,14 +231,33 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_connect_real_broker() {
+        use crate::broker::server::MqttBroker;
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
 
-        let mut transport = TcpTransport::from_addr(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            1883,
-        ));
+        // Start our own MQTT broker on a random port
+        let mut broker = MqttBroker::bind("127.0.0.1:0")
+            .await
+            .expect("Failed to start broker");
+        let broker_addr = broker.local_addr().expect("Failed to get broker address");
+        info!(broker_addr = %broker_addr, "Test broker bound to address");
+
+        // Run broker in background
+        let broker_handle = tokio::spawn(async move {
+            match broker.run().await {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    error!(error = ?e, "Broker run() failed");
+                    Err(e)
+                }
+            }
+        });
+
+        // Give broker time to start
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        let mut transport = TcpTransport::from_addr(broker_addr);
 
         // Test TCP connection
         let result = transport.connect().await;
@@ -290,6 +310,9 @@ mod tests {
         let result = transport.close().await;
         assert!(result.is_ok());
         assert!(!transport.is_connected());
+
+        // Clean up broker
+        broker_handle.abort();
     }
 
     #[test]

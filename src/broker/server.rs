@@ -231,6 +231,8 @@ impl MqttBroker {
     /// Returns an error if the accept loop fails
     #[allow(clippy::too_many_lines)]
     pub async fn run(&mut self) -> Result<()> {
+        info!("Starting MQTT broker");
+
         let Some(listener) = self.listener.take() else {
             return Err(MqttError::InvalidState(
                 "Broker already running".to_string(),
@@ -421,17 +423,18 @@ impl MqttBroker {
             });
         }
 
+        info!("Broker ready - accepting connections");
         loop {
             tokio::select! {
                 // Accept new TCP connections
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, addr)) => {
-                            debug!("New TCP connection from {}", addr);
+                            debug!(addr = %addr, "New TCP connection");
 
                             // Check connection limits
                             if !self.resource_monitor.can_accept_connection(addr.ip()).await {
-                                warn!("TCP connection rejected from {}: resource limits exceeded", addr);
+                                warn!("Connection rejected from {}: resource limits exceeded", addr);
                                 continue;
                             }
 

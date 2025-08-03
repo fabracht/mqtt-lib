@@ -281,6 +281,12 @@ impl ClientHandler {
 
     /// Handles CONNECT packet
     async fn handle_connect(&mut self, connect: ConnectPacket) -> Result<()> {
+        debug!(
+            client_id = %connect.client_id,
+            addr = %self.client_addr,
+            "Processing CONNECT packet"
+        );
+
         // Authenticate
         let auth_result = self
             .auth_provider
@@ -288,13 +294,17 @@ impl ClientHandler {
             .await?;
 
         if !auth_result.authenticated {
+            debug!(
+                client_id = %connect.client_id,
+                reason = ?auth_result.reason_code,
+                "Authentication failed"
+            );
             let connack = ConnAckPacket::new(false, auth_result.reason_code);
             self.transport
                 .write_packet(Packet::ConnAck(connack))
                 .await?;
             return Err(MqttError::AuthenticationFailed);
         }
-
         // Store client info
         self.client_id = Some(connect.client_id.clone());
         self.user_id = auth_result.user_id;
@@ -372,6 +382,11 @@ impl ClientHandler {
                 .set_server_keep_alive(u16::try_from(keep_alive.as_secs()).unwrap_or(u16::MAX));
         }
 
+        debug!(
+            client_id = %connect.client_id,
+            session_present = session_present,
+            "Sending CONNACK"
+        );
         self.transport.write_packet(Packet::ConnAck(connack)).await
     }
 
