@@ -113,51 +113,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Code coverage
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-      
-      - name: Generate test certificates
-        run: |
-          chmod +x scripts/generate_test_certs.sh
-          ./scripts/generate_test_certs.sh
-      
-      - name: Setup Test Environment
-        run: |
-          # We are the broker now! No need for external MQTT brokers
-          # Our tests use our own broker implementation or mock clients
-          echo "MQTT broker implementation ready for testing"
-          echo "Tests will use our built-in broker or mock clients as needed"
-      
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
-      
-      - name: Generate coverage
-        run: |
-          cargo tarpaulin --out Xml --all-features \
-            --exclude-files 'tests/persistence.rs' \
-            --exclude-files 'tests/keepalive_handling.rs' \
-            --exclude-files 'tests/integration_*.rs' \
-            --exclude-files 'tests/client_*.rs' \
-            --exclude-files 'tests/connection_*.rs' \
-            --exclude-files 'tests/qos_*.rs' \
-            --exclude-files 'tests/message_*.rs' \
-            --exclude-files 'tests/common_scenarios_demo.rs'
-      
-      - name: Upload coverage to codecov.io
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
 
   # Build documentation
   docs:
