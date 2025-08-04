@@ -7,9 +7,9 @@
 //! - AWS IoT specific restrictions
 //! - Unicode and special character validation
 
-use mqtt_v5::topic_matching::{validate_filter, validate_topic};
-use mqtt_v5::validation::namespace::NamespaceValidator;
-use mqtt_v5::validation::TopicValidator;
+use mqtt5::topic_matching::{validate_filter, validate_topic};
+use mqtt5::validation::namespace::NamespaceValidator;
+use mqtt5::validation::TopicValidator;
 use proptest::prelude::*;
 use proptest::string::string_regex;
 

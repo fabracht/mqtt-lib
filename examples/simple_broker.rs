@@ -26,7 +26,7 @@
 //! cargo run --example simple_client
 //! ```
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
@@ -35,7 +35,7 @@ use tracing::{error, info};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for logging
     tracing_subscriber::fmt()
-        .with_env_filter("mqtt_v5=info")
+        .with_env_filter("mqtt5=info")
         .init();
 
     println!("🚀 MQTT v5.0 Simple Broker Example");

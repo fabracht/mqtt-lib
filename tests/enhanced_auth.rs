@@ -1,7 +1,7 @@
-use mqtt_v5::error::MqttError;
-use mqtt_v5::packet::auth::AuthPacket;
-use mqtt_v5::packet::MqttPacket;
-use mqtt_v5::protocol::v5::reason_codes::ReasonCode;
+use mqtt5::error::MqttError;
+use mqtt5::packet::auth::AuthPacket;
+use mqtt5::packet::MqttPacket;
+use mqtt5::protocol::v5::reason_codes::ReasonCode;
 
 #[tokio::test]
 async fn test_auth_packet_creation() {
@@ -92,7 +92,7 @@ async fn test_auth_packet_failure_with_success_code() {
 #[tokio::test]
 async fn test_auth_packet_encode_decode_cycle() {
     use bytes::BytesMut;
-    use mqtt_v5::packet::FixedHeader;
+    use mqtt5::packet::FixedHeader;
 
     // Test complete encode/decode cycle for AUTH packet with properties
     let original_packet = AuthPacket::continue_authentication(
@@ -123,8 +123,8 @@ async fn test_auth_packet_encode_decode_cycle() {
 
 #[tokio::test]
 async fn test_auth_packet_properties_conversion() {
-    use mqtt_v5::protocol::v5::properties::{PropertyId, PropertyValue};
-    use mqtt_v5::types::WillProperties;
+    use mqtt5::protocol::v5::properties::{PropertyId, PropertyValue};
+    use mqtt5::types::WillProperties;
 
     // Test conversion from WillProperties to protocol Properties
     // This was implemented as part of the AUTH packet requirements
@@ -139,7 +139,7 @@ async fn test_auth_packet_properties_conversion() {
         .push(("client".to_string(), "v1.0".to_string()));
 
     // Convert to protocol properties (this tests the From implementation)
-    let protocol_props: mqtt_v5::protocol::v5::properties::Properties = will_props.into();
+    let protocol_props: mqtt5::protocol::v5::properties::Properties = will_props.into();
 
     // Verify conversion worked correctly
     assert_eq!(

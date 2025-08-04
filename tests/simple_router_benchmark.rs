@@ -1,9 +1,9 @@
 //! Simple router benchmark to demonstrate optimization improvements
 
-use mqtt_v5::broker::optimized_router::OptimizedMessageRouter;
-use mqtt_v5::broker::router::MessageRouter;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::optimized_router::OptimizedMessageRouter;
+use mqtt5::broker::router::MessageRouter;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::time::Instant;
 use tokio::sync::mpsc;
 

@@ -9,12 +9,12 @@
 //! - QoS state consistency
 //! - Subscription management
 
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::packet::subscribe::{RetainHandling, SubscriptionOptions};
-use mqtt_v5::session::queue::QueuedMessage;
-use mqtt_v5::session::subscription::Subscription;
-use mqtt_v5::session::{SessionConfig, SessionState};
-use mqtt_v5::QoS;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::packet::subscribe::{RetainHandling, SubscriptionOptions};
+use mqtt5::session::queue::QueuedMessage;
+use mqtt5::session::subscription::Subscription;
+use mqtt5::session::{SessionConfig, SessionState};
+use mqtt5::QoS;
 use proptest::prelude::*;
 use std::sync::Arc;
 

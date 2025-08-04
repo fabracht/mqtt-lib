@@ -1,7 +1,7 @@
 //! Integration test for broker TLS support
 
-use mqtt_v5::broker::config::{BrokerConfig, TlsConfig};
-use mqtt_v5::broker::MqttBroker;
+use mqtt5::broker::config::{BrokerConfig, TlsConfig};
+use mqtt5::broker::MqttBroker;
 use std::path::PathBuf;
 use std::time::Duration;
 

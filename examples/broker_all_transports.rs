@@ -5,8 +5,8 @@
 //! - TLS connections (port 8883)
 //! - WebSocket connections (port 8080)
 
-use mqtt_v5::broker::config::{TlsConfig, WebSocketConfig};
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::config::{TlsConfig, WebSocketConfig};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::PathBuf;
 use tracing::info;
 

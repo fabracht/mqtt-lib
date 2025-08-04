@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use mqtt_v5::broker::{MqttBroker, BrokerConfig};
+//! use mqtt5::broker::{MqttBroker, BrokerConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {

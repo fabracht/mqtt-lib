@@ -47,8 +47,8 @@
 //! - Predictive maintenance based on sensor drift patterns
 //! - **Enterprise PKI infrastructure integration**
 
-use mqtt_v5::transport::tls::TlsConfig;
-use mqtt_v5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
+use mqtt5::transport::tls::TlsConfig;
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

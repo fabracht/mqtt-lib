@@ -40,7 +40,7 @@
 //! - Graceful degradation under failure conditions
 //! - **Secure MQTT communications with TLS**
 
-use mqtt_v5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

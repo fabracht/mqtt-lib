@@ -188,7 +188,7 @@ impl TlsConfig {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::transport::tls::TlsConfig;
+    /// # use mqtt5::transport::tls::TlsConfig;
     /// # use std::net::SocketAddr;
     /// let tls_config = TlsConfig::new(
     ///     "your-endpoint.iot.us-east-1.amazonaws.com:443".parse().unwrap(),

@@ -1,4 +1,4 @@
-use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS};
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS};
 
 #[tokio::test]
 

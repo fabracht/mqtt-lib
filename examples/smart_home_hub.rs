@@ -43,8 +43,8 @@
 //! - **Mutual TLS authentication for device security**
 
 use chrono::Timelike;
-use mqtt_v5::transport::tls::TlsConfig;
-use mqtt_v5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
+use mqtt5::transport::tls::TlsConfig;
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};

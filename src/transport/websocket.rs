@@ -16,8 +16,8 @@
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use mqtt_v5::transport::websocket::{WebSocketConfig, WebSocketTransport};
-//! use mqtt_v5::transport::Transport;
+//! use mqtt5::transport::websocket::{WebSocketConfig, WebSocketTransport};
+//! use mqtt5::transport::Transport;
 //! use std::time::Duration;
 //!
 //! # #[tokio::main]

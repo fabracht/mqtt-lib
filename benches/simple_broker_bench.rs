@@ -1,7 +1,7 @@
 //! Simple broker benchmark to test basic functionality
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use tokio::runtime::Runtime;
 
 fn benchmark_broker_creation(c: &mut Criterion) {

@@ -1,7 +1,7 @@
 //! Integration test for broker with all transport types
 
-use mqtt_v5::broker::config::{BrokerConfig, TlsConfig, WebSocketConfig};
-use mqtt_v5::broker::MqttBroker;
+use mqtt5::broker::config::{BrokerConfig, TlsConfig, WebSocketConfig};
+use mqtt5::broker::MqttBroker;
 use std::path::PathBuf;
 use std::time::Duration;
 

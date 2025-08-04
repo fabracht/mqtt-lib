@@ -3,8 +3,8 @@
 //! This example demonstrates how to configure and run a broker that accepts
 //! connections over WebSocket, allowing browser-based MQTT clients to connect.
 
-use mqtt_v5::broker::config::WebSocketConfig;
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::config::WebSocketConfig;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use tracing::info;
 
 #[tokio::main]

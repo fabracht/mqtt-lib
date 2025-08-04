@@ -11,7 +11,7 @@ The broker supports comprehensive configuration through the `BrokerConfig` struc
 ### Creating a Configuration
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 
 // Default configuration
 let config = BrokerConfig::default();
@@ -67,7 +67,7 @@ let config = BrokerConfig::new()
 ### Basic Authentication
 
 ```rust
-use mqtt_v5::broker::{AuthConfig, AuthMethod};
+use mqtt5::broker::{AuthConfig, AuthMethod};
 
 let auth_config = AuthConfig {
     allow_anonymous: false,
@@ -114,7 +114,7 @@ let auth_config = AuthConfig {
 ### Basic TLS Setup
 
 ```rust
-use mqtt_v5::broker::TlsConfig;
+use mqtt5::broker::TlsConfig;
 
 let tls_config = TlsConfig::new(
     "certs/server.crt".into(),
@@ -150,7 +150,7 @@ let config = BrokerConfig::new().with_tls(tls_config);
 ### Basic WebSocket Setup
 
 ```rust
-use mqtt_v5::broker::WebSocketConfig;
+use mqtt5::broker::WebSocketConfig;
 
 let ws_config = WebSocketConfig::default()
     .with_bind_address("0.0.0.0:8080".parse()?)
@@ -182,7 +182,7 @@ let ws_config = WebSocketConfig::new()
 ### File-Based Storage (Default)
 
 ```rust
-use mqtt_v5::broker::{StorageConfig, StorageBackend};
+use mqtt5::broker::{StorageConfig, StorageBackend};
 
 let storage_config = StorageConfig::new()
     .with_backend(StorageBackend::File)
@@ -215,7 +215,7 @@ let storage_config = StorageConfig::new()
 ### Resource Limits Configuration
 
 ```rust
-use mqtt_v5::broker::ResourceLimits;
+use mqtt5::broker::ResourceLimits;
 
 let limits = ResourceLimits {
     max_connections: 5000,
@@ -246,7 +246,7 @@ let limits = ResourceLimits {
 ## Complete Multi-Transport Example
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
+use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
 use std::time::Duration;
 
 #[tokio::main]

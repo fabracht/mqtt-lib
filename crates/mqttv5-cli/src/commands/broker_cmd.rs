@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::Confirm;
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::PathBuf;
 use tokio::signal;
 use tracing::{debug, info};

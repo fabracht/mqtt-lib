@@ -3,8 +3,8 @@
 //! These are not traditional benchmarks but performance tests that can measure
 //! broker performance characteristics and identify bottlenecks.
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::client::MqttClient;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::client::MqttClient;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 

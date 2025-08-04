@@ -1,5 +1,5 @@
-use mqtt_v5::transport::tls::TlsConfig;
-use mqtt_v5::{ConnectOptions, MqttClient};
+use mqtt5::transport::tls::TlsConfig;
+use mqtt5::{ConnectOptions, MqttClient};
 use std::time::Duration;
 use tokio::time::timeout;
 

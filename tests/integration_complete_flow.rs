@@ -1,7 +1,7 @@
 mod common;
 
 use common::{create_test_client, test_client_id, EventCounter};
-use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS, SubscribeOptions};
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, PublishResult, QoS, SubscribeOptions};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -408,7 +408,7 @@ async fn test_publish_options_and_properties() {
         ("key2".to_string(), "value2".to_string()),
     ];
 
-    let properties = mqtt_v5::types::PublishProperties {
+    let properties = mqtt5::types::PublishProperties {
         message_expiry_interval: Some(300),
         content_type: Some("text/plain".to_string()),
         correlation_data: Some(b"correlation-123".to_vec()),

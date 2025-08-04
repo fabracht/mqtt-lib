@@ -50,7 +50,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// ## Basic usage
 ///
 /// ```rust,no_run
-/// use mqtt_v5::MqttClient;
+/// use mqtt5::MqttClient;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -79,7 +79,7 @@ pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 /// ## Advanced usage with options
 ///
 /// ```rust,no_run
-/// use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS};
+/// use mqtt5::{MqttClient, ConnectOptions, PublishOptions, QoS};
 /// use std::time::Duration;
 ///
 /// #[tokio::main]
@@ -129,7 +129,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```
-    /// use mqtt_v5::MqttClient;
+    /// use mqtt5::MqttClient;
     ///
     /// let client = MqttClient::new("my-device-001");
     /// ```
@@ -145,7 +145,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```
-    /// use mqtt_v5::{MqttClient, ConnectOptions};
+    /// use mqtt5::{MqttClient, ConnectOptions};
     /// use std::time::Duration;
     ///
     /// let options = ConnectOptions::new("client-001")
@@ -191,7 +191,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use mqtt_v5::{MqttClient, ConnectionEvent, DisconnectReason};
+    /// use mqtt5::{MqttClient, ConnectionEvent, DisconnectReason};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
@@ -256,7 +256,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::MqttClient;
+    /// # use mqtt5::MqttClient;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     ///
@@ -660,7 +660,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::{MqttClient, transport::tls::TlsConfig};
+    /// # use mqtt5::{MqttClient, transport::tls::TlsConfig};
     /// # use std::net::SocketAddr;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
@@ -708,7 +708,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::{MqttClient, ConnectOptions, transport::tls::TlsConfig};
+    /// # use mqtt5::{MqttClient, ConnectOptions, transport::tls::TlsConfig};
     /// # use std::net::SocketAddr;
     /// # use std::time::Duration;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -840,7 +840,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::MqttClient;
+    /// # use mqtt5::MqttClient;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;
@@ -945,7 +945,7 @@ impl MqttClient {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use mqtt_v5::MqttClient;
+    /// # use mqtt5::MqttClient;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = MqttClient::new("my-client");
     /// client.connect("mqtt://localhost:1883").await?;

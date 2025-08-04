@@ -24,7 +24,7 @@
 //! cargo run --example certificate_loading_demo
 //! ```
 
-use mqtt_v5::{client::MqttClient, transport::tls::TlsConfig};
+use mqtt5::{client::MqttClient, transport::tls::TlsConfig};
 use std::env;
 use std::net::SocketAddr;
 use tracing::{info, warn};
@@ -70,7 +70,7 @@ TA==
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
     tracing_subscriber::fmt()
-        .with_env_filter("certificate_loading_demo=info,mqtt_v5=debug")
+        .with_env_filter("certificate_loading_demo=info,mqtt5=debug")
         .init();
 
     let args: Vec<String> = env::args().collect();

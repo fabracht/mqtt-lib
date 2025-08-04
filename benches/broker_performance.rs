@@ -3,8 +3,8 @@
 //! This suite benchmarks the actual MQTT broker performance using proper APIs.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::client::MqttClient;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::client::MqttClient;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::time::sleep;

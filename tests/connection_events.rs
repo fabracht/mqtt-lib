@@ -1,4 +1,4 @@
-use mqtt_v5::{client::ConnectionEvent, client::DisconnectReason, MqttClient};
+use mqtt5::{client::ConnectionEvent, client::DisconnectReason, MqttClient};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -213,7 +213,7 @@ async fn test_reconnecting_event() {
     ));
 
     let event = ConnectionEvent::ReconnectFailed {
-        error: mqtt_v5::MqttError::ConnectionError("Test error".to_string()),
+        error: mqtt5::MqttError::ConnectionError("Test error".to_string()),
     };
     assert!(matches!(event, ConnectionEvent::ReconnectFailed { .. }));
 }

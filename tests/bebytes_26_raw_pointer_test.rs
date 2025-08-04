@@ -4,14 +4,14 @@
 //! methods that provide 40-80x performance improvements in BeBytes 2.6.0.
 
 use bebytes::BeBytes;
-use mqtt_v5::encoding::mqtt_string::MqttString;
-use mqtt_v5::encoding::variable_int::VariableInt;
-use mqtt_v5::packet::pingreq::PingReqPacket;
-use mqtt_v5::packet::pingresp::PingRespPacket;
-use mqtt_v5::packet::subscribe::{RetainHandling, SubscriptionOptions, SubscriptionOptionsBits};
-use mqtt_v5::packet::{AckPacketHeader, MqttTypeAndFlags, PacketType};
-use mqtt_v5::types::ReasonCode;
-use mqtt_v5::QoS;
+use mqtt5::encoding::mqtt_string::MqttString;
+use mqtt5::encoding::variable_int::VariableInt;
+use mqtt5::packet::pingreq::PingReqPacket;
+use mqtt5::packet::pingresp::PingRespPacket;
+use mqtt5::packet::subscribe::{RetainHandling, SubscriptionOptions, SubscriptionOptionsBits};
+use mqtt5::packet::{AckPacketHeader, MqttTypeAndFlags, PacketType};
+use mqtt5::types::ReasonCode;
+use mqtt5::QoS;
 
 #[test]
 fn test_mqtt_type_and_flags_raw_pointer_eligibility() {

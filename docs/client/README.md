@@ -40,7 +40,7 @@ Comprehensive documentation for the MQTT v5.0 client library.
 ## Example Usage
 
 ```rust
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::{MqttClient, QoS};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

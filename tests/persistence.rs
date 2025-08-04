@@ -1,4 +1,4 @@
-use mqtt_v5::{ConnectOptions, MqttClient, QoS};
+use mqtt5::{ConnectOptions, MqttClient, QoS};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -173,7 +173,7 @@ async fn test_qos1_message_persistence() {
     sub_client
         .subscribe_with_options(
             "test/persist/qos1",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },
@@ -224,7 +224,7 @@ async fn test_qos1_message_persistence() {
     sub_client2
         .subscribe_with_options(
             "test/persist/qos1",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },
@@ -264,7 +264,7 @@ async fn test_qos2_message_persistence() {
     sub_client
         .subscribe_with_options(
             "test/persist/qos2",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::ExactlyOnce,
                 ..Default::default()
             },
@@ -301,7 +301,7 @@ async fn test_qos2_message_persistence() {
     sub_client2
         .subscribe_with_options(
             "test/persist/qos2",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::ExactlyOnce,
                 ..Default::default()
             },
@@ -425,7 +425,7 @@ async fn test_will_message_persistence() {
         .unwrap();
 
     // Connect with will message and persistent session
-    let will_msg = mqtt_v5::WillMessage::new("test/will/persist", "Client died")
+    let will_msg = mqtt5::WillMessage::new("test/will/persist", "Client died")
         .with_qos(QoS::AtLeastOnce)
         .with_retain(false);
 
@@ -513,7 +513,7 @@ async fn test_inflight_message_persistence() {
     sub_client
         .subscribe_with_options(
             "test/inflight",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },

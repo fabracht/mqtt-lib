@@ -49,7 +49,7 @@ $SYS/broker/retained/count       # Retained messages
 ### Subscribing to $SYS Topics
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 let monitor_client = MqttClient::new("monitor");
 monitor_client.connect("mqtt://localhost:1883").await?;
@@ -69,7 +69,7 @@ monitor_client.subscribe("$SYS/broker/clients/connected", |msg| {
 ### Custom Monitoring Client
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 use std::collections::HashMap;
 use tokio::sync::Mutex;
 use std::sync::Arc;
@@ -110,7 +110,7 @@ impl MonitoringClient {
 Monitor active connections and limits:
 
 ```rust
-use mqtt_v5::broker::ResourceMonitor;
+use mqtt5::broker::ResourceMonitor;
 
 // Access resource monitor stats
 let stats = resource_monitor.get_stats().await;
@@ -353,7 +353,7 @@ scrape_configs:
 ### Metric Collection Service
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 use std::collections::HashMap;
 use tokio::time::{interval, Duration};
 
@@ -617,8 +617,8 @@ mqttv5 sub --host localhost --topic '$SYS/broker/rate_limits/+' --verbose
 ## Complete Monitoring Example
 
 ```rust
-use mqtt_v5::broker::{MqttBroker, BrokerConfig};
-use mqtt_v5::MqttClient;
+use mqtt5::broker::{MqttBroker, BrokerConfig};
+use mqtt5::MqttClient;
 use prometheus::{Encoder, TextEncoder};
 use std::collections::HashMap;
 use std::sync::Arc;

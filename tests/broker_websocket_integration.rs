@@ -1,7 +1,7 @@
 //! Integration test for broker WebSocket support
 
-use mqtt_v5::broker::config::{BrokerConfig, WebSocketConfig};
-use mqtt_v5::broker::MqttBroker;
+use mqtt5::broker::config::{BrokerConfig, WebSocketConfig};
+use mqtt5::broker::MqttBroker;
 use std::time::Duration;
 
 #[tokio::test]

@@ -25,7 +25,7 @@ The MQTT client is fully compatible with AWS IoT Core, supporting:
 ### Certificate-Based Authentication
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 use std::time::Duration;
 
 #[tokio::main]
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use std::fs;
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 
 // Load certificates from files
 let cert = fs::read("certs/device-certificate.pem.crt")?;
@@ -240,7 +240,7 @@ client.publish_qos1(
 ### 1. Connection Management
 
 ```rust
-use mqtt_v5::{ConnectOptions, ConnectionEvent};
+use mqtt5::{ConnectOptions, ConnectionEvent};
 use std::time::Duration;
 
 // Optimal AWS IoT settings
@@ -306,7 +306,7 @@ async fn publish_with_throttle(
 ### 3. Error Handling
 
 ```rust
-use mqtt_v5::MqttError;
+use mqtt5::MqttError;
 
 match client.connect(&aws_iot_endpoint).await {
     Ok(_) => println!("Connected to AWS IoT"),
@@ -389,7 +389,7 @@ async fn test_aws_iot_connection(endpoint: &str) -> Result<(), Box<dyn std::erro
 ## Complete AWS IoT Example
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions, ConnectionEvent};
+use mqtt5::{MqttClient, ConnectOptions, ConnectionEvent};
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::interval;

@@ -8,7 +8,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mqtt-v5 = "0.4.0"
+mqtt5 = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -17,7 +17,7 @@ tokio = { version = "1", features = ["full"] }
 ### Simple Client
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Connection with Options
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 use std::time::Duration;
 
 let mut options = ConnectOptions::new("my-device-001");
@@ -78,7 +78,7 @@ let packet_id = client.publish_qos2("alerts/critical", b"System failure").await?
 ### Publish with Options
 
 ```rust
-use mqtt_v5::{PublishOptions, QoS};
+use mqtt5::{PublishOptions, QoS};
 
 let mut options = PublishOptions::default();
 options.qos = QoS::AtLeastOnce;
@@ -149,7 +149,7 @@ client.subscribe("sensors/json/data", |msg| {
 ### Monitor Connection Status
 
 ```rust
-use mqtt_v5::ConnectionEvent;
+use mqtt5::ConnectionEvent;
 
 client.on_connection_event(|event| {
     match event {
@@ -178,7 +178,7 @@ client.on_connection_event(|event| {
 client.connect("mqtts://broker.example.com:8883").await?;
 
 // With client certificates
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 
 let mut options = ConnectOptions::new("secure-client");
 // Configure TLS options...
@@ -204,10 +204,10 @@ client.connect("wss://broker.example.com:8443/mqtt").await?;
 ```rust
 match client.connect("mqtt://broker.example.com:1883").await {
     Ok(_) => println!("Connected successfully"),
-    Err(mqtt_v5::MqttError::Network(e)) => {
+    Err(mqtt5::MqttError::Network(e)) => {
         eprintln!("Network error: {}", e);
     }
-    Err(mqtt_v5::MqttError::Protocol(code)) => {
+    Err(mqtt5::MqttError::Protocol(code)) => {
         eprintln!("Protocol error: {:?}", code);
     }
     Err(e) => {
@@ -219,7 +219,7 @@ match client.connect("mqtt://broker.example.com:1883").await {
 ### Automatic Reconnection
 
 ```rust
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 use std::time::Duration;
 
 let mut options = ConnectOptions::new("resilient-client");
@@ -234,7 +234,7 @@ let client = MqttClient::with_options(options);
 ## Complete Example
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectionEvent, QoS};
+use mqtt5::{MqttClient, ConnectionEvent, QoS};
 use std::time::Duration;
 use tokio::time::sleep;
 

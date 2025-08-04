@@ -1,4 +1,4 @@
-use mqtt_v5::{MqttClient, MqttError, PublishOptions, PublishResult, QoS};
+use mqtt5::{MqttClient, MqttError, PublishOptions, PublishResult, QoS};
 use ulid::Ulid;
 
 /// Generate a lexicographically sortable client ID using ULID

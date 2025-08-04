@@ -2,8 +2,8 @@
 //!
 //! Run with: cargo run --example shared_subscription_demo
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::{ConnectOptions, MqttClient};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::{ConnectOptions, MqttClient};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

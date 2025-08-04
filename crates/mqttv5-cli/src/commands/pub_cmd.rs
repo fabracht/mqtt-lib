@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::{MqttClient, QoS};
 use std::fs;
 use std::io::{self, Read};
 use tracing::{debug, info};

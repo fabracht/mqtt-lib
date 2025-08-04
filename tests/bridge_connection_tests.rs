@@ -1,9 +1,9 @@
 //! Comprehensive tests for bridge connection functionality
 
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeConnection, BridgeDirection};
-use mqtt_v5::broker::router::MessageRouter;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeConnection, BridgeDirection};
+use mqtt5::broker::router::MessageRouter;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -85,7 +85,7 @@ async fn test_bridge_message_prefix_transformation() {
     let router = Arc::new(MessageRouter::new());
 
     let mut config = BridgeConfig::new("prefix-bridge", "localhost:1883");
-    config.topics.push(mqtt_v5::broker::bridge::TopicMapping {
+    config.topics.push(mqtt5::broker::bridge::TopicMapping {
         pattern: "local/sensors/#".to_string(),
         direction: BridgeDirection::Out,
         qos: QoS::AtMostOnce,

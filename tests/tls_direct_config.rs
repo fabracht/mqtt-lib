@@ -1,9 +1,9 @@
-use mqtt_v5::transport::tls::TlsConfig;
-use mqtt_v5::validation::{RestrictiveValidator, StandardValidator, TopicValidator};
-use mqtt_v5::{ConnectOptions, MqttClient};
+use mqtt5::transport::tls::TlsConfig;
+use mqtt5::validation::{RestrictiveValidator, StandardValidator, TopicValidator};
+use mqtt5::{ConnectOptions, MqttClient};
 
 // For AWS IoT validator, import from the submodule
-use mqtt_v5::validation::namespace::NamespaceValidator;
+use mqtt5::validation::namespace::NamespaceValidator;
 
 #[tokio::test]
 #[ignore = "Integration test - requires certificates and TLS broker"]

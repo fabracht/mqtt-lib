@@ -13,6 +13,9 @@ mutants.out*
 *~
 .claude/
 
+# Development instructions
+CLAUDE.md
+
 # Project management tools
 .kiro/
 

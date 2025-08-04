@@ -1,4 +1,4 @@
-use mqtt_v5::{ConnectOptions, MqttClient, MqttError};
+use mqtt5::{ConnectOptions, MqttClient, MqttError};
 
 #[tokio::test]
 async fn test_connect_disconnect() {

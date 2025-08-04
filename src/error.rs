@@ -21,7 +21,7 @@ pub type Result<T> = std::result::Result<T, MqttError>;
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::{MqttError, Result};
+/// use mqtt5::{MqttError, Result};
 ///
 /// fn validate_topic(topic: &str) -> Result<()> {
 ///     if topic.contains('#') && !topic.ends_with('#') {

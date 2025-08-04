@@ -1,4 +1,4 @@
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 #[tokio::test]
 async fn test_minimal_connection() {

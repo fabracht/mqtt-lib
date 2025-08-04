@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use mqtt_v5::callback::CallbackManager;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::protocol::v5::properties::Properties;
-use mqtt_v5::session::{SessionConfig, SessionState};
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::callback::CallbackManager;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::protocol::v5::properties::Properties;
+use mqtt5::session::{SessionConfig, SessionState};
+use mqtt5::{MqttClient, QoS};
 use std::hint::black_box;
 use std::sync::Arc;
 
@@ -202,7 +202,7 @@ fn benchmark_topic_alias(c: &mut Criterion) {
 
 // Benchmark message queueing under load
 fn benchmark_message_queue_stress(c: &mut Criterion) {
-    use mqtt_v5::session::queue::QueuedMessage;
+    use mqtt5::session::queue::QueuedMessage;
 
     let mut group = c.benchmark_group("message_queue_stress");
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -258,8 +258,8 @@ fn benchmark_real_world_scenarios(c: &mut Criterion) {
                     let mut props = Properties::new();
                     props
                         .add(
-                            mqtt_v5::protocol::v5::properties::PropertyId::ContentType,
-                            mqtt_v5::protocol::v5::properties::PropertyValue::Utf8String(
+                            mqtt5::protocol::v5::properties::PropertyId::ContentType,
+                            mqtt5::protocol::v5::properties::PropertyValue::Utf8String(
                                 "application/json".to_string(),
                             ),
                         )

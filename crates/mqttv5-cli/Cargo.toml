@@ -15,7 +15,7 @@ name = "mqttv5"
 path = "src/main.rs"
 
 [dependencies]
-mqtt-v5 = { path = "../../", version = "0.4.0" }
+mqtt5 = { path = "../../", version = "0.4.0" }
 clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 dialoguer = "0.11"

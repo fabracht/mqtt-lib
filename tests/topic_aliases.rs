@@ -1,9 +1,9 @@
-use mqtt_v5::error::MqttError;
-use mqtt_v5::packet::connack::ConnAckPacket;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::session::flow_control::TopicAliasManager;
-use mqtt_v5::types::ReasonCode;
-use mqtt_v5::QoS;
+use mqtt5::error::MqttError;
+use mqtt5::packet::connack::ConnAckPacket;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::session::flow_control::TopicAliasManager;
+use mqtt5::types::ReasonCode;
+use mqtt5::QoS;
 
 #[test]
 fn test_topic_alias_manager_basic() {
@@ -140,7 +140,7 @@ fn test_connack_no_topic_alias_maximum() {
 
 #[tokio::test]
 async fn test_topic_alias_integration() {
-    use mqtt_v5::session::state::{SessionConfig, SessionState};
+    use mqtt5::session::state::{SessionConfig, SessionState};
 
     let session = SessionState::new("test-client".to_string(), SessionConfig::default(), true);
 
@@ -166,7 +166,7 @@ async fn test_topic_alias_integration() {
 
 #[tokio::test]
 async fn test_topic_alias_disabled() {
-    use mqtt_v5::session::state::{SessionConfig, SessionState};
+    use mqtt5::session::state::{SessionConfig, SessionState};
 
     let session = SessionState::new("test-client".to_string(), SessionConfig::default(), true);
 
@@ -177,7 +177,7 @@ async fn test_topic_alias_disabled() {
 
 #[tokio::test]
 async fn test_topic_alias_publish_flow() {
-    use mqtt_v5::session::state::{SessionConfig, SessionState};
+    use mqtt5::session::state::{SessionConfig, SessionState};
 
     let session = SessionState::new("test-client".to_string(), SessionConfig::default(), true);
 

@@ -552,7 +552,7 @@ All public methods on `MqttClient` are thread-safe and can be called from multip
 
 ### Basic Pub/Sub
 ```rust
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::{MqttClient, QoS};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -576,7 +576,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### With Connection Events
 ```rust
-use mqtt_v5::{MqttClient, ConnectionEvent};
+use mqtt5::{MqttClient, ConnectionEvent};
 
 let client = MqttClient::new("monitored-client");
 
@@ -595,7 +595,7 @@ client.on_connection_event(|event| {
 
 ### Error Handling
 ```rust
-use mqtt_v5::{MqttClient, MqttError};
+use mqtt5::{MqttClient, MqttError};
 
 match client.connect("mqtt://broker:1883").await {
     Ok(_) => println!("Connected"),

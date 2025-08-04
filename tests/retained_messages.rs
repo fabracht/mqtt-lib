@@ -8,7 +8,7 @@
 // To re-enable these tests, they would need to be moved to unit tests in the session module.
 
 /*
-use mqtt_v5::{MqttClient, MqttError, QoS};
+use mqtt5::{MqttClient, MqttError, QoS};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -36,7 +36,7 @@ async fn test_retained_message_storage_and_retrieval() {
     let session = client.session_state().await;
 
     // Create a retained message
-    let packet = mqtt_v5::packet::publish::PublishPacket {
+    let packet = mqtt5::packet::publish::PublishPacket {
         topic_name: "test/retained/topic".to_string(),
         payload: b"retained message".to_vec(),
         qos: QoS::AtLeastOnce,
@@ -57,7 +57,7 @@ async fn test_retained_message_storage_and_retrieval() {
     assert_eq!(retained[0].qos, QoS::AtLeastOnce);
 
     // Clear retained message with empty payload
-    let clear_packet = mqtt_v5::packet::publish::PublishPacket {
+    let clear_packet = mqtt5::packet::publish::PublishPacket {
         topic_name: "test/retained/topic".to_string(),
         payload: vec![],
         qos: QoS::AtMostOnce,
@@ -89,7 +89,7 @@ async fn test_retained_message_wildcard_matching() {
     ];
 
     for (topic, payload) in topics {
-        let packet = mqtt_v5::packet::publish::PublishPacket {
+        let packet = mqtt5::packet::publish::PublishPacket {
             topic_name: topic.to_string(),
             payload: payload.to_vec(),
             qos: QoS::AtMostOnce,
@@ -130,7 +130,7 @@ async fn test_retained_message_qos_preservation() {
     ];
 
     for (qos, topic) in qos_levels {
-        let packet = mqtt_v5::packet::publish::PublishPacket {
+        let packet = mqtt5::packet::publish::PublishPacket {
             topic_name: topic.to_string(),
             payload: format!("QoS {:?} message", qos).into_bytes(),
             qos,
@@ -172,7 +172,7 @@ async fn test_retained_message_store_isolation() {
     let session2 = client2.session_state().await;
 
     // Store retained message in client1's session
-    let packet = mqtt_v5::packet::publish::PublishPacket {
+    let packet = mqtt5::packet::publish::PublishPacket {
         topic_name: "test/isolated".to_string(),
         payload: b"client1 message".to_vec(),
         qos: QoS::AtMostOnce,
@@ -198,13 +198,13 @@ async fn test_retained_message_properties() {
     let session = client.session_state().await;
 
     // Create a retained message with properties
-    let mut properties = mqtt_v5::protocol::v5::properties::Properties::default();
+    let mut properties = mqtt5::protocol::v5::properties::Properties::default();
     let _ = properties.add(
-        mqtt_v5::protocol::v5::properties::PropertyId::MessageExpiryInterval,
-        mqtt_v5::protocol::v5::properties::PropertyValue::FourByteInteger(3600),
+        mqtt5::protocol::v5::properties::PropertyId::MessageExpiryInterval,
+        mqtt5::protocol::v5::properties::PropertyValue::FourByteInteger(3600),
     );
 
-    let packet = mqtt_v5::packet::publish::PublishPacket {
+    let packet = mqtt5::packet::publish::PublishPacket {
         topic_name: "test/with/properties".to_string(),
         payload: b"message with props".to_vec(),
         qos: QoS::AtLeastOnce,
@@ -221,7 +221,7 @@ async fn test_retained_message_properties() {
     assert_eq!(retained.len(), 1);
 
     let msg_expiry = retained[0].properties.get(
-        mqtt_v5::protocol::v5::properties::PropertyId::MessageExpiryInterval
+        mqtt5::protocol::v5::properties::PropertyId::MessageExpiryInterval
     );
     assert!(msg_expiry.is_some());
 }

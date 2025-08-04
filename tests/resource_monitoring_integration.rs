@@ -1,6 +1,6 @@
 //! Integration tests for resource monitoring
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::time::Duration;
 use tokio::time::sleep;
 

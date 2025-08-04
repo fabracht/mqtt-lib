@@ -1,6 +1,6 @@
 //! Performance tests for connection pooling and buffer reuse optimizations
 
-use mqtt_v5::broker::connection_pool::{ConnectionPool, PoolConfig, PooledConnectionManager};
+use mqtt5::broker::connection_pool::{ConnectionPool, PoolConfig, PooledConnectionManager};
 use std::time::Instant;
 
 #[tokio::test]

@@ -1,8 +1,8 @@
 //! Comprehensive tests for bridge loop prevention
 
-use mqtt_v5::broker::bridge::LoopPrevention;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::LoopPrevention;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::time::Duration;
 use tokio::time::sleep;
 

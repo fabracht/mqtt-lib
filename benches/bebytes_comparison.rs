@@ -5,8 +5,8 @@ use std::time::Duration;
 // Import our new BeBytes 2.4.0 implementations
 use bebytes::BeBytes;
 use bytes::BufMut;
-use mqtt_v5::encoding::mqtt_string::MqttString;
-use mqtt_v5::encoding::variable_int::VariableInt;
+use mqtt5::encoding::mqtt_string::MqttString;
+use mqtt5::encoding::variable_int::VariableInt;
 
 // We'll create modules that encapsulate the old (manual) and new (bebytes) implementations
 mod manual_impl {
