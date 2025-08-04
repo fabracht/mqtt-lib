@@ -143,7 +143,10 @@ impl HotReloadManager {
 
                                     // Send change notification
                                     let event = ConfigChangeEvent {
-                                        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                                        timestamp: SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_secs(),
                                         change_type: ConfigChangeType::FullReload,
                                         config_path: config_path.clone(),
                                         previous_hash: old_hash,
@@ -257,9 +260,9 @@ impl HotReloadManager {
     }
 
     /// Manually triggers a configuration reload
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the system time is before the Unix epoch (January 1, 1970).
     /// This should not happen on any reasonable system.
     pub async fn reload_now(&self) -> Result<bool> {
@@ -279,7 +282,10 @@ impl HotReloadManager {
 
             // Send change notification
             let event = ConfigChangeEvent {
-                timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 change_type: ConfigChangeType::FullReload,
                 config_path: self.config_path.clone(),
                 previous_hash: old_hash,
@@ -304,9 +310,9 @@ impl HotReloadManager {
     }
 
     /// Applies specific configuration changes without full reload
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the system time is before the Unix epoch (January 1, 1970).
     /// This should not happen on any reasonable system.
     pub async fn apply_partial_config(
@@ -329,7 +335,10 @@ impl HotReloadManager {
 
         // Send change notification
         let event = ConfigChangeEvent {
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             change_type,
             config_path: self.config_path.clone(),
             previous_hash: old_hash,
@@ -536,7 +545,10 @@ mod tests {
             ConfigSubscriber::new(manager.subscribe_to_changes(), "timestamp_test".to_string());
 
         // Record time before the operation
-        let before_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let before_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         // Apply a config change
         manager
@@ -547,7 +559,10 @@ mod tests {
             .unwrap();
 
         // Record time after the operation
-        let after_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let after_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         // Get the change event
         let event = subscriber.wait_for_change().await.unwrap();
@@ -555,6 +570,9 @@ mod tests {
         // Verify timestamp is within reasonable bounds
         assert!(event.timestamp >= before_timestamp);
         assert!(event.timestamp <= after_timestamp);
-        assert!(matches!(event.change_type, ConfigChangeType::ResourceLimits));
+        assert!(matches!(
+            event.change_type,
+            ConfigChangeType::ResourceLimits
+        ));
     }
 }

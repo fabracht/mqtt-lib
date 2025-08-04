@@ -59,8 +59,11 @@ use url::Url;
 /// For production use, consider using a proper time library
 fn get_current_hour() -> u8 {
     // Get current time as seconds since UNIX epoch
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     // Rough approximation: assume UTC offset of system timezone
     // This is a simplification for the example - in production you'd want proper timezone handling
     let hours_since_epoch = now / 3600;
@@ -1360,7 +1363,7 @@ mod tests {
         let hour = get_current_hour();
         // Should be a valid hour (0-23)
         assert!(hour <= 23);
-        
+
         // Test multiple calls return consistent results within same second
         let hour2 = get_current_hour();
         assert_eq!(hour, hour2);
