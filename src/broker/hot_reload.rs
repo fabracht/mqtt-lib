@@ -8,6 +8,7 @@ use crate::error::{MqttError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
@@ -15,8 +16,8 @@ use tracing::{debug, error, info, warn};
 /// Configuration change notification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigChangeEvent {
-    /// Timestamp of the change
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    /// Timestamp of the change (seconds since UNIX epoch)
+    pub timestamp: u64,
     /// Type of configuration change
     pub change_type: ConfigChangeType,
     /// Path to the changed configuration file
@@ -142,7 +143,10 @@ impl HotReloadManager {
 
                                     // Send change notification
                                     let event = ConfigChangeEvent {
-                                        timestamp: chrono::Utc::now(),
+                                        timestamp: SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_secs(),
                                         change_type: ConfigChangeType::FullReload,
                                         config_path: config_path.clone(),
                                         previous_hash: old_hash,
@@ -256,6 +260,11 @@ impl HotReloadManager {
     }
 
     /// Manually triggers a configuration reload
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is before the Unix epoch (January 1, 1970).
+    /// This should not happen on any reasonable system.
     pub async fn reload_now(&self) -> Result<bool> {
         info!("Manually triggering configuration reload");
 
@@ -273,7 +282,10 @@ impl HotReloadManager {
 
             // Send change notification
             let event = ConfigChangeEvent {
-                timestamp: chrono::Utc::now(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 change_type: ConfigChangeType::FullReload,
                 config_path: self.config_path.clone(),
                 previous_hash: old_hash,
@@ -298,6 +310,11 @@ impl HotReloadManager {
     }
 
     /// Applies specific configuration changes without full reload
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is before the Unix epoch (January 1, 1970).
+    /// This should not happen on any reasonable system.
     pub async fn apply_partial_config(
         &self,
         change_type: ConfigChangeType,
@@ -318,7 +335,10 @@ impl HotReloadManager {
 
         // Send change notification
         let event = ConfigChangeEvent {
-            timestamp: chrono::Utc::now(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             change_type,
             config_path: self.config_path.clone(),
             previous_hash: old_hash,
@@ -510,5 +530,49 @@ mod tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_config_change_event_timestamp() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let initial_config = BrokerConfig::default();
+
+        let manager =
+            HotReloadManager::new(initial_config.clone(), temp_file.path().to_path_buf()).unwrap();
+
+        // Subscribe to changes
+        let mut subscriber =
+            ConfigSubscriber::new(manager.subscribe_to_changes(), "timestamp_test".to_string());
+
+        // Record time before the operation
+        let before_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Apply a config change
+        manager
+            .apply_partial_config(ConfigChangeType::ResourceLimits, |config| {
+                config.max_clients = 3000;
+            })
+            .await
+            .unwrap();
+
+        // Record time after the operation
+        let after_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Get the change event
+        let event = subscriber.wait_for_change().await.unwrap();
+
+        // Verify timestamp is within reasonable bounds
+        assert!(event.timestamp >= before_timestamp);
+        assert!(event.timestamp <= after_timestamp);
+        assert!(matches!(
+            event.change_type,
+            ConfigChangeType::ResourceLimits
+        ));
     }
 }

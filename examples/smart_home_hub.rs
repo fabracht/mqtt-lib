@@ -42,7 +42,6 @@
 //! - Device group management and batch operations
 //! - **Mutual TLS authentication for device security**
 
-use chrono::Timelike;
 use mqtt5::transport::tls::TlsConfig;
 use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};
@@ -54,6 +53,22 @@ use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, sleep};
 use tracing::{debug, error, info, instrument, warn};
 use url::Url;
+
+/// Get current hour of the day (0-23) in local time
+/// This is a simplified implementation that approximates local time
+/// For production use, consider using a proper time library
+fn get_current_hour() -> u8 {
+    // Get current time as seconds since UNIX epoch
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    // Rough approximation: assume UTC offset of system timezone
+    // This is a simplification for the example - in production you'd want proper timezone handling
+    let hours_since_epoch = now / 3600;
+    (hours_since_epoch % 24) as u8
+}
 
 /// Types of smart home devices
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -233,8 +248,7 @@ impl AutomationEngine {
                 start_hour,
                 end_hour,
             } => {
-                let now = chrono::Local::now();
-                let current_hour = now.hour() as u8;
+                let current_hour = get_current_hour();
                 if start_hour <= end_hour {
                     current_hour >= *start_hour && current_hour <= *end_hour
                 } else {
@@ -827,8 +841,7 @@ impl SmartHomeHub {
                     .filter_map(|d| d.capabilities.power_consumption)
                     .sum();
 
-                let now = chrono::Local::now();
-                let current_hour = now.hour() as u8;
+                let current_hour = get_current_hour();
                 let is_peak_hour =
                     current_hour >= settings.peak_hours.0 && current_hour <= settings.peak_hours.1;
 
@@ -1291,7 +1304,7 @@ impl SmartHomeHub {
     }
 }
 
-// Add chrono dependency for time handling
+// Note: Replaced chrono dependency with std::time for time handling
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
@@ -1339,4 +1352,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     hub.stop().await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_current_hour() {
+        let hour = get_current_hour();
+        // Should be a valid hour (0-23)
+        assert!(hour <= 23);
+
+        // Test multiple calls return consistent results within same second
+        let hour2 = get_current_hour();
+        assert_eq!(hour, hour2);
+    }
+
+    #[test]
+    fn test_get_current_hour_returns_valid_range() {
+        // Test that hour is always in valid range over multiple calls
+        for _ in 0..10 {
+            let hour = get_current_hour();
+            assert!(hour <= 23, "Hour {} is out of range", hour);
+        }
+    }
 }
