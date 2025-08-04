@@ -5,10 +5,10 @@
 //! - Enable $SYS topics for monitoring
 //! - Connect a client to view broker statistics
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker, StorageBackendType, StorageConfig};
-use mqtt_v5::client::MqttClient;
-use mqtt_v5::types::PublishOptions;
-use mqtt_v5::{Message, QoS};
+use mqtt5::broker::{BrokerConfig, MqttBroker, StorageBackendType, StorageConfig};
+use mqtt5::client::MqttClient;
+use mqtt5::types::PublishOptions;
+use mqtt5::{Message, QoS};
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{info, Level};

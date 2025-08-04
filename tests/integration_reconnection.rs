@@ -1,4 +1,4 @@
-use mqtt_v5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, SubscribeOptions};
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, SubscribeOptions};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;

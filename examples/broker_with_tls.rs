@@ -3,8 +3,8 @@
 //! This example demonstrates how to configure and run a broker that accepts
 //! both plain TCP connections (port 1883) and TLS connections (port 8883).
 
-use mqtt_v5::broker::config::TlsConfig;
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::config::TlsConfig;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::PathBuf;
 use tracing::info;
 

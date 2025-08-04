@@ -3,8 +3,8 @@
 //! This test suite uses property-based testing to verify the robustness
 //! of WebSocket configuration parsing, validation, and TLS integration.
 
-use mqtt_v5::transport::websocket::{WebSocketConfig, WebSocketTransport};
-use mqtt_v5::transport::Transport;
+use mqtt5::transport::websocket::{WebSocketConfig, WebSocketTransport};
+use mqtt5::transport::Transport;
 use proptest::prelude::*;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -368,7 +368,7 @@ proptest! {
 #[cfg(test)]
 mod edge_case_tests {
     use super::*;
-    use mqtt_v5::transport::tls::TlsConfig;
+    use mqtt5::transport::tls::TlsConfig;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[tokio::test]

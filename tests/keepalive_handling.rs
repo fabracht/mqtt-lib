@@ -1,4 +1,4 @@
-use mqtt_v5::{ConnectOptions, MqttClient};
+use mqtt5::{ConnectOptions, MqttClient};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -109,7 +109,7 @@ async fn test_keepalive_with_qos_messages() {
             .publish_qos(
                 "test/keepalive/qos",
                 format!("qos message {i}"),
-                mqtt_v5::QoS::AtLeastOnce,
+                mqtt5::QoS::AtLeastOnce,
             )
             .await
             .unwrap();

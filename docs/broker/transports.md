@@ -18,7 +18,7 @@ The MQTT broker supports multiple transport protocols simultaneously:
 TCP is the default transport and requires minimal configuration:
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 
 let config = BrokerConfig::new()
     .with_bind_address("0.0.0.0:1883".parse()?);
@@ -54,7 +54,7 @@ let config = BrokerConfig::new()
 ### Basic TLS Setup
 
 ```rust
-use mqtt_v5::broker::{TlsConfig, BrokerConfig};
+use mqtt5::broker::{TlsConfig, BrokerConfig};
 
 let tls_config = TlsConfig::new(
     "certs/server.crt".into(),  // Server certificate
@@ -147,7 +147,7 @@ let tls_config = TlsConfig::new("server.crt".into(), "server.key".into())
 ### Basic WebSocket Configuration
 
 ```rust
-use mqtt_v5::broker::{WebSocketConfig, BrokerConfig};
+use mqtt5::broker::{WebSocketConfig, BrokerConfig};
 
 let ws_config = WebSocketConfig::default()
     .with_bind_address("0.0.0.0:8080".parse()?)
@@ -216,7 +216,7 @@ client.connect({
 ### Complete Multi-Transport Setup
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -255,7 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Production Multi-Transport Example
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
+use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
 
 // Production configuration with all transports
 let auth_config = AuthConfig {
@@ -296,7 +296,7 @@ let config = BrokerConfig::new()
 ### TCP Client
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 let client = MqttClient::new("tcp-client");
 client.connect("mqtt://localhost:1883").await?;
@@ -305,7 +305,7 @@ client.connect("mqtt://localhost:1883").await?;
 ### TLS Client
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 
 // Simple TLS connection (server certificate validation)
 let client = MqttClient::new("tls-client");
@@ -603,7 +603,7 @@ Choose the right transport for your use case:
 ## Example: Complete Production Setup
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
+use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, AuthConfig, AuthMethod};
 use std::time::Duration;
 
 #[tokio::main]

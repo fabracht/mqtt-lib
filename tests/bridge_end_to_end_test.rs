@@ -2,8 +2,8 @@
 //!
 //! This test demonstrates a real bridge scenario between two brokers
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::client::MqttClient;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::client::MqttClient;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -14,7 +14,7 @@ use tokio::time::{sleep, timeout};
 async fn test_bridge_between_brokers() {
     // Initialize logging for debugging
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("info,mqtt_v5=debug")
+        .with_env_filter("info,mqtt5=debug")
         .try_init();
 
     // Start two brokers on different ports
@@ -102,8 +102,8 @@ async fn test_bridge_between_brokers() {
 
 #[tokio::test]
 async fn test_bridge_configuration_serialization() {
-    use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection};
-    use mqtt_v5::QoS;
+    use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
+    use mqtt5::QoS;
 
     // Create a bridge configuration
     let config = BridgeConfig::new("test-bridge", "remote.broker:1883")
@@ -129,7 +129,7 @@ async fn test_bridge_configuration_serialization() {
 
 #[tokio::test]
 async fn test_bridge_topic_pattern_matching() {
-    use mqtt_v5::validation::topic_matches_filter;
+    use mqtt5::validation::topic_matches_filter;
 
     // Test patterns that would be used in bridges
     let test_cases = vec![
@@ -159,9 +159,9 @@ async fn test_bridge_topic_pattern_matching() {
 
 #[tokio::test]
 async fn test_bridge_error_scenarios() {
-    use mqtt_v5::broker::bridge::{BridgeConfig, BridgeManager};
-    use mqtt_v5::broker::router::MessageRouter;
-    use mqtt_v5::QoS;
+    use mqtt5::broker::bridge::{BridgeConfig, BridgeManager};
+    use mqtt5::broker::router::MessageRouter;
+    use mqtt5::QoS;
 
     let router = Arc::new(MessageRouter::new());
     let manager = BridgeManager::new(router);
@@ -174,9 +174,9 @@ async fn test_bridge_error_scenarios() {
 
     // 2. Duplicate bridge
     config.name = "test".to_string();
-    config.topics.push(mqtt_v5::broker::bridge::TopicMapping {
+    config.topics.push(mqtt5::broker::bridge::TopicMapping {
         pattern: "test/#".to_string(),
-        direction: mqtt_v5::broker::bridge::BridgeDirection::Both,
+        direction: mqtt5::broker::bridge::BridgeDirection::Both,
         qos: QoS::AtMostOnce,
         local_prefix: None,
         remote_prefix: None,

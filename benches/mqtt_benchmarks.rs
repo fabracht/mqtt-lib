@@ -1,17 +1,17 @@
 use bytes::BytesMut;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use mqtt_v5::encoding::{encode_string, encode_variable_int};
-use mqtt_v5::packet::{
+use mqtt5::encoding::{encode_string, encode_variable_int};
+use mqtt5::packet::{
     connect::ConnectPacket,
     publish::PublishPacket,
     subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter},
     FixedHeader, MqttPacket,
 };
-use mqtt_v5::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
-use mqtt_v5::topic_matching::matches;
-use mqtt_v5::types::ConnectOptions;
-use mqtt_v5::validation::validate_topic_name;
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
+use mqtt5::topic_matching::matches;
+use mqtt5::types::ConnectOptions;
+use mqtt5::validation::validate_topic_name;
+use mqtt5::{MqttClient, QoS};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -333,8 +333,8 @@ fn benchmark_topic_matching(c: &mut Criterion) {
 }
 
 fn benchmark_session_operations(c: &mut Criterion) {
-    use mqtt_v5::session::queue::QueuedMessage;
-    use mqtt_v5::session::{SessionConfig, SessionState, Subscription};
+    use mqtt5::session::queue::QueuedMessage;
+    use mqtt5::session::{SessionConfig, SessionState, Subscription};
 
     let mut group = c.benchmark_group("session_operations");
 

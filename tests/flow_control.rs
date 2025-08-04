@@ -1,5 +1,5 @@
-use mqtt_v5::error::MqttError;
-use mqtt_v5::session::flow_control::{FlowControlConfig, FlowControlManager};
+use mqtt5::error::MqttError;
+use mqtt5::session::flow_control::{FlowControlConfig, FlowControlManager};
 use std::time::Duration;
 use tokio::time::timeout;
 

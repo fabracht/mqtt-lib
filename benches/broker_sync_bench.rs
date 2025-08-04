@@ -3,7 +3,7 @@
 //! These benchmarks test non-async broker operations that can be measured with Criterion.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use mqtt_v5::broker::resource_monitor::{ResourceLimits, ResourceMonitor, ResourceStats};
+use mqtt5::broker::resource_monitor::{ResourceLimits, ResourceMonitor, ResourceStats};
 use std::net::IpAddr;
 use tokio::runtime::Runtime;
 

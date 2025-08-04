@@ -1,6 +1,6 @@
 //! Tests for the mock MQTT client functionality
 
-use mqtt_v5::{MockCall, MockMqttClient, MqttClientTrait, PublishResult, QoS};
+use mqtt5::{MockCall, MockMqttClient, MqttClientTrait, PublishResult, QoS};
 
 #[tokio::test]
 async fn test_mock_client_creation() {

@@ -1,9 +1,9 @@
 //! Comprehensive tests for bridge manager functionality
 
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection, BridgeManager};
-use mqtt_v5::broker::router::MessageRouter;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection, BridgeManager};
+use mqtt5::broker::router::MessageRouter;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::sync::Arc;
 
 #[tokio::test]

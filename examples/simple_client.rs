@@ -20,7 +20,7 @@
 //! MQTT_BROKER=mqtt://test.mosquitto.org:1883 cargo run --example simple_client
 //! ```
 
-use mqtt_v5::{broker::MqttBroker, ConnectOptions, ConnectionEvent, MqttClient};
+use mqtt5::{broker::MqttBroker, ConnectOptions, ConnectionEvent, MqttClient};
 use std::time::Duration;
 use tokio::time::sleep;
 

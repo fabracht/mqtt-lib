@@ -1,8 +1,8 @@
 //! Basic test for shared subscriptions
 
-use mqtt_v5::broker::router::MessageRouter;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::router::MessageRouter;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 

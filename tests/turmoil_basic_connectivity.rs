@@ -4,7 +4,7 @@
 //! basic MQTT operations in a deterministic environment.
 
 #[cfg(feature = "turmoil-testing")]
-use mqtt_v5::testing::{TurmoilBroker, TurmoilBrokerConfig, TurmoilClient, TurmoilClientConfig};
+use mqtt5::testing::{TurmoilBroker, TurmoilBrokerConfig, TurmoilClient, TurmoilClientConfig};
 #[cfg(feature = "turmoil-testing")]
 use std::time::Duration;
 

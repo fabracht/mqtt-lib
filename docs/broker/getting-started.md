@@ -9,7 +9,7 @@ Running the MQTT v5.0 broker implementation.
 The simplest way to start an MQTT broker:
 
 ```rust
-use mqtt_v5::broker::MqttBroker;
+use mqtt5::broker::MqttBroker;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Once your broker is running, you can test it with any MQTT client or use the built-in client:
 
 ```rust
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 #[tokio::main] 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

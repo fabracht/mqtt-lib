@@ -26,7 +26,7 @@ MQTT provides three Quality of Service levels for message delivery:
 ### QoS Usage Examples
 
 ```rust
-use mqtt_v5::{MqttClient, QoS, PublishOptions};
+use mqtt5::{MqttClient, QoS, PublishOptions};
 
 // QoS 0 - Fire and forget
 client.publish("sensors/temp", b"22.5").await?;
@@ -47,7 +47,7 @@ client.publish_with_options("important/data", b"Critical payload", options).awai
 ### QoS for Subscriptions
 
 ```rust
-use mqtt_v5::{SubscribeOptions, QoS};
+use mqtt5::{SubscribeOptions, QoS};
 
 // Subscribe with specific QoS
 let mut options = SubscribeOptions::default();
@@ -67,7 +67,7 @@ Retained messages are stored by the broker and delivered to future subscribers.
 ### Publishing Retained Messages
 
 ```rust
-use mqtt_v5::PublishOptions;
+use mqtt5::PublishOptions;
 
 // Publish retained message
 let mut options = PublishOptions::default();
@@ -92,7 +92,7 @@ client.publish_with_options(
 ### Handling Retained Messages
 
 ```rust
-use mqtt_v5::{SubscribeOptions, RetainHandling};
+use mqtt5::{SubscribeOptions, RetainHandling};
 
 let mut options = SubscribeOptions::default();
 
@@ -119,7 +119,7 @@ LWT messages are sent by the broker when a client disconnects unexpectedly.
 ### Configuring Last Will
 
 ```rust
-use mqtt_v5::{ConnectOptions, LastWill, WillProperties, QoS};
+use mqtt5::{ConnectOptions, LastWill, WillProperties, QoS};
 use std::time::Duration;
 
 let will = LastWill {
@@ -169,7 +169,7 @@ Topic aliases reduce bandwidth by replacing topic strings with numbers.
 ### Using Topic Aliases
 
 ```rust
-use mqtt_v5::PublishOptions;
+use mqtt5::PublishOptions;
 
 // First publish establishes alias
 let mut options = PublishOptions::default();
@@ -206,7 +206,7 @@ MQTT v5.0 introduces message properties for enhanced functionality.
 ### Common Properties
 
 ```rust
-use mqtt_v5::{PublishOptions, PayloadFormatIndicator};
+use mqtt5::{PublishOptions, PayloadFormatIndicator};
 
 let mut options = PublishOptions::default();
 
@@ -267,7 +267,7 @@ client.publish_with_options(
 ### Clean Start vs Persistent Sessions
 
 ```rust
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 
 // Clean start - no session state preserved
 let mut options = ConnectOptions::new("client1");
@@ -333,7 +333,7 @@ MQTT v5.0 provides flow control mechanisms.
 ### Receive Maximum
 
 ```rust
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 
 let mut options = ConnectOptions::new("client1");
 // Limit unacknowledged QoS 1/2 messages
@@ -398,7 +398,7 @@ client.subscribe("$share/workers/tasks/+", |msg| {
 ### Custom Reconnection Logic
 
 ```rust
-use mqtt_v5::{ConnectOptions, ConnectionEvent};
+use mqtt5::{ConnectOptions, ConnectionEvent};
 
 let mut options = ConnectOptions::new("client1");
 options.reconnect_config.enabled = false; // Disable auto-reconnect
@@ -445,7 +445,7 @@ client.on_connection_event(|event| {
 ### Batch Publishing
 
 ```rust
-use mqtt_v5::{MqttClient, PublishOptions};
+use mqtt5::{MqttClient, PublishOptions};
 use futures::future::join_all;
 
 async fn batch_publish(
@@ -488,7 +488,7 @@ impl MessagePool {
 ### Certificate Pinning
 
 ```rust
-use mqtt_v5::ConnectOptions;
+use mqtt5::ConnectOptions;
 
 let mut options = ConnectOptions::new("secure-client");
 
@@ -529,7 +529,7 @@ async fn connect_with_token(token: &str) -> Result<MqttClient> {
 
 ```rust
 // Enable packet logging
-std::env::set_var("RUST_LOG", "mqtt_v5=trace");
+std::env::set_var("RUST_LOG", "mqtt5=trace");
 
 // Custom packet interceptor
 client.on_packet_sent(|packet| {

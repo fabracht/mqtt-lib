@@ -3,10 +3,10 @@
 //! This example sets up two brokers and creates a bridge between them,
 //! showing how messages can flow between separate MQTT broker instances.
 
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection};
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::client::MqttClient;
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::client::MqttClient;
+use mqtt5::QoS;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,mqtt_v5=debug")),
+                .unwrap_or_else(|_| EnvFilter::new("info,mqtt5=debug")),
         )
         .init();
 

@@ -1,6 +1,6 @@
-use mqtt_v5::client::{ErrorRecoveryConfig, RecoverableError};
-use mqtt_v5::types::ReasonCode;
-use mqtt_v5::{MqttClient, MqttError};
+use mqtt5::client::{ErrorRecoveryConfig, RecoverableError};
+use mqtt5::types::ReasonCode;
+use mqtt5::{MqttClient, MqttError};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

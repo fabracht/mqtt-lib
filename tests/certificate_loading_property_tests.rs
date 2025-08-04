@@ -3,7 +3,7 @@
 //! This test suite uses property-based testing to verify the robustness
 //! of certificate loading from bytes in various formats and edge cases.
 
-use mqtt_v5::transport::tls::TlsConfig;
+use mqtt5::transport::tls::TlsConfig;
 use proptest::prelude::*;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 

@@ -1,5 +1,5 @@
-use mqtt_v5::error::MqttError;
-use mqtt_v5::{ConnectOptions, MqttClient, PublishOptions, QoS, SubscribeOptions};
+use mqtt5::error::MqttError;
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, QoS, SubscribeOptions};
 use std::time::Duration;
 use tokio::time::timeout;
 

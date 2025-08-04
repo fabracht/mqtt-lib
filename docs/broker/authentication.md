@@ -16,7 +16,7 @@ The MQTT broker provides a comprehensive security framework with:
 ### Anonymous Access (Development Only)
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, AuthConfig, AuthMethod};
+use mqtt5::broker::{BrokerConfig, AuthConfig, AuthMethod};
 
 let auth_config = AuthConfig {
     allow_anonymous: true,
@@ -90,7 +90,7 @@ let auth_config = AuthConfig {
 ### Mutual TLS Setup
 
 ```rust
-use mqtt_v5::broker::TlsConfig;
+use mqtt5::broker::TlsConfig;
 
 let tls_config = TlsConfig::new("server.crt".into(), "server.key".into())
     .with_ca_file("ca.crt".into())              // CA to verify client certs
@@ -143,7 +143,7 @@ openssl x509 -req -days 365 -in client.csr -CA ca.crt -CAkey ca.key \
 ACL rules control who can publish/subscribe to which topics:
 
 ```rust
-use mqtt_v5::broker::acl::{AclRule, Permission};
+use mqtt5::broker::acl::{AclRule, Permission};
 
 // Allow admin full access to all topics
 let admin_rule = AclRule::new(
@@ -209,7 +209,7 @@ device_002 devices/002/+ readwrite
 ### Loading ACLs from File
 
 ```rust
-use mqtt_v5::broker::acl::AclManager;
+use mqtt5::broker::acl::AclManager;
 
 // Load ACL configuration
 let acl_manager = AclManager::from_file("acl.txt").await?;
@@ -330,7 +330,7 @@ grep "# readwrite" acl.txt
 ## Complete Security Example
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, AuthConfig, AuthMethod, TlsConfig};
+use mqtt5::broker::{BrokerConfig, AuthConfig, AuthMethod, TlsConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -374,7 +374,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Username/Password Client
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 
 let mut options = ConnectOptions::new("sensor01");
 options.username = Some("sensor01".to_string());
@@ -433,7 +433,7 @@ tracing_subscriber::fmt()
 ### Test Authentication Setup
 
 ```rust
-use mqtt_v5::broker::auth::{PasswordAuthProvider, AuthResult};
+use mqtt5::broker::auth::{PasswordAuthProvider, AuthResult};
 
 #[tokio::test]
 async fn test_password_auth() {
@@ -454,7 +454,7 @@ async fn test_password_auth() {
 ### Test ACL Rules
 
 ```rust
-use mqtt_v5::broker::acl::{AclRule, Permission};
+use mqtt5::broker::acl::{AclRule, Permission};
 
 #[tokio::test]
 async fn test_acl_rules() {

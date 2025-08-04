@@ -1,6 +1,6 @@
 //! Common test utilities and scenarios
 
-use mqtt_v5::{
+use mqtt5::{
     ConnectOptions, MessageProperties, MqttClient, PublishOptions, PublishProperties, QoS,
 };
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -65,7 +65,7 @@ impl MessageCollector {
     }
 
     /// Get a callback function for subscriptions
-    pub fn callback(&self) -> impl Fn(mqtt_v5::types::Message) + Send + Sync + 'static {
+    pub fn callback(&self) -> impl Fn(mqtt5::types::Message) + Send + Sync + 'static {
         let messages = self.messages.clone();
         move |msg| {
             let received = ReceivedMessage {
@@ -126,7 +126,7 @@ impl EventCounter {
     }
 
     /// Get a callback that increments the counter
-    pub fn callback(&self) -> impl Fn(mqtt_v5::types::Message) + Send + Sync + 'static {
+    pub fn callback(&self) -> impl Fn(mqtt5::types::Message) + Send + Sync + 'static {
         let count = self.count.clone();
         move |_| {
             count.fetch_add(1, Ordering::SeqCst);
@@ -195,7 +195,7 @@ pub async fn test_qos_flow(
     let collector = MessageCollector::new();
 
     // Subscribe with specified QoS
-    let sub_opts = mqtt_v5::SubscribeOptions {
+    let sub_opts = mqtt5::SubscribeOptions {
         qos,
         ..Default::default()
     };
@@ -337,7 +337,7 @@ mod tests {
 
         // Simulate receiving messages
         let callback = collector.callback();
-        let message = mqtt_v5::types::Message {
+        let message = mqtt5::types::Message {
             topic: "test/topic".to_string(),
             payload: b"test".to_vec(),
             qos: QoS::AtMostOnce,
@@ -362,7 +362,7 @@ mod tests {
         let callback = counter.callback();
         // Simulate events
         for _ in 0..5 {
-            callback(mqtt_v5::types::Message {
+            callback(mqtt5::types::Message {
                 topic: "test".to_string(),
                 payload: vec![],
                 qos: QoS::AtMostOnce,

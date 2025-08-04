@@ -7,8 +7,8 @@
 // 2. Rewritten to test through MQTT protocol behavior (like the integration test)
 
 /*
-use mqtt_v5::{MqttClient, MqttError, QoS};
-use mqtt_v5::types::{ConnectOptions, WillMessage, WillProperties};
+use mqtt5::{MqttClient, MqttError, QoS};
+use mqtt5::types::{ConnectOptions, WillMessage, WillProperties};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -288,7 +288,7 @@ async fn test_will_message_delay_cancellation() {
 
 #[tokio::test]
 async fn test_will_properties_conversion() {
-    use mqtt_v5::protocol::v5::properties::{PropertyId, PropertyValue};
+    use mqtt5::protocol::v5::properties::{PropertyId, PropertyValue};
 
     let mut will_props = WillProperties::default();
     will_props.will_delay_interval = Some(60);
@@ -300,7 +300,7 @@ async fn test_will_properties_conversion() {
     will_props.user_properties.push(("app".to_string(), "mqtt-client".to_string()));
 
     // Convert to protocol properties
-    let protocol_props: mqtt_v5::protocol::v5::properties::Properties = will_props.into();
+    let protocol_props: mqtt5::protocol::v5::properties::Properties = will_props.into();
 
     // Verify conversion
     assert_eq!(

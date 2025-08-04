@@ -9,7 +9,7 @@ pub use crate::protocol::v5::reason_codes::ReasonCode;
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::PublishResult;
+/// use mqtt5::PublishResult;
 ///
 /// let result = PublishResult::QoS1Or2 { packet_id: 42 };
 /// assert_eq!(result.packet_id(), Some(42));
@@ -74,7 +74,7 @@ impl Default for ReconnectConfig {
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::{ConnectOptions, WillMessage, QoS};
+/// use mqtt5::{ConnectOptions, WillMessage, QoS};
 /// use std::time::Duration;
 ///
 /// // Basic connection options
@@ -363,7 +363,7 @@ impl From<WillProperties> for crate::protocol::v5::properties::Properties {
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::{PublishOptions, QoS};
+/// use mqtt5::{PublishOptions, QoS};
 /// use std::time::Duration;
 ///
 /// // Basic publish with QoS 1
@@ -544,7 +544,7 @@ pub enum RetainHandling {
 /// # Examples
 ///
 /// ```
-/// use mqtt_v5::{Message, QoS};
+/// use mqtt5::{Message, QoS};
 ///
 /// // Handle different types of messages
 /// fn handle_message(msg: Message) {

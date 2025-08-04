@@ -11,7 +11,7 @@ The library provides a mock client for unit testing without a real broker.
 ```rust
 #[cfg(test)]
 mod tests {
-    use mqtt_v5::{MockMqttClient, Message, QoS};
+    use mqtt5::{MockMqttClient, Message, QoS};
     
     #[tokio::test]
     async fn test_publish_subscribe() {
@@ -44,7 +44,7 @@ mod tests {
 ### Simulating Connection Events
 
 ```rust
-use mqtt_v5::{MockMqttClient, ConnectionEvent, DisconnectReason};
+use mqtt5::{MockMqttClient, ConnectionEvent, DisconnectReason};
 
 #[tokio::test]
 async fn test_connection_handling() {
@@ -120,7 +120,7 @@ async fn test_qos_acknowledgment() {
 ### Error Injection
 
 ```rust
-use mqtt_v5::{MockMqttClient, MqttError};
+use mqtt5::{MockMqttClient, MqttError};
 
 #[tokio::test]
 async fn test_error_handling() {
@@ -151,7 +151,7 @@ async fn test_error_handling() {
 ### Test Fixtures
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 use std::sync::Once;
 
 static INIT: Once = Once::new();
@@ -241,7 +241,7 @@ async fn test_with_container() {
 
 ```rust
 use proptest::prelude::*;
-use mqtt_v5::{QoS, PublishOptions};
+use mqtt5::{QoS, PublishOptions};
 
 proptest! {
     #[test]
@@ -290,7 +290,7 @@ proptest! {
 
 ```rust
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 
 async fn publish_benchmark(client: &MqttClient, payload_size: usize) {
     let payload = vec![0u8; payload_size];
@@ -391,7 +391,7 @@ async fn load_test(
 ### Test Helpers
 
 ```rust
-use mqtt_v5::{MqttClient, Message};
+use mqtt5::{MqttClient, Message};
 use tokio::sync::mpsc;
 
 struct TestHelper {
@@ -616,7 +616,7 @@ jobs:
 async fn test_with_tracing() {
     // Initialize tracing for test
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("mqtt_v5=debug")
+        .with_env_filter("mqtt5=debug")
         .with_test_writer()
         .try_init();
     

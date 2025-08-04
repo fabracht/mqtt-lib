@@ -45,7 +45,7 @@ Common issues and solutions for the MQTT v5.0 client library.
 4. **TLS certificate issues**
    ```rust
    // Enable detailed TLS debugging
-   std::env::set_var("RUST_LOG", "mqtt_v5=debug,rustls=debug");
+   std::env::set_var("RUST_LOG", "mqtt5=debug,rustls=debug");
    
    // Verify certificates
    openssl s_client -connect broker.example.com:8883 \
@@ -428,7 +428,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 tracing_subscriber::registry()
     .with(tracing_subscriber::EnvFilter::new(
         std::env::var("RUST_LOG").unwrap_or_else(|_| 
-            "mqtt_v5=debug,mqtt_lib=debug".into()
+            "mqtt5=debug,mqtt_lib=debug".into()
         )
     ))
     .with(tracing_subscriber::fmt::layer())
@@ -550,7 +550,7 @@ impl ConnectionMonitor {
 
 1. **Enable debug logging**
    ```bash
-   RUST_LOG=mqtt_v5=trace cargo run
+   RUST_LOG=mqtt5=trace cargo run
    ```
 
 2. **Collect diagnostics**

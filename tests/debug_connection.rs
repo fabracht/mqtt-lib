@@ -1,4 +1,4 @@
-use mqtt_v5::MqttClient;
+use mqtt5::MqttClient;
 use std::time::Duration;
 
 #[tokio::test]

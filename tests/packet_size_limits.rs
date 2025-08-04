@@ -1,7 +1,7 @@
-use mqtt_v5::error::MqttError;
-use mqtt_v5::session::limits::{ExpiringMessage, LimitsConfig, LimitsManager};
-use mqtt_v5::session::queue::MessageQueue;
-use mqtt_v5::QoS;
+use mqtt5::error::MqttError;
+use mqtt5::session::limits::{ExpiringMessage, LimitsConfig, LimitsManager};
+use mqtt5::session::queue::MessageQueue;
+use mqtt5::QoS;
 use std::thread;
 use std::time::Duration;
 

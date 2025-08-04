@@ -1,7 +1,10 @@
 # Complete MQTT v5.0 Platform
 
+[![Crates.io](https://img.shields.io/crates/v/mqtt5.svg)](https://crates.io/crates/mqtt5)
+[![Documentation](https://docs.rs/mqtt5/badge.svg)](https://docs.rs/mqtt5)
 [![Rust CI](https://github.com/fabriciobracht/mqtt-lib/workflows/Rust%20CI/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
 [![Security Audit](https://github.com/fabriciobracht/mqtt-lib/workflows/Security%20Audit/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
+[![License](https://img.shields.io/crates/l/mqtt5.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
 
 🚀 **A complete MQTT v5.0 platform featuring both high-performance client library AND full-featured broker implementation**
 
@@ -18,12 +21,25 @@ This project provides everything you need for MQTT v5.0 development:
 | **MQTT Broker** | Run your own MQTT infrastructure | TLS, WebSocket, Authentication, Bridging, Monitoring |
 | **MQTT Client** | Connect to any MQTT broker | AWS IoT compatible, Auto-reconnect, Mock testing |
 
+## 📦 Installation
+
+### Library Crate
+```toml
+[dependencies]
+mqtt5 = "0.4.0"
+```
+
+### CLI Tool
+```bash
+cargo install mqttv5
+```
+
 ## 🚀 Quick Start
 
 ### Start an MQTT Broker
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::{BrokerConfig, MqttBroker};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Connect a Client
 
 ```rust
-use mqtt_v5::{MqttClient, QoS};
+use mqtt5::{MqttClient, QoS};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,12 +86,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Installation
 
 ```bash
-# Install from the CLI crate
-cargo install --path crates/mqttv5-cli
+# Install from crates.io
+cargo install mqttv5
 
-# Or build locally  
+# Or build from source
+git clone https://github.com/fabriciobracht/mqtt-lib
+cd mqtt-lib
 cargo build --release -p mqttv5-cli
-# Binary available at: ./target/release/mqttv5
 ```
 
 ### Usage Examples

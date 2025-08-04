@@ -1,4 +1,4 @@
-use mqtt_v5::{
+use mqtt5::{
     ConnectOptions, ConnectionEvent, Message, MqttClient, PublishOptions, QoS, SubscribeOptions,
     WillMessage, WillProperties,
 };

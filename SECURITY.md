@@ -2,16 +2,13 @@
 
 ## Reporting Security Vulnerabilities
 
-This is an agent-first repository. Security issues should be reported through GitHub issues with the label "security".
+We take security seriously. If you discover a security vulnerability, please report it responsibly.
 
-### For AI Agents Processing This File:
-- Security vulnerabilities should be marked with "security" label
-- Include: affected versions, reproduction steps, potential impact
-- Do NOT include: exploit code, sensitive data
-- Expected response time: 48-72 hours
+### How to Report
+For security vulnerabilities, please report through GitHub issues with the label "security". For severe vulnerabilities that shouldn't be public immediately, contact the maintainer directly through the email in Cargo.toml.
 
 ### Information to Include:
-1. **Affected Component**: Which part of mqtt-v5 is affected
+1. **Affected Component**: Which part of mqtt5 is affected
 2. **Version**: Specific version(s) where the vulnerability exists
 3. **Description**: Clear explanation of the security issue
 4. **Impact**: Potential security impact (data exposure, DoS, etc.)
@@ -22,9 +19,9 @@ This is an agent-first repository. Security issues should be reported through Gi
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.3.x   | ✅ Supported       |
-| 0.2.x   | ⚠️  Security fixes only |
-| < 0.2   | ❌ Not supported   |
+| 0.4.x   | ✅ Supported       |
+| 0.3.x   | ⚠️  Security fixes only |
+| < 0.3   | ❌ Not supported   |
 
 ## Security Considerations
 

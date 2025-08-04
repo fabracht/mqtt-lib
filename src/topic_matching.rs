@@ -15,7 +15,7 @@ use crate::error::{MqttError, Result};
 ///
 /// # Examples
 /// ```
-/// # use mqtt_v5::topic_matching::matches;
+/// # use mqtt5::topic_matching::matches;
 /// assert!(matches("sport/tennis", "sport/tennis"));
 /// assert!(matches("sport/tennis", "sport/+"));
 /// assert!(matches("sport/tennis/player1", "sport/#"));

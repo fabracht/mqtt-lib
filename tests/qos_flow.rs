@@ -1,4 +1,4 @@
-use mqtt_v5::{MqttClient, PublishOptions, PublishResult, QoS};
+use mqtt5::{MqttClient, PublishOptions, PublishResult, QoS};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,7 +58,7 @@ async fn test_qos1_at_least_once() {
     sub_client
         .subscribe_with_options(
             "test/qos1",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },
@@ -114,7 +114,7 @@ async fn test_qos2_exactly_once() {
     sub_client
         .subscribe_with_options(
             "test/qos2",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::ExactlyOnce,
                 ..Default::default()
             },
@@ -173,7 +173,7 @@ async fn test_qos_downgrade() {
     sub_client
         .subscribe_with_options(
             "test/downgrade",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtMostOnce,
                 ..Default::default()
             },
@@ -216,7 +216,7 @@ async fn test_qos_upgrade_not_allowed() {
     sub_client
         .subscribe_with_options(
             "test/upgrade",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::ExactlyOnce,
                 ..Default::default()
             },
@@ -256,7 +256,7 @@ async fn test_qos1_retransmission() {
     client
         .subscribe_with_options(
             "test/retrans",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },
@@ -299,7 +299,7 @@ async fn test_qos2_no_duplicates() {
     client
         .subscribe_with_options(
             "test/nodup",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::ExactlyOnce,
                 ..Default::default()
             },
@@ -351,7 +351,7 @@ async fn test_mixed_qos_levels() {
     client
         .subscribe_with_options(
             "test/mixed",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },
@@ -433,7 +433,7 @@ async fn test_qos_with_retain() {
     sub_client
         .subscribe_with_options(
             "test/qos/retain",
-            mqtt_v5::SubscribeOptions {
+            mqtt5::SubscribeOptions {
                 qos: QoS::AtLeastOnce,
                 ..Default::default()
             },

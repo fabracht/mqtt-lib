@@ -17,7 +17,7 @@
 //! cargo run --example complete_system_demo
 //! ```
 
-use mqtt_v5::{
+use mqtt5::{
     broker::{BrokerConfig, MqttBroker},
     ConnectOptions, MqttClient, PublishOptions, QoS,
 };

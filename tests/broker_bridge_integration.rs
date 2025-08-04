@@ -1,9 +1,9 @@
 //! Integration tests for broker-to-broker bridging
 
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection, BridgeManager};
-use mqtt_v5::broker::router::MessageRouter;
-use mqtt_v5::packet::publish::PublishPacket;
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection, BridgeManager};
+use mqtt5::broker::router::MessageRouter;
+use mqtt5::packet::publish::PublishPacket;
+use mqtt5::QoS;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -50,7 +50,7 @@ async fn test_bridge_manager_lifecycle() {
 
 #[tokio::test]
 async fn test_loop_prevention() {
-    use mqtt_v5::broker::bridge::LoopPrevention;
+    use mqtt5::broker::bridge::LoopPrevention;
 
     let loop_prevention = LoopPrevention::new(Duration::from_secs(5), 100);
 

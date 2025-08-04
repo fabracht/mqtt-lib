@@ -2,8 +2,8 @@
 //!
 //! This example shows how to monitor broker resources and enforce limits.
 
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::client::MqttClient;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::client::MqttClient;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{info, warn};

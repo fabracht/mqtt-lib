@@ -318,7 +318,7 @@ Create separate files in `tests/`:
 
 ```rust
 // tests/client_broker_integration.rs
-use mqtt_v5::{MqttClient, MqttBroker};
+use mqtt5::{MqttClient, MqttBroker};
 
 #[tokio::test]
 async fn test_full_communication() {
@@ -407,7 +407,7 @@ Document all public APIs:
 /// # Example
 /// 
 /// ```
-/// use mqtt_v5::broker::MessageRouter;
+/// use mqtt5::broker::MessageRouter;
 /// 
 /// let router = MessageRouter::new();
 /// router.subscribe("sensors/+/temperature", client_id)?;
@@ -529,7 +529,7 @@ cargo flamegraph --bench broker_performance
 cargo make build
 
 # Run with debug logging
-RUST_LOG=mqtt_v5=debug cargo run
+RUST_LOG=mqtt5=debug cargo run
 
 # Run with backtrace
 RUST_BACKTRACE=1 cargo run
@@ -543,7 +543,7 @@ cargo make build
 
 # Run with GDB
 gdb target/debug/mqtt-broker
-(gdb) break mqtt_v5::broker::server::run
+(gdb) break mqtt5::broker::server::run
 (gdb) run
 (gdb) backtrace
 ```
@@ -556,7 +556,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 tracing_subscriber::registry()
     .with(tracing_subscriber::EnvFilter::new(
-        "mqtt_v5=trace,mqtt_lib=trace"
+        "mqtt5=trace,mqtt_lib=trace"
     ))
     .with(tracing_subscriber::fmt::layer()
         .with_target(true)

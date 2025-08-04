@@ -17,8 +17,8 @@ Broker bridging enables:
 ### Simple One-Way Bridge
 
 ```rust
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection};
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
+use mqtt5::QoS;
 
 // Forward sensor data from edge to cloud
 let bridge_config = BridgeConfig::new("edge-to-cloud", "cloud-broker.example.com:1883")
@@ -69,7 +69,7 @@ let bridge_config = BridgeConfig::new("site-bridge", "central-broker:1883")
 Add prefixes to avoid conflicts:
 
 ```rust
-use mqtt_v5::broker::bridge::TopicMapping;
+use mqtt5::broker::bridge::TopicMapping;
 
 let topic_mapping = TopicMapping {
     pattern: "sensors/#".to_string(),
@@ -105,7 +105,7 @@ let bridge_config = BridgeConfig::new("tls-bridge", "remote-broker:8883")
 ### Complete Bridge Setup
 
 ```rust
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection, MqttVersion};
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection, MqttVersion};
 use std::time::Duration;
 
 let bridge_config = BridgeConfig {
@@ -225,7 +225,7 @@ let backup_bridge = BridgeConfig::new("backup-link", "main-broker:1883")
 The broker includes loop prevention to avoid infinite message loops:
 
 ```rust
-use mqtt_v5::broker::bridge::LoopPrevention;
+use mqtt5::broker::bridge::LoopPrevention;
 
 // Messages are tagged with originating broker ID
 // Duplicate messages are automatically dropped
@@ -320,9 +320,9 @@ let internal_bridge = BridgeConfig::new("internal", "broker.local:1883");
 ## Example: Complete Edge-to-Cloud Setup
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, MqttBroker};
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection};
-use mqtt_v5::QoS;
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
+use mqtt5::QoS;
 use std::time::Duration;
 
 #[tokio::main]

@@ -4,11 +4,11 @@
 //! environment, testing various QoS levels, topic patterns, and edge cases.
 
 #[cfg(feature = "turmoil-testing")]
-use mqtt_v5::broker::router::MessageRouter;
+use mqtt5::broker::router::MessageRouter;
 #[cfg(feature = "turmoil-testing")]
-use mqtt_v5::packet::publish::PublishPacket;
+use mqtt5::packet::publish::PublishPacket;
 #[cfg(feature = "turmoil-testing")]
-use mqtt_v5::QoS;
+use mqtt5::QoS;
 #[cfg(feature = "turmoil-testing")]
 use std::sync::Arc;
 #[cfg(feature = "turmoil-testing")]

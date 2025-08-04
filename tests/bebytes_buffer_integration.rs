@@ -5,12 +5,12 @@
 
 use bebytes::BeBytes;
 use bytes::{BufMut, Bytes, BytesMut};
-use mqtt_v5::encoding::mqtt_string::MqttString;
-use mqtt_v5::encoding::variable_int::VariableInt;
-use mqtt_v5::packet::pingreq::PingReqPacket;
-use mqtt_v5::packet::subscribe::SubscriptionOptionsBits;
-use mqtt_v5::packet::{AckPacketHeader, FixedHeader, MqttTypeAndFlags, PacketType};
-use mqtt_v5::types::ReasonCode;
+use mqtt5::encoding::mqtt_string::MqttString;
+use mqtt5::encoding::variable_int::VariableInt;
+use mqtt5::packet::pingreq::PingReqPacket;
+use mqtt5::packet::subscribe::SubscriptionOptionsBits;
+use mqtt5::packet::{AckPacketHeader, FixedHeader, MqttTypeAndFlags, PacketType};
+use mqtt5::types::ReasonCode;
 
 #[test]
 fn test_bebytes_with_existing_bytesmut_patterns() {

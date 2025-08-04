@@ -3,7 +3,7 @@ mod common;
 use common::{
     cleanup_topic, create_test_client, test_basic_pubsub, test_qos_flow, test_retained_messages,
 };
-use mqtt_v5::QoS;
+use mqtt5::QoS;
 
 #[tokio::test]
 async fn test_using_common_scenarios() {

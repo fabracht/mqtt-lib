@@ -20,7 +20,7 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use mqtt_v5::{MqttClient, ConnectOptions, QoS};
+//! use mqtt5::{MqttClient, ConnectOptions, QoS};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,7 +46,7 @@
 //! ## Advanced Example
 //!
 //! ```rust,no_run
-//! use mqtt_v5::{MqttClient, ConnectOptions, PublishOptions, QoS, ConnectionEvent};
+//! use mqtt5::{MqttClient, ConnectOptions, PublishOptions, QoS, ConnectionEvent};
 //! use std::time::Duration;
 //!
 //! #[tokio::main]
@@ -114,7 +114,7 @@
 //! This library also provides a complete MQTT broker implementation:
 //!
 //! ```rust,no_run
-//! use mqtt_v5::broker::{BrokerConfig, MqttBroker};
+//! use mqtt5::broker::{BrokerConfig, MqttBroker};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {  
@@ -132,7 +132,7 @@
 //! ### Advanced Broker with Multi-Transport
 //!
 //! ```rust,no_run
-//! use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+//! use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
