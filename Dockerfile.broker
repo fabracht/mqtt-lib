@@ -1,0 +1,52 @@
+# Multi-stage build for mqttv5 CLI broker
+FROM rust:1.82-slim AS builder
+
+WORKDIR /app
+
+# Install dependencies for building
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates/mqttv5-cli/Cargo.toml ./crates/mqttv5-cli/
+COPY src ./src
+COPY crates/mqttv5-cli/src ./crates/mqttv5-cli/src
+
+# Build the CLI tool in release mode
+RUN cargo build --release -p mqttv5-cli
+
+# Runtime stage with minimal base
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the built binary
+COPY --from=builder /app/target/release/mqttv5 /usr/local/bin/mqttv5
+
+# Create directories for data and certs
+RUN mkdir -p /app/data /app/certs
+
+# Create a non-root user for security
+RUN useradd -r -s /bin/false mqttuser && \
+    chown -R mqttuser:mqttuser /app
+
+USER mqttuser
+
+# Default port exposure
+EXPOSE 1883 8883
+
+# Health check using our own CLI
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+    CMD mqttv5 pub --host localhost --topic "health/check" --message "ping" --non-interactive --qos 0 || exit 1
+
+# Default command
+CMD ["mqttv5", "broker", "--host", "0.0.0.0:1883", "--foreground"]

@@ -435,10 +435,14 @@ async fn test_bridge_message_flow() {
 
 ```bash
 # Check bridge status
+# Using our mqttv5 CLI (recommended)
+mqttv5 sub --host localhost --topic '$SYS/broker/bridges/+/state' --verbose
+# Or with mosquitto
 mosquitto_sub -h localhost -t '$SYS/broker/bridges/+/state' -v
 
 # Monitor bridge traffic
-mosquitto_sub -h localhost -t '$SYS/broker/bridges/+/messages/+' -v
+mqttv5 sub --host localhost --topic '$SYS/broker/bridges/+/messages/+' --verbose  
+# mosquitto_sub -h localhost -t '$SYS/broker/bridges/+/messages/+' -v
 
 # Test connectivity to remote broker
 nc -zv remote-broker 1883

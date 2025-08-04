@@ -583,7 +583,7 @@ jobs:
         ports:
           - 1883:1883
         options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1"
+          --health-cmd "mqttv5 sub --topic '$$SYS/#' --count 1 --non-interactive"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

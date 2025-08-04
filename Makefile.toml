@@ -66,6 +66,17 @@ command = "cargo"
 args = ["test", "--lib", "--bins", "--verbose"]
 description = "Run only unit tests and binary tests (excludes integration tests)"
 
+[tasks.test-cli]
+dependencies = ["build-cli"]
+command = "cargo"
+args = ["test", "--test", "cli_functionality", "--", "--nocapture"]
+description = "Run CLI functionality tests"
+
+[tasks.build-cli]
+command = "cargo"
+args = ["build", "--release", "-p", "mqttv5-cli"]
+description = "Build the mqttv5 CLI tool"
+
 [tasks.build]
 command = "cargo"
 args = ["build", "--all-features", "--verbose"]
@@ -80,7 +91,7 @@ command = "cargo"
 args = ["check", "--all-features"]
 
 [tasks.ci-verify]
-dependencies = ["fmt-check", "clippy", "build", "test"]
+dependencies = ["fmt-check", "clippy", "build", "test-fast", "test-cli"]
 description = "Run all CI checks locally - MUST pass before pushing"
 
 [tasks.pre-commit]

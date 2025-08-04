@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2025-08-03
+## [0.4.0] - 2025-08-04
 
 ### Added
+- **Unified mqttv5 CLI Tool** - Complete mosquitto replacement
+  - Single binary with pub, sub, and broker subcommands
+  - Superior user experience with smart prompting for missing arguments
+  - Input validation with helpful error messages and corrections
+  - Both long and short flags for improved ergonomics
+  - Docker containerization for production deployment
+  - Complete self-reliance - no external MQTT tools needed
 - **Complete MQTT v5.0 Broker Implementation**
   - Production-ready broker with full MQTT v5.0 compliance
   - Multi-transport support: TCP, TLS, WebSocket in single binary
@@ -18,9 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Session persistence and retained message storage
   - Shared subscriptions for load balancing
   - Hot configuration reload without restart
+- **Advanced Connection Retry System**
+  - Smart error classification distinguishing recoverable from non-recoverable errors
+  - AWS IoT-specific error handling (RST, connection limit detection)
+  - Exponential backoff with configurable retry policies
+  - Different retry strategies for different error types
 
 ### Changed
 - **Platform Transformation**: Project evolved from client library to complete MQTT v5.0 platform
+- **Complete Mosquitto Replacement**: All documentation and examples now use mqttv5 CLI
 - **Comprehensive Documentation Overhaul**:
   - Restructured docs/ with separate client/ and broker/ sections
   - Added complete broker configuration reference
@@ -32,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Unimplemented AuthMethod::External references from documentation
+- All mosquitto dependencies - replaced with our own mqttv5 CLI
 
 ## [0.2.0] - 2025-07-30
 
@@ -145,10 +159,9 @@ Four comprehensive examples demonstrating real-world usage patterns:
 - **Firewall-restricted environments**: WebSocket transport bypasses TCP restrictions
 - **Secret management integration**: Load certificates from Vault, AWS Secrets Manager, etc.
 
-## [0.2.0] - 2025-07-30
-
 ---
 
 **Note**: This project was originally created as a showcase for the BeBytes derive macro capabilities,
 demonstrating high-performance serialization in real-world MQTT applications. It has evolved into
-a full-featured, production-ready MQTT v5.0 client library suitable for industrial IoT deployments.
+a full-featured, production-ready MQTT v5.0 platform with both client and broker implementations,
+complete with a unified CLI tool that replaces mosquitto.
