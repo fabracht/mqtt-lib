@@ -31,7 +31,7 @@ mqtt5 = "0.4.0"
 
 ### CLI Tool
 ```bash
-cargo install mqttv5
+cargo install mqttv5-cli
 ```
 
 ## 🚀 Quick Start
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```bash
 # Install from crates.io
-cargo install mqttv5
+cargo install mqttv5-cli
 
 # Or build from source
 git clone https://github.com/fabriciobracht/mqtt-lib
