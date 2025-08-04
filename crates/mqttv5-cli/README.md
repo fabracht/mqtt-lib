@@ -1,8 +1,8 @@
 # mqttv5 - Superior MQTT v5.0 Command Line Interface
 
 [![Crates.io](https://img.shields.io/crates/v/mqttv5-cli.svg)](https://crates.io/crates/mqttv5-cli)
-[![Documentation](https://docs.rs/mqttv5-cli/badge.svg)](https://docs.rs/mqttv5-cli)
-[![License](https://img.shields.io/crates/l/mqttv5-cli.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
+[![Downloads](https://img.shields.io/crates/d/mqttv5-cli.svg)](https://crates.io/crates/mqttv5-cli)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
 
 A unified MQTT v5.0 CLI tool that replaces mosquitto_pub, mosquitto_sub, and mosquitto with superior ergonomics and user experience.
 

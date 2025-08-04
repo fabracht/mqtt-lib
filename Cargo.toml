@@ -36,7 +36,6 @@ rand = "0.9.2"
 futures = "0.3.31"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
-chrono = { version = "0.4.41", features = ["serde"] }
 url = "2.5.4"
 hyper = { version = "1.6.0", features = ["full"] }
 hyper-util = { version = "0.1.16", features = ["full"] }
@@ -99,9 +98,8 @@ members = [
 [dependencies]
 base64 = "0.22.1"
 bcrypt = "0.17.0"
-bebytes = "2.7.0"
+bebytes = "2.7.2"
 bytes = "1.10.1"
-chrono = { version = "0.4.41", features = ["serde"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 hex = "0.4.3"

@@ -21,7 +21,7 @@
 //! ```
 
 use mqtt5::{broker::MqttBroker, ConnectOptions, ConnectionEvent, MqttClient};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
 #[tokio::main]
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "sensor": "temperature",
         "value": 23.5,
         "unit": "celsius",
-        "timestamp": chrono::Utc::now().to_rfc3339()
+        "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
     });
     client
         .publish_qos1("demo/json", json_data.to_string().as_bytes())

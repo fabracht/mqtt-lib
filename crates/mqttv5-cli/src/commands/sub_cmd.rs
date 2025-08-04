@@ -102,7 +102,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     // Create client
     let client_id = cmd
         .client_id
-        .unwrap_or_else(|| format!("mqttv5-sub-{}", rand::thread_rng().gen::<u32>()));
+        .unwrap_or_else(|| format!("mqttv5-sub-{}", rand::rng().random::<u32>()));
     let client = MqttClient::new(&client_id);
 
     // Connect

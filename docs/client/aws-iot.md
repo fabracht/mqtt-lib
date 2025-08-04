@@ -176,7 +176,7 @@ async fn execute_job(client: &MqttClient, job_id: &str) -> Result<(), Box<dyn st
     let update = json!({
         "status": "IN_PROGRESS",
         "statusDetails": {
-            "startedAt": chrono::Utc::now().to_rfc3339()
+            "startedAt": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()
         }
     });
     
@@ -189,7 +189,7 @@ async fn execute_job(client: &MqttClient, job_id: &str) -> Result<(), Box<dyn st
     let update = json!({
         "status": "SUCCEEDED",
         "statusDetails": {
-            "completedAt": chrono::Utc::now().to_rfc3339()
+            "completedAt": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()
         }
     });
     
@@ -436,7 +436,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let telemetry = json!({
             "temperature": 20.0 + rand::random::<f32>() * 10.0,
             "humidity": 40.0 + rand::random::<f32>() * 20.0,
-            "timestamp": chrono::Utc::now().to_rfc3339()
+            "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()
         });
         
         // Update shadow
