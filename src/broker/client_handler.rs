@@ -122,7 +122,12 @@ impl ClientHandler {
                 self.stats.client_connected();
             }
             Ok(Err(e)) => {
-                error!("Connect error: {}", e);
+                // Log connection errors at appropriate level based on error type
+                if e.to_string().contains("Connection closed") {
+                    info!("Client disconnected during connect phase: {}", e);
+                } else {
+                    warn!("Connect error: {}", e);
+                }
                 return Err(e);
             }
             Err(_) => {

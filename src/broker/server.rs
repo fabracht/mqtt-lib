@@ -327,7 +327,12 @@ impl MqttBroker {
 
                                             tokio::spawn(async move {
                                                 if let Err(e) = handler.run().await {
-                                                    error!("Client handler error: {}", e);
+                                                    // Log client handler errors at appropriate level
+                                                    if e.to_string().contains("Connection closed") {
+                                                        info!("Client handler finished: {}", e);
+                                                    } else {
+                                                        warn!("Client handler error: {}", e);
+                                                    }
                                                 }
                                             });
                                         }
@@ -398,7 +403,12 @@ impl MqttBroker {
 
                                             tokio::spawn(async move {
                                                 if let Err(e) = handler.run().await {
-                                                    error!("Client handler error: {}", e);
+                                                    // Log client handler errors at appropriate level
+                                                    if e.to_string().contains("Connection closed") {
+                                                        info!("Client handler finished: {}", e);
+                                                    } else {
+                                                        warn!("Client handler error: {}", e);
+                                                    }
                                                 }
                                             });
                                         }
@@ -455,7 +465,12 @@ impl MqttBroker {
 
                             tokio::spawn(async move {
                                 if let Err(e) = handler.run().await {
-                                    error!("Client handler error: {}", e);
+                                    // Log client handler errors at appropriate level
+                                    if e.to_string().contains("Connection closed") {
+                                        info!("Client handler finished: {}", e);
+                                    } else {
+                                        warn!("Client handler error: {}", e);
+                                    }
                                 }
                             });
                         }
