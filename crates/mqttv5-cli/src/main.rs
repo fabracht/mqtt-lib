@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     } else if cli.verbose {
         tracing::Level::INFO
     } else {
-        tracing::Level::WARN
+        tracing::Level::ERROR
     };
 
     tracing_subscriber::fmt()

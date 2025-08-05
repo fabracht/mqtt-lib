@@ -819,9 +819,9 @@ impl DirectClientInner {
         };
 
         self.packet_reader_handle = Some(tokio::spawn(async move {
-            tracing::warn!("📦 PACKET READER - Task starting");
+            tracing::debug!("📦 PACKET READER - Task starting");
             packet_reader_task_with_responses(reader, ctx).await;
-            tracing::error!("📦 PACKET READER - Task exited!");
+            tracing::debug!("📦 PACKET READER - Task exited");
         }));
 
         // Start keepalive task
@@ -829,9 +829,9 @@ impl DirectClientInner {
         let keepalive_interval = self.options.keep_alive;
 
         self.keepalive_handle = Some(tokio::spawn(async move {
-            tracing::warn!("💓 KEEPALIVE - Task starting");
+            tracing::debug!("💓 KEEPALIVE - Task starting");
             keepalive_task_with_writer(keepalive_writer, keepalive_interval).await;
-            tracing::error!("💓 KEEPALIVE - Task exited!");
+            tracing::debug!("💓 KEEPALIVE - Task exited");
         }));
 
         Ok(())
@@ -985,7 +985,7 @@ async fn handle_incoming_packet_with_writer(
             handle_pubcomp_outgoing(pubcomp, session).await
         }
         Packet::Disconnect(disconnect) => {
-            tracing::error!("Server sent DISCONNECT: {:?}", disconnect.reason_code);
+            tracing::info!("Server sent DISCONNECT: {:?}", disconnect.reason_code);
             Err(MqttError::ConnectionError(
                 "Server disconnected".to_string(),
             ))

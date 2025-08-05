@@ -135,7 +135,7 @@ impl MqttClient {
     /// ```
     pub fn new(client_id: impl Into<String>) -> Self {
         let client_id_str = client_id.into();
-        tracing::error!(client_id = %client_id_str, "🚀 MQTT CLIENT - new() method called");
+        tracing::trace!(client_id = %client_id_str, "MQTT CLIENT - new() method called");
         let options = ConnectOptions::new(client_id_str); // Use default clean_start=true
         Self::with_options(options)
     }
@@ -157,7 +157,7 @@ impl MqttClient {
     /// ```
     #[must_use]
     pub fn with_options(options: ConnectOptions) -> Self {
-        tracing::error!(client_id = %options.client_id, "🚀 MQTT CLIENT - with_options() method called");
+        tracing::trace!(client_id = %options.client_id, "MQTT CLIENT - with_options() method called");
         let inner = DirectClientInner::new(options);
 
         Self {
@@ -279,7 +279,7 @@ impl MqttClient {
     #[instrument(skip(self))]
     pub async fn connect(&self, address: &str) -> Result<()> {
         let client_id = self.client_id().await;
-        tracing::error!(client_id = %client_id, address = %address, "🚀 MQTT CLIENT - connect() method called");
+        tracing::trace!(client_id = %client_id, address = %address, "MQTT CLIENT - connect() method called");
         tracing::info!(client_id = %client_id, address = %address, "Initiating MQTT connection");
 
         let result = {
@@ -372,7 +372,7 @@ impl MqttClient {
             {
                 // This is a recoverable error and automatic reconnection is enabled
                 if options.reconnect_config.enabled {
-                    tracing::warn!(error = %error, "🔄 SPAWN MONITOR - Initial connection failed with recoverable error, starting background reconnection");
+                    tracing::debug!(error = %error, "🔄 SPAWN MONITOR - Initial connection failed with recoverable error, starting background reconnection");
                     let client = self.clone();
                     tokio::spawn(async move {
                         client.monitor_connection().await;
@@ -385,7 +385,7 @@ impl MqttClient {
             }
         } else if result.is_ok() && options.reconnect_config.enabled {
             // Start monitoring for future disconnections only after successful connection
-            tracing::warn!("🔄 SPAWN MONITOR - Successful connection, starting monitor task for future disconnections");
+            tracing::debug!("🔄 SPAWN MONITOR - Successful connection, starting monitor task for future disconnections");
             let client = self.clone();
             tokio::spawn(async move {
                 client.monitor_connection().await;
@@ -431,7 +431,7 @@ impl MqttClient {
 
     async fn connect_internal(&self, address: &str) -> Result<ConnectResult> {
         let client_id = self.inner.read().await.options.client_id.clone();
-        tracing::warn!(
+        tracing::debug!(
             address = %address,
             client_id = %client_id,
             "🔄 CONNECTION ATTEMPT - Tracking source of connection attempt"
@@ -447,7 +447,7 @@ impl MqttClient {
 
     fn resolve_addresses(&self, host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>> {
         let addr_str = format!("{host}:{port}");
-        tracing::warn!(addr_str = %addr_str, "🌐 DNS RESOLUTION - Starting address resolution");
+        tracing::debug!(addr_str = %addr_str, "🌐 DNS RESOLUTION - Starting address resolution");
 
         let addrs: Vec<_> = addr_str
             .to_socket_addrs()
@@ -457,7 +457,7 @@ impl MqttClient {
             })?
             .collect();
 
-        tracing::warn!(addr_str = %addr_str, resolved_count = addrs.len(), "🌐 DNS RESOLUTION - Address resolved successfully");
+        tracing::debug!(addr_str = %addr_str, resolved_count = addrs.len(), "🌐 DNS RESOLUTION - Address resolved successfully");
 
         if addrs.is_empty() {
             return Err(MqttError::ConnectionError(
@@ -1532,7 +1532,7 @@ impl MqttClient {
 
             let inner = self.inner.read().await;
             if !inner.is_connected() {
-                tracing::warn!(
+                tracing::info!(
                     "🔍 MONITOR TASK - Detected disconnection, triggering reconnection logic"
                 );
 
@@ -1547,7 +1547,7 @@ impl MqttClient {
                 }
 
                 if let Some(address) = last_address {
-                    tracing::warn!(
+                    tracing::info!(
                         address = %address,
                         "🔍 MONITOR TASK - Starting reconnection attempt"
                     );
@@ -1558,7 +1558,7 @@ impl MqttClient {
                         break;
                     }
                 } else {
-                    tracing::warn!("🔍 MONITOR TASK - No last address available for reconnection");
+                    tracing::info!("🔍 MONITOR TASK - No last address available for reconnection");
                     break;
                 }
             }
@@ -1575,7 +1575,7 @@ impl MqttClient {
         address: &str,
         config: &crate::types::ReconnectConfig,
     ) -> Result<()> {
-        tracing::warn!(
+        tracing::info!(
             address = %address,
             max_attempts = config.max_attempts,
             initial_delay = ?config.initial_delay,
@@ -1600,7 +1600,7 @@ impl MqttClient {
                 inner.reconnect_attempt
             };
 
-            tracing::warn!(
+            tracing::info!(
                 attempt = attempt,
                 max_attempts = config.max_attempts,
                 delay = ?delay,
@@ -1636,7 +1636,7 @@ impl MqttClient {
             }
 
             // Try to reconnect using internal method
-            tracing::warn!(
+            tracing::info!(
                 attempt = attempt,
                 address = %address,
                 "🔄 RECONNECTION - Making connection attempt #{} to {}", attempt, address

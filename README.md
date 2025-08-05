@@ -26,7 +26,7 @@ This project provides everything you need for MQTT v5.0 development:
 ### Library Crate
 ```toml
 [dependencies]
-mqtt5 = "0.4.0"
+mqtt5 = "0.4.1"
 ```
 
 ### CLI Tool
