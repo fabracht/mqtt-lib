@@ -1,6 +1,6 @@
 [package]
 name = "mqtt5"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 rust-version = "1.82"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
@@ -73,9 +73,6 @@ harness = false
 name = "concurrent_benchmarks"
 harness = false
 
-[[bench]]
-name = "bebytes_comparison"
-harness = false
 
 [lib]
 name = "mqtt5"
@@ -98,7 +95,7 @@ members = [
 [dependencies]
 base64 = "0.22.1"
 bcrypt = "0.17.0"
-bebytes = "2.7.2"
+bebytes = "2.8"
 bytes = "1.10.1"
 futures = "0.3.31"
 futures-util = "0.3.31"

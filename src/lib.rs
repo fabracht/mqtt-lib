@@ -3,19 +3,14 @@
 //! A complete MQTT v5.0 platform providing both high-performance async client library and full-featured broker implementation.
 //! Features include certificate loading from bytes, multi-transport support (TCP, TLS, WebSocket), authentication, bridging, and comprehensive testing.
 //!
-//! ## CRITICAL: NO EVENT LOOPS
+//! ## Architecture
 //!
-//! **This is a Rust async library. We do NOT use event loops.**
-//!
-//! This library uses direct async/await patterns throughout. Event loops are an anti-pattern
-//! in Rust async programming. Instead, we use:
+//! This library uses Rust's native async/await patterns throughout:
 //! - Direct async methods for all operations
 //! - Background async tasks for continuous operations (packet reading, keepalive)
 //! - The Tokio runtime for task scheduling
 //!
-//! If you're contributing to this library and thinking about implementing an event loop - STOP.
-//! Read ARCHITECTURE.md first. Event loops, command channels, and actor patterns are explicitly
-//! forbidden in this codebase.
+//! For architectural details, see ARCHITECTURE.md.
 //!
 //! ## Quick Start
 //!
@@ -26,7 +21,7 @@
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let client = MqttClient::new("test-client");
 //!     
-//!     // Direct async connect - no event loops
+//!     // Direct async connect
 //!     client.connect("mqtt://test.mosquitto.org:1883").await?;
 //!     
 //!     // Direct async subscribe with callback
@@ -188,7 +183,7 @@ pub mod packet;
 pub mod packet_id;
 pub mod protocol;
 pub mod session;
-pub mod tasks; // Direct async tasks - NO event loops
+pub mod tasks; // Direct async tasks
 pub mod test_utils;
 #[cfg(any(test, feature = "turmoil-testing"))]
 pub mod testing;

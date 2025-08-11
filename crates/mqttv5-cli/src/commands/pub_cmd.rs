@@ -62,7 +62,7 @@ fn parse_qos(s: &str) -> Result<QoS, String> {
         "0" => Ok(QoS::AtMostOnce),
         "1" => Ok(QoS::AtLeastOnce),
         "2" => Ok(QoS::ExactlyOnce),
-        _ => Err(format!("QoS must be 0, 1, or 2, got: {}", s)),
+        _ => Err(format!("QoS must be 0, 1, or 2, got: {s}")),
     }
 }
 
@@ -185,7 +185,7 @@ async fn get_message_content(cmd: &mut PubCommand) -> Result<String> {
     if let Some(file_path) = &cmd.file {
         debug!("Reading message from file: {}", file_path);
         return fs::read_to_string(file_path)
-            .with_context(|| format!("Failed to read file: {}", file_path))
+            .with_context(|| format!("Failed to read file: {file_path}"))
             .map(|s| s.trim().to_string());
     }
 

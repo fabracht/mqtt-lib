@@ -1,7 +1,6 @@
-//! Direct async client implementation - NO EVENT LOOPS
+//! Direct async client implementation
 //!
 //! This module implements the MQTT client using direct async calls.
-//! We do NOT use event loops, command channels, or actor patterns.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -64,7 +63,7 @@ impl PacketWriter for UnifiedWriter {
     }
 }
 
-/// Internal client state - NO event loop, NO command channels
+/// Internal client state
 pub struct DirectClientInner {
     /// Write half of the transport for client operations
     pub writer: Option<Arc<tokio::sync::RwLock<UnifiedWriter>>>,
@@ -74,7 +73,7 @@ pub struct DirectClientInner {
     pub connected: Arc<AtomicBool>,
     /// Callback manager for subscriptions
     pub callback_manager: Arc<CallbackManager>,
-    /// Background task handles (NOT event loops)
+    /// Background task handles
     pub packet_reader_handle: Option<JoinHandle<()>>,
     pub keepalive_handle: Option<JoinHandle<()>>,
     /// Connection options
@@ -171,7 +170,7 @@ impl DirectClientInner {
 
 /// Direct async implementation of MQTT operations
 impl DirectClientInner {
-    /// Connect to broker - DIRECT async method, NO event loop
+    /// Connect to broker
     ///
     /// # Errors
     ///
@@ -180,7 +179,7 @@ impl DirectClientInner {
         // Build CONNECT packet
         let connect_packet = self.build_connect_packet().await;
 
-        // Send CONNECT directly - no event loop, no command channel
+        // Send CONNECT packet
         transport
             .write_packet(Packet::Connect(Box::new(connect_packet)))
             .await?;
@@ -452,7 +451,7 @@ impl DirectClientInner {
             .setup_publish_acknowledgment(options.qos, packet_id)
             .await;
 
-        // Send PUBLISH directly - no event loop
+        // Send PUBLISH packet
         if publish.payload.len() > 10000 {
             tracing::debug!(
                 topic = %publish.topic_name,
@@ -789,7 +788,7 @@ impl DirectClientInner {
         }
     }
 
-    /// Start background tasks (NOT event loops)
+    /// Start background tasks
     ///
     /// # Errors
     ///

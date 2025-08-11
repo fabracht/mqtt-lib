@@ -1,8 +1,6 @@
 //! MQTT v5.0 Client - Direct Async Implementation
 //!
-//! CRITICAL: NO EVENT LOOPS
 //! This client uses direct async/await patterns throughout.
-//! We do NOT use event loops, command channels, or actor patterns.
 
 use crate::callback::{CallbackId, PublishCallback};
 use crate::error::{MqttError, Result};
@@ -42,8 +40,6 @@ use self::direct::DirectClientInner;
 pub type ConnectionEventCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
 
 /// Thread-safe MQTT v5.0 client
-///
-/// This client uses DIRECT async methods - NO event loops!
 ///
 /// # Examples
 ///
@@ -308,7 +304,6 @@ impl MqttClient {
 
     /// Connects to the MQTT broker with custom options
     ///
-    /// This is a DIRECT async method - no event loops!
     /// Returns `session_present` flag from CONNACK
     ///
     /// # Errors
@@ -593,7 +588,7 @@ impl MqttClient {
             inner.reconnect_attempt = 0;
         }
 
-        // Try to connect using direct async method - NO event loop!
+        // Try to connect using direct async method
         let mut inner = self.inner.write().await;
         match inner.connect(transport).await {
             Ok(result) => {
@@ -655,7 +650,7 @@ impl MqttClient {
     /// Connects to the MQTT broker using a custom TLS configuration
     ///
     /// This method allows direct configuration of TLS settings including certificates,
-    /// ALPN protocols, and other TLS-specific options. This is a DIRECT async method - no event loops!
+    /// ALPN protocols, and other TLS-specific options.
     ///
     /// # Examples
     ///
@@ -702,7 +697,6 @@ impl MqttClient {
     /// Connects to the MQTT broker using custom TLS configuration and connect options
     ///
     /// This method combines custom TLS settings with MQTT connection options.
-    /// This is a DIRECT async method - no event loops!
     /// Returns `session_present` flag from CONNACK
     ///
     /// # Examples
@@ -805,7 +799,6 @@ impl MqttClient {
 
     /// Disconnects from the MQTT broker
     ///
-    /// This is a DIRECT async method - no event loops!
     ///
     /// # Errors
     ///
@@ -892,7 +885,6 @@ impl MqttClient {
 
     /// Publishes a message with custom options
     ///
-    /// This is a DIRECT async method - no event loops!
     ///
     /// # Errors
     ///
@@ -940,7 +932,6 @@ impl MqttClient {
 
     /// Subscribes to a topic with a callback
     ///
-    /// This is a DIRECT async method - no event loops!
     ///
     /// # Examples
     ///
@@ -1124,7 +1115,6 @@ impl MqttClient {
 
     /// Unsubscribes from a topic
     ///
-    /// This is a DIRECT async method - no event loops!
     ///
     /// # Errors
     ///

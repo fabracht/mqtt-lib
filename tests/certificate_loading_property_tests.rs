@@ -119,7 +119,7 @@ fn invalid_der_data() -> impl Strategy<Value = Vec<u8>> {
 proptest! {
     #[test]
     fn prop_pem_cert_loading_valid_data(cert_data in valid_pem_cert()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         // Should not panic - may succeed or fail gracefully
@@ -140,7 +140,7 @@ proptest! {
 
     #[test]
     fn prop_pem_key_loading_valid_data(key_data in valid_pem_key()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let result = config.load_client_key_pem_bytes(&key_data);
@@ -157,7 +157,7 @@ proptest! {
 
     #[test]
     fn prop_pem_cert_loading_invalid_data(invalid_data in invalid_pem_data()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         // Invalid data should always result in an error
@@ -170,7 +170,7 @@ proptest! {
 
     #[test]
     fn prop_pem_key_loading_invalid_data(invalid_data in invalid_pem_data()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let result = config.load_client_key_pem_bytes(&invalid_data);
@@ -180,7 +180,7 @@ proptest! {
 
     #[test]
     fn prop_der_cert_loading_valid_data(cert_data in valid_der_cert()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let result = config.load_client_cert_der_bytes(&cert_data);
@@ -199,7 +199,7 @@ proptest! {
 
     #[test]
     fn prop_der_key_loading_valid_data(key_data in valid_der_cert()) { // Reuse cert generator for key
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let result = config.load_client_key_der_bytes(&key_data);
@@ -216,7 +216,7 @@ proptest! {
 
     #[test]
     fn prop_der_cert_loading_invalid_data(invalid_data in invalid_der_data()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let result = config.load_client_cert_der_bytes(&invalid_data);
@@ -242,7 +242,7 @@ proptest! {
         key_data in valid_pem_key(),
         ca_data in valid_pem_cert()
     ) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
 
         // Test loading in different orders
         let orders = [
@@ -321,7 +321,7 @@ proptest! {
 
     #[test]
     fn prop_certificate_error_messages_meaningful(invalid_data in invalid_pem_data()) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let cert_result = config.load_client_cert_pem_bytes(&invalid_data);
@@ -352,7 +352,7 @@ proptest! {
     fn prop_certificate_loading_memory_safety(
         data in prop::collection::vec(any::<u8>(), 0..10000)
     ) {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         // Should never panic regardless of input data
@@ -375,7 +375,7 @@ mod edge_case_tests {
 
     #[test]
     fn test_multiple_certificates_in_pem() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let multi_cert_pem = b"-----BEGIN CERTIFICATE-----
@@ -408,7 +408,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
 
     #[test]
     fn test_very_large_certificate() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         // Create a very large (but valid) PEM structure
@@ -428,7 +428,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
 
     #[test]
     fn test_certificate_with_unusual_whitespace() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let mut config = TlsConfig::new(addr, "localhost");
 
         let weird_whitespace_pem = b"-----BEGIN CERTIFICATE-----\r\n\t\r\n  \r\nMIIBkTCB+wIJALRJF4QlQZq2MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCWxv\r\n\t\t  \r\ny2FsaG9zdDAeFw0yNDAxMDEwMDAwMDBaFw0yNTAxMDEwMDAwMDBaMBQxEjAQBgNV\r\n\r\n-----END CERTIFICATE-----\r\n\r\n";

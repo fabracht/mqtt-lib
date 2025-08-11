@@ -1,7 +1,4 @@
 //! Mock transport implementation for testing
-//!
-//! CRITICAL: NO EVENT LOOPS
-//! This is a direct async mock transport for testing purposes.
 
 use crate::error::{MqttError, Result};
 use crate::transport::Transport;

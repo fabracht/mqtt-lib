@@ -1,7 +1,6 @@
 //! MQTT v5.0 Broker Implementation
 //!
-//! A high-performance, async MQTT broker that follows the same architectural
-//! principles as the client: no event loops, direct async/await patterns.
+//! A high-performance, async MQTT broker using direct async/await patterns.
 //!
 //! # Example
 //!

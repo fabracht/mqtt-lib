@@ -1,7 +1,4 @@
 //! Test utilities for the MQTT library
-//!
-//! CRITICAL: NO EVENT LOOPS
-//! These are utilities for testing the async MQTT implementation.
 
 use crate::packet::connack::ConnAckPacket;
 use crate::packet::connect::ConnectPacket;
