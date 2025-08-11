@@ -55,7 +55,7 @@ args = ["fmt", "--all", "--", "--check"]
 
 [tasks.clippy]
 command = "cargo"
-args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings", "-A", "clippy::uninlined_format_args"]
+args = ["clippy", "--all-targets", "--all-features", "--workspace", "--", "-D", "warnings", "-A", "clippy::uninlined_format_args"]
 
 [tasks.test]
 command = "cargo"
