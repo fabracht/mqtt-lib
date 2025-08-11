@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::Confirm;
 use mqtt5::broker::{BrokerConfig, MqttBroker};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::signal;
 use tracing::{debug, info};
 
@@ -134,7 +134,7 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     Ok(config)
 }
 
-async fn load_config_from_file(_config_path: &PathBuf) -> Result<BrokerConfig> {
+async fn load_config_from_file(_config_path: &Path) -> Result<BrokerConfig> {
     // For now, just return default config
     // TODO: Implement actual config file loading
     println!("Config file loading not implemented yet, using defaults");
