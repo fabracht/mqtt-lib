@@ -197,10 +197,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_connect_not_connected() {
-        let mut transport = TcpTransport::from_addr(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::LOCALHOST),
-            1883,
-        ));
+        let mut transport =
+            TcpTransport::from_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1883));
 
         // Try to read when not connected
         let mut buf = [0u8; 10];
