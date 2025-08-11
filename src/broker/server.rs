@@ -1,6 +1,4 @@
 //! MQTT v5.0 Broker Server
-//!
-//! Direct async implementation - no event loops!
 
 use crate::broker::auth::{AllowAllAuthProvider, AuthProvider};
 use crate::broker::client_handler::ClientHandler;
@@ -224,7 +222,7 @@ impl MqttBroker {
 
     /// Runs the broker until shutdown
     ///
-    /// This is NOT an event loop! It's a direct async accept loop.
+    /// This accepts incoming connections and spawns handlers for each.
     ///
     /// # Errors
     ///

@@ -6,7 +6,7 @@
 [![Security Audit](https://github.com/fabriciobracht/mqtt-lib/workflows/Security%20Audit/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
 [![License](https://img.shields.io/crates/l/mqtt5.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
 
-🚀 **A complete MQTT v5.0 platform featuring both high-performance client library AND full-featured broker implementation**
+🚀 **A complete MQTT v5.0 platform featuring both high-performance client library AND full-featured broker implementation - pure Rust, zero unsafe code**
 
 This project provides everything you need for MQTT v5.0 development:
 - **Production-ready MQTT v5.0 broker** (Mosquitto replacement)
@@ -132,9 +132,10 @@ mqttv5 pub
 - **Self-contained**: No external dependencies (Redis, PostgreSQL, etc.)
 
 ### ✅ High-Performance Client
+- **Pure Rust implementation**: No FFI, no unsafe code
 - **AWS IoT compatibility**: Works seamlessly with AWS IoT Core
 - **Zero-copy operations**: Efficient memory usage with BeBytes
-- **Direct async/await**: No event loops, clean Rust async patterns
+- **Direct async/await**: Clean Rust async patterns
 - **Comprehensive testing**: Property-based tests and network simulation
 
 ## 📦 Broker Features
@@ -405,20 +406,9 @@ cargo test --test connection_pool_performance
 
 ## 🏗️ Architecture
 
-This project follows strict architectural principles:
+This project follows modern Rust async patterns:
 
-### ❌ NO EVENT LOOPS
-**This is a Rust async library. We do NOT use event loops.**
-
-Rust's async ecosystem is fundamentally different from other languages:
-- ✅ **Direct async/await** patterns throughout
-- ✅ **Background async tasks** for continuous operations  
-- ✅ **Tokio runtime** for task scheduling
-- ❌ **No event loops, command channels, or actor patterns**
-
-If you're contributing and thinking about implementing an event loop - STOP and read `ARCHITECTURE.md` first.
-
-### Key Design Principles
+### Design Principles
 - **Direct async methods** for all operations (no indirection)
 - **Shared state** via `Arc<RwLock<T>>` (no message passing)
 - **Zero-copy operations** where possible

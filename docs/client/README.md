@@ -67,10 +67,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Architecture
 
-The client follows a **NO EVENT LOOPS** architecture:
+The client is a pure Rust implementation using modern async patterns:
 
 - Direct async/await for all operations
-- No command channels or actor patterns
 - Efficient background tasks for packet reading and keep-alive
 - Shared state management with Arc<RwLock<T>>
 

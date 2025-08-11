@@ -1,7 +1,6 @@
 //! Packet I/O utilities for transport layer
 //!
-//! CRITICAL: NO EVENT LOOPS
-//! These are direct async methods for reading and writing MQTT packets.
+//! Async methods for reading and writing MQTT packets.
 
 use crate::encoding::encode_variable_int;
 use crate::error::{MqttError, Result};

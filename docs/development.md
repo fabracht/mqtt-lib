@@ -194,24 +194,24 @@ mqtt-lib/
 
 ## Coding Standards
 
-### NO EVENT LOOPS Architecture
+### Async Architecture
 
-**CRITICAL**: This codebase follows a NO EVENT LOOPS architecture.
+This is a pure Rust implementation using direct async/await patterns.
 
 ```rust
-// ❌ FORBIDDEN - Event loops
+// ❌ Avoid - Event loop pattern
 impl Client {
     async fn run(self) {
         loop {
             tokio::select! {
                 Some(cmd) = self.rx.recv() => { }
-                // NO! This is an event loop
+                // Prefer direct async methods instead
             }
         }
     }
 }
 
-// ✅ CORRECT - Direct async
+// ✅ Preferred - Direct async
 impl Client {
     pub async fn publish(&self, topic: &str, payload: &[u8]) -> Result<()> {
         // Direct operation, no indirection

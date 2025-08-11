@@ -1,7 +1,6 @@
 //! Background async tasks for MQTT client
 //!
-//! CRITICAL: NO EVENT LOOPS
-//! This module contains direct async tasks, NOT event loops.
+//! This module contains async tasks for background operations.
 //! Each task is a simple async function that performs one specific job.
 
 use crate::callback::CallbackManager;
@@ -17,7 +16,7 @@ use tokio::time::{interval, Duration};
 
 /// Packet reader task - continuously reads packets from the transport
 ///
-/// This is NOT an event loop. It's a simple async task that:
+/// This task:
 /// 1. Reads a packet from the transport
 /// 2. Handles the packet
 /// 3. Repeats until connection is closed
@@ -27,7 +26,7 @@ pub async fn packet_reader_task(
     callback_manager: Arc<CallbackManager>,
 ) {
     loop {
-        // Direct async read - no event loop
+        // Read next packet
         match transport.lock().await.read_packet().await {
             Ok(packet) => {
                 if let Err(e) =
@@ -47,7 +46,7 @@ pub async fn packet_reader_task(
 
 /// Keepalive task - sends PINGREQ packets at regular intervals
 ///
-/// This is NOT an event loop. It's a simple async task that:
+/// This task:
 /// 1. Waits for the keepalive interval
 /// 2. Sends a PINGREQ
 /// 3. Repeats until connection is closed
@@ -64,7 +63,7 @@ pub async fn keepalive_task(
     loop {
         interval.tick().await;
 
-        // Send PINGREQ directly - no event loop
+        // Send PINGREQ
         if let Err(e) = transport.lock().await.write_packet(Packet::PingReq).await {
             tracing::error!(error = %e, "Error sending PINGREQ");
             break;
@@ -74,7 +73,7 @@ pub async fn keepalive_task(
 
 /// Handle an incoming packet
 ///
-/// This is a direct function call, not part of an event loop
+/// Handles incoming MQTT packets
 ///
 /// # Errors
 ///
@@ -164,7 +163,7 @@ async fn handle_publish(
 
 /// Route message to appropriate callbacks
 async fn route_message(publish: PublishPacket, callback_manager: &Arc<CallbackManager>) {
-    // Dispatch to all matching callbacks directly - no event loop
+    // Dispatch to all matching callbacks
     let _ = callback_manager.dispatch(&publish).await;
 }
 
