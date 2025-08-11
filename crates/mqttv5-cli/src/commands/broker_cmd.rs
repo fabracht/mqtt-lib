@@ -37,7 +37,7 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
         debug!("Loading configuration from: {:?}", config_path);
         load_config_from_file(config_path)
             .await
-            .with_context(|| format!("Failed to load config from {:?}", config_path))?
+            .with_context(|| format!("Failed to load config from {config_path:?}"))?
     } else {
         // Smart prompting for configuration
         create_interactive_config(&mut cmd).await?
@@ -66,7 +66,7 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
                 println!("\n🛑 Received Ctrl+C, shutting down gracefully...");
             }
             Err(err) => {
-                eprintln!("Unable to listen for shutdown signal: {}", err);
+                tracing::error!("Unable to listen for shutdown signal: {}", err);
             }
         }
     };
