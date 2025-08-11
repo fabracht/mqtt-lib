@@ -41,10 +41,8 @@ jobs:
           components: clippy
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-make
-        run: cargo install --force cargo-make
       - name: Run clippy
-        run: cargo make clippy
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings -A clippy::uninlined_format_args
 
   # Build and test
   test:
