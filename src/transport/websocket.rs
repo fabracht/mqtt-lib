@@ -780,7 +780,7 @@ mod tests {
     fn test_websocket_config_with_custom_tls_config() {
         use std::net::{IpAddr, Ipv4Addr};
 
-        let addr = std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let tls_config = TlsConfig::new(addr, "localhost");
 
         let config = WebSocketConfig::new("wss://broker.example.com/mqtt")

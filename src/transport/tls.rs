@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_tls_config() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let config = TlsConfig::new(addr, "localhost")
             .with_connect_timeout(Duration::from_secs(10))
             .with_system_roots(false)
@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_tls_config_with_alpn() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let config =
             TlsConfig::new(addr, "localhost").with_alpn_protocols(&["mqtt", "x-amzn-mqtt-ca"]);
 
@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_tls_transport_creation() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883);
         let transport = TlsTransport::new(TlsConfig::new(addr, "localhost"));
 
         assert!(!transport.is_connected());
@@ -592,7 +592,7 @@ mod tests {
     #[tokio::test]
     async fn test_tls_connect_not_connected() {
         let mut transport = TlsTransport::new(TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         ));
 
@@ -613,7 +613,7 @@ mod tests {
         use crate::protocol::v5::properties::Properties;
 
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8884),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8884),
             "localhost",
         );
 
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn test_tls_config_load_files() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn test_tls_config_load_cert_from_pem_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -721,7 +721,7 @@ TA==
         // Test invalid PEM data
         let invalid_pem = b"not a valid certificate";
         let mut config2 = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
         assert!(config2.load_client_cert_pem_bytes(invalid_pem).is_err());
@@ -729,7 +729,7 @@ TA==
         // Test empty PEM data
         let empty_pem = b"";
         let mut config3 = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
         assert!(config3.load_client_cert_pem_bytes(empty_pem).is_err());
@@ -738,7 +738,7 @@ TA==
     #[test]
     fn test_tls_config_load_key_from_pem_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -761,7 +761,7 @@ QK8Q2JGfQtK+7F6vGgR8QKrMgJh6EwZhLl3mPVH+QQ==
         // Test invalid PEM data
         let invalid_pem = b"not a valid private key";
         let mut config2 = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
         assert!(config2.load_client_key_pem_bytes(invalid_pem).is_err());
@@ -770,7 +770,7 @@ QK8Q2JGfQtK+7F6vGgR8QKrMgJh6EwZhLl3mPVH+QQ==
     #[test]
     fn test_tls_config_load_ca_from_pem_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -793,7 +793,7 @@ TA==
         // Test invalid PEM data
         let invalid_pem = b"not a valid ca certificate";
         let mut config2 = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
         assert!(config2.load_ca_cert_pem_bytes(invalid_pem).is_err());
@@ -802,7 +802,7 @@ TA==
     #[test]
     fn test_tls_config_load_cert_from_der_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -814,7 +814,7 @@ TA==
         // Test empty DER data
         let empty_der = vec![];
         let mut config2 = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
         assert!(config2.load_client_cert_der_bytes(&empty_der).is_ok()); // DER validation happens at TLS handshake
@@ -823,7 +823,7 @@ TA==
     #[test]
     fn test_tls_config_load_key_from_der_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 
@@ -836,7 +836,7 @@ TA==
     #[test]
     fn test_tls_config_load_ca_from_der_bytes() {
         let mut config = TlsConfig::new(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8883),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8883),
             "localhost",
         );
 

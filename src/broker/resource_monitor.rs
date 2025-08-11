@@ -433,7 +433,7 @@ mod tests {
         };
 
         let monitor = ResourceMonitor::new(limits);
-        let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
         monitor.register_connection("client1".to_string(), ip).await;
 
@@ -453,7 +453,7 @@ mod tests {
     #[tokio::test]
     async fn test_stats() {
         let monitor = ResourceMonitor::new(ResourceLimits::default());
-        let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
         monitor.register_connection("client1".to_string(), ip).await;
         monitor.can_send_message("client1", 1000).await;

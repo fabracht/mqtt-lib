@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_tcp_config() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1883);
         let config = TcpConfig::new(addr)
             .with_connect_timeout(Duration::from_secs(10))
             .with_nodelay(false)
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_tcp_transport_creation() {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1883);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1883);
         let transport = TcpTransport::from_addr(addr);
 
         assert!(!transport.is_connected());
@@ -198,7 +198,7 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_connect_not_connected() {
         let mut transport = TcpTransport::from_addr(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
             1883,
         ));
 
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_tcp_close_when_not_connected() {
         let mut transport =
-            TcpTransport::from_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 1883));
+            TcpTransport::from_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 1883));
 
         // Close should succeed even when not connected
         let runtime = tokio::runtime::Runtime::new().unwrap();
