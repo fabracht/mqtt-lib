@@ -375,7 +375,6 @@ Both client and broker share:
 
 3. **Architectural Principles**:
    - Direct async/await throughout
-   - Direct async/await throughout
    - Shared error handling patterns
 
 ## Testing Architecture
