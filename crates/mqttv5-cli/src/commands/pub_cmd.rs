@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt5::{MqttClient, QoS};
+use mqtt5::{MqttClient, PublishOptions, QoS};
 use std::fs;
 use std::io::{self, Read};
 use tracing::{debug, info};
@@ -148,15 +148,29 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
 
     // Publish message
     info!("Publishing to topic '{}'...", topic);
-    match qos {
-        QoS::AtMostOnce => {
-            client.publish(&topic, message.as_bytes()).await?;
-        }
-        QoS::AtLeastOnce => {
-            client.publish_qos1(&topic, message.as_bytes()).await?;
-        }
-        QoS::ExactlyOnce => {
-            client.publish_qos2(&topic, message.as_bytes()).await?;
+
+    if cmd.retain {
+        // Use publish_with_options when retain flag is set
+        let options = PublishOptions {
+            qos,
+            retain: true,
+            ..Default::default()
+        };
+        client
+            .publish_with_options(&topic, message.as_bytes(), options)
+            .await?;
+    } else {
+        // Use the regular publish methods when retain is not set
+        match qos {
+            QoS::AtMostOnce => {
+                client.publish(&topic, message.as_bytes()).await?;
+            }
+            QoS::AtLeastOnce => {
+                client.publish_qos1(&topic, message.as_bytes()).await?;
+            }
+            QoS::ExactlyOnce => {
+                client.publish_qos2(&topic, message.as_bytes()).await?;
+            }
         }
     }
 
