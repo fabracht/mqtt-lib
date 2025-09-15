@@ -16,6 +16,7 @@
 //! ```bash
 //! cargo run --example complete_system_demo
 //! ```
+#![allow(clippy::cast_precision_loss)]
 
 use mqtt5::{
     broker::{BrokerConfig, MqttBroker},

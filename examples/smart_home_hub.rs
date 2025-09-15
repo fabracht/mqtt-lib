@@ -41,6 +41,8 @@
 //! - Emergency response coordination
 //! - Device group management and batch operations
 //! - **Mutual TLS authentication for device security**
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::missing_errors_doc)]
 
 use mqtt5::transport::tls::TlsConfig;
 use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};

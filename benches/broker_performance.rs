@@ -1,6 +1,7 @@
 //! Working broker performance benchmarks
 //!
 //! This suite benchmarks the actual MQTT broker performance using proper APIs.
+#![allow(clippy::cast_sign_loss)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use mqtt5::broker::{BrokerConfig, MqttBroker};

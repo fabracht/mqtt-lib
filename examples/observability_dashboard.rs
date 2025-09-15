@@ -50,6 +50,10 @@
 //! - **Alert correlation**: Intelligent alert grouping and deduplication
 //! - **Multi-tenant metrics**: Isolated metrics per deployment/tenant
 //! - **Custom exporters**: Pluggable metric export to external systems
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::missing_errors_doc)]
 
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -1323,6 +1327,7 @@ async fn handle_health_request(
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
     tracing_subscriber::fmt()

@@ -39,6 +39,8 @@
 //! - Structured logging for debugging
 //! - Graceful degradation under failure conditions
 //! - **Secure MQTT communications with TLS**
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::missing_errors_doc)]
 
 use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};

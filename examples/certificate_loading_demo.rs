@@ -197,7 +197,7 @@ fn demo_der_format_loading() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Example of how certificates might be loaded in different deployment scenarios
 #[allow(dead_code)]
-async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
+fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     info!("=== Real-World Deployment Scenarios ===");
 
     // Scenario 1: Kubernetes Secrets
@@ -241,9 +241,9 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     let mut vault_config = TlsConfig::new(addr, "broker.company.com");
 
     // Example: retrieve from a hypothetical secret store
-    let cert_bytes = retrieve_secret("pki/cert/mqtt-client")?;
-    let key_bytes = retrieve_secret("pki/key/mqtt-client")?;
-    let ca_bytes = retrieve_secret("pki/ca/root")?;
+    let cert_bytes = retrieve_secret("pki/cert/mqtt-client");
+    let key_bytes = retrieve_secret("pki/key/mqtt-client");
+    let ca_bytes = retrieve_secret("pki/ca/root");
 
     vault_config.load_client_cert_pem_bytes(&cert_bytes)?;
     vault_config.load_client_key_pem_bytes(&key_bytes)?;
@@ -256,8 +256,8 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Mock function representing secret retrieval from a secret store
 #[allow(dead_code)]
-fn retrieve_secret(path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn retrieve_secret(path: &str) -> Vec<u8> {
     // In a real implementation, this would make API calls to your secret store
     info!("Retrieving secret from path: {}", path);
-    Ok(DEMO_CERT_PEM.to_vec()) // Return demo cert for illustration
+    DEMO_CERT_PEM.to_vec() // Return demo cert for illustration
 }
