@@ -1,3 +1,6 @@
+mod common;
+
+use common::TestBroker;
 use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, SubscribeOptions};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
@@ -11,8 +14,10 @@ fn test_client_id(test_name: &str) -> String {
 }
 
 #[tokio::test]
-
 async fn test_automatic_reconnection() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client = MqttClient::new(test_client_id("auto-reconnect"));
 
     // Track connection events
@@ -50,7 +55,7 @@ async fn test_automatic_reconnection() {
         .with_reconnect_delay(Duration::from_millis(100), Duration::from_secs(1));
 
     client
-        .connect_with_options("127.0.0.1:1883", opts)
+        .connect_with_options(broker.address(), opts)
         .await
         .expect("Failed to connect");
 
@@ -96,23 +101,30 @@ async fn test_automatic_reconnection() {
 
 #[tokio::test]
 async fn test_message_queuing_during_disconnection() {
-    // First client to set up subscription
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+    
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
+    // Create client with persistent session
     let client_id = test_client_id("queue-test");
-    let client1 = MqttClient::new(client_id.clone());
+    let client = MqttClient::new(client_id.clone());
 
     let opts = ConnectOptions::new(client_id.clone())
         .with_clean_start(false)
         .with_session_expiry_interval(300);
 
-    client1
-        .connect_with_options("127.0.0.1:1883", opts.clone())
+    client
+        .connect_with_options(broker.address(), opts.clone())
         .await
         .expect("Failed to connect");
 
     let received = Arc::new(RwLock::new(Vec::<String>::new()));
     let received_clone = Arc::clone(&received);
 
-    let (packet_id, qos) = client1
+    let (packet_id, qos) = client
         .subscribe_with_options(
             "test/queue/#",
             SubscribeOptions {
@@ -131,14 +143,14 @@ async fn test_message_queuing_during_disconnection() {
 
     println!("Subscribed with packet_id: {packet_id}, qos: {qos:?}");
 
-    // Disconnect first client
-    client1.disconnect().await.expect("Failed to disconnect");
+    // Disconnect client
+    client.disconnect().await.expect("Failed to disconnect");
 
     // Publisher client sends messages while subscriber is offline
     let publisher = MqttClient::new(test_client_id("queue-publisher"));
 
     publisher
-        .connect("127.0.0.1:1883")
+        .connect(broker.address())
         .await
         .expect("Failed to connect publisher");
 
@@ -158,20 +170,28 @@ async fn test_message_queuing_during_disconnection() {
         .await
         .expect("Failed to disconnect publisher");
 
-    // Reconnect using same client instance
-    let reconnect_result = client1
-        .connect_with_options("127.0.0.1:1883", opts)
+    // Reconnect with the same client instance to preserve callbacks
+    let reconnect_result = client
+        .connect_with_options(broker.address(), opts)
         .await
         .expect("Failed to reconnect");
 
     let session_present = reconnect_result.session_present;
     println!("Reconnected with session_present: {session_present}");
-
-    // The subscription should be restored automatically with our callback persistence
-    // Just wait for queued messages to be delivered
-    tokio::time::sleep(Duration::from_millis(1000)).await;
-
-    // Verify all messages were received
+    
+    // Wait a bit for queued messages to be delivered
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    
+    // Send one more message to verify subscription is still active
+    let publisher2 = MqttClient::new(test_client_id("queue-publisher2"));
+    publisher2.connect(broker.address()).await.expect("Failed to connect publisher2");
+    publisher2
+        .publish_qos1("test/queue/msg6", b"New message after reconnect")
+        .await
+        .expect("Failed to publish test message");
+    publisher2.disconnect().await.expect("Failed to disconnect publisher2");
+    
+    tokio::time::sleep(Duration::from_millis(500)).await;
     {
         let messages = received.read().unwrap();
         let len = messages.len();
@@ -179,18 +199,23 @@ async fn test_message_queuing_during_disconnection() {
         for msg in messages.iter() {
             println!("  - {msg}");
         }
-        assert_eq!(messages.len(), 5);
-        for i in 1..=5 {
-            assert!(messages.contains(&format!("Offline message {i}")));
-        }
+        assert_eq!(messages.len(), 6, "Should have received exactly 5 queued messages plus 1 new one");
+        assert!(messages.contains(&"Offline message 1".to_string()));
+        assert!(messages.contains(&"Offline message 2".to_string()));
+        assert!(messages.contains(&"Offline message 3".to_string()));
+        assert!(messages.contains(&"Offline message 4".to_string()));
+        assert!(messages.contains(&"Offline message 5".to_string()));
+        assert!(messages.contains(&"New message after reconnect".to_string()));
     } // Drop the lock before awaiting
 
-    client1.disconnect().await.expect("Failed to disconnect");
+    client.disconnect().await.expect("Failed to disconnect");
 }
 
 #[tokio::test]
-
 async fn test_exponential_backoff_reconnection() {
+    // Start test broker (not used in this test - testing connection failure)
+    let _broker = TestBroker::start().await;
+    
     let client = MqttClient::new(test_client_id("backoff-test"));
 
     let attempt_times = Arc::new(RwLock::new(Vec::<std::time::Instant>::new()));
@@ -239,8 +264,10 @@ async fn test_exponential_backoff_reconnection() {
 }
 
 #[tokio::test]
-
 async fn test_clean_session_reconnection() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client_id = test_client_id("clean-session");
 
     // First connection with clean_start = true
@@ -249,7 +276,7 @@ async fn test_clean_session_reconnection() {
     let opts_clean = ConnectOptions::new(client_id.clone()).with_clean_start(true);
 
     client1
-        .connect_with_options("127.0.0.1:1883", opts_clean)
+        .connect_with_options(broker.address(), opts_clean)
         .await
         .expect("Failed to connect");
 
@@ -272,7 +299,7 @@ async fn test_clean_session_reconnection() {
     let publisher = MqttClient::new(test_client_id("clean-publisher"));
 
     publisher
-        .connect("127.0.0.1:1883")
+        .connect(broker.address())
         .await
         .expect("Failed to connect publisher");
     publisher
@@ -293,7 +320,7 @@ async fn test_clean_session_reconnection() {
     let opts_clean2 = ConnectOptions::new(client_id).with_clean_start(true);
 
     client2
-        .connect_with_options("127.0.0.1:1883", opts_clean2)
+        .connect_with_options(broker.address(), opts_clean2)
         .await
         .expect("Failed to reconnect");
 
@@ -320,8 +347,10 @@ async fn test_clean_session_reconnection() {
 }
 
 #[tokio::test]
-
 async fn test_keep_alive_timeout_detection() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client = MqttClient::new(test_client_id("keepalive-test"));
 
     let disconnected = Arc::new(AtomicBool::new(false));
@@ -343,7 +372,7 @@ async fn test_keep_alive_timeout_detection() {
         .with_automatic_reconnect(false); // Disable auto-reconnect for this test
 
     client
-        .connect_with_options("127.0.0.1:1883", opts)
+        .connect_with_options(broker.address(), opts)
         .await
         .expect("Failed to connect");
 
@@ -463,6 +492,9 @@ async fn publish_reconnect_messages(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_subscription_restoration_after_reconnect() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client_id = test_client_id("sub-restore");
     let client = MqttClient::new(client_id.clone());
     let message_count = Arc::new(AtomicU32::new(0));
@@ -474,7 +506,7 @@ async fn test_subscription_restoration_after_reconnect() {
         .with_automatic_reconnect(true);
 
     client
-        .connect_with_options("127.0.0.1:1883", opts.clone())
+        .connect_with_options(broker.address(), opts.clone())
         .await
         .expect("Failed to connect");
 
@@ -503,7 +535,7 @@ async fn test_subscription_restoration_after_reconnect() {
     message_count.store(0, Ordering::SeqCst);
 
     println!("Reconnecting...");
-    let reconnect_result = client.connect_with_options("127.0.0.1:1883", opts).await;
+    let reconnect_result = client.connect_with_options(broker.address(), opts).await;
     match reconnect_result {
         Ok(result) => println!(
             "Reconnected with session_present: {}",

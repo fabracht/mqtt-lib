@@ -23,17 +23,21 @@ use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
+use crate::transport::dtls::{DtlsReadHalf, DtlsWriteHalf};
 use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
+use crate::transport::udp::{UdpReadHalf, UdpWriteHalf};
 use crate::transport::websocket::{WebSocketReadHandle, WebSocketWriteHandle};
 use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};
 use crate::QoS;
 
-/// Unified reader type that can handle TCP, TLS, and WebSocket
+/// Unified reader type that can handle TCP, TLS, WebSocket, UDP, and DTLS
 pub enum UnifiedReader {
     Tcp(OwnedReadHalf),
     Tls(TlsReadHalf),
     WebSocket(WebSocketReadHandle),
+    Udp(UdpReadHalf),
+    Dtls(DtlsReadHalf),
 }
 
 impl PacketReader for UnifiedReader {
@@ -42,15 +46,19 @@ impl PacketReader for UnifiedReader {
             Self::Tcp(reader) => reader.read_packet().await,
             Self::Tls(reader) => reader.read_packet().await,
             Self::WebSocket(reader) => reader.read_packet().await,
+            Self::Udp(reader) => reader.read_packet().await,
+            Self::Dtls(reader) => reader.read_packet().await,
         }
     }
 }
 
-/// Unified writer type that can handle TCP, TLS, and WebSocket
+/// Unified writer type that can handle TCP, TLS, WebSocket, UDP, and DTLS
 pub enum UnifiedWriter {
     Tcp(OwnedWriteHalf),
     Tls(TlsWriteHalf),
     WebSocket(WebSocketWriteHandle),
+    Udp(UdpWriteHalf),
+    Dtls(DtlsWriteHalf),
 }
 
 impl PacketWriter for UnifiedWriter {
@@ -59,6 +67,8 @@ impl PacketWriter for UnifiedWriter {
             Self::Tcp(writer) => writer.write_packet(packet).await,
             Self::Tls(writer) => writer.write_packet(packet).await,
             Self::WebSocket(writer) => writer.write_packet(packet).await,
+            Self::Udp(writer) => writer.write_packet(packet).await,
+            Self::Dtls(writer) => writer.write_packet(packet).await,
         }
     }
 }
@@ -207,6 +217,14 @@ impl DirectClientInner {
                     TransportType::WebSocket(ws) => {
                         let (r, w) = (*ws).into_split()?;
                         (UnifiedReader::WebSocket(r), UnifiedWriter::WebSocket(w))
+                    }
+                    TransportType::Udp(udp) => {
+                        let (r, w) = udp.into_split()?;
+                        (UnifiedReader::Udp(r), UnifiedWriter::Udp(w))
+                    }
+                    TransportType::Dtls(dtls) => {
+                        let (r, w) = (*dtls).into_split()?;
+                        (UnifiedReader::Dtls(r), UnifiedWriter::Dtls(w))
                     }
                 };
 
@@ -823,15 +841,18 @@ impl DirectClientInner {
             tracing::debug!("📦 PACKET READER - Task exited");
         }));
 
-        // Start keepalive task
-        let keepalive_writer = writer_for_keepalive;
+        // Start keepalive task (only if keepalive is not zero)
         let keepalive_interval = self.options.keep_alive;
-
-        self.keepalive_handle = Some(tokio::spawn(async move {
-            tracing::debug!("💓 KEEPALIVE - Task starting");
-            keepalive_task_with_writer(keepalive_writer, keepalive_interval).await;
-            tracing::debug!("💓 KEEPALIVE - Task exited");
-        }));
+        if !keepalive_interval.is_zero() {
+            let keepalive_writer = writer_for_keepalive;
+            self.keepalive_handle = Some(tokio::spawn(async move {
+                tracing::debug!("💓 KEEPALIVE - Task starting");
+                keepalive_task_with_writer(keepalive_writer, keepalive_interval).await;
+                tracing::debug!("💓 KEEPALIVE - Task exited");
+            }));
+        } else {
+            tracing::debug!("💓 KEEPALIVE - Disabled (interval is zero)");
+        }
 
         Ok(())
     }
@@ -939,7 +960,12 @@ async fn keepalive_task_with_writer(
     writer: Arc<tokio::sync::RwLock<UnifiedWriter>>,
     keepalive_interval: Duration,
 ) {
-    let mut interval = tokio::time::interval(keepalive_interval);
+    // Send pings at 75% of the keepalive interval to ensure we stay well within the timeout
+    let ping_millis = keepalive_interval.as_millis() * 3 / 4;
+    // Saturate at u64::MAX if the value is too large (unlikely in practice)
+    let ping_millis_u64 = u64::try_from(ping_millis).unwrap_or(u64::MAX);
+    let ping_interval = Duration::from_millis(ping_millis_u64);
+    let mut interval = tokio::time::interval(ping_interval);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     // Skip the first immediate tick

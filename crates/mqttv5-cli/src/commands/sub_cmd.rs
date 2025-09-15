@@ -11,6 +11,10 @@ pub struct SubCommand {
     #[arg(long, short)]
     pub topic: Option<String>,
 
+    /// MQTT broker URL (e.g., mqtt://localhost:1883, mqtt-udp://host:1883, mqtts-dtls://host:8883)
+    #[arg(long, short = 'U', conflicts_with_all = &["host", "port"])]
+    pub url: Option<String>,
+
     /// MQTT broker host
     #[arg(long, short = 'H', default_value = "localhost")]
     pub host: String,
@@ -96,7 +100,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     };
 
     // Build broker URL
-    let broker_url = format!("mqtt://{}:{}", cmd.host, cmd.port);
+    let broker_url = cmd.url.unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
     debug!("Connecting to broker: {}", broker_url);
 
     // Create client
@@ -118,8 +122,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
     info!("Subscribing to '{}' (QoS {})...", topic, qos as u8);
     println!(
-        "✓ Subscribed to '{}' - waiting for messages (Ctrl+C to exit)",
-        topic
+        "✓ Subscribed to '{topic}' - waiting for messages (Ctrl+C to exit)"
     );
 
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -144,7 +147,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
             // Check if we've reached the target count
             if target_count > 0 && count >= target_count {
-                println!("✓ Received {} messages, exiting", target_count);
+                println!("✓ Received {target_count} messages, exiting");
                 std::process::exit(0);
             }
         })

@@ -3,6 +3,7 @@
 //! This test demonstrates a real bridge scenario between two brokers
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::config::{StorageConfig, StorageBackend};
 use mqtt5::client::MqttClient;
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,24 +11,43 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout};
 
 #[tokio::test]
-#[ignore = "Requires manual setup - demonstrates bridge configuration"]
 async fn test_bridge_between_brokers() {
     // Initialize logging for debugging
     let _ = tracing_subscriber::fmt()
         .with_env_filter("info,mqtt5=debug")
         .try_init();
 
+    // Configure storage for both brokers
+    let storage_config = StorageConfig {
+        backend: StorageBackend::Memory,
+        enable_persistence: true,
+        ..Default::default()
+    };
+
     // Start two brokers on different ports
     let broker1_config = BrokerConfig::default()
-        .with_bind_address("127.0.0.1:11883".parse::<std::net::SocketAddr>().unwrap())
-        .with_max_clients(10);
+        .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+        .with_max_clients(10)
+        .with_storage(storage_config.clone());
 
     let broker2_config = BrokerConfig::default()
-        .with_bind_address("127.0.0.1:11884".parse::<std::net::SocketAddr>().unwrap())
-        .with_max_clients(10);
+        .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+        .with_max_clients(10)
+        .with_storage(storage_config);
 
-    let broker1 = Arc::new(MqttBroker::with_config(broker1_config).await.unwrap());
-    let broker2 = Arc::new(MqttBroker::with_config(broker2_config).await.unwrap());
+    let mut broker1 = MqttBroker::with_config(broker1_config).await.unwrap();
+    let mut broker2 = MqttBroker::with_config(broker2_config).await.unwrap();
+    
+    let broker1_addr = broker1.local_addr().expect("Failed to get broker1 address");
+    let broker2_addr = broker2.local_addr().expect("Failed to get broker2 address");
+    
+    // Start brokers in background
+    let broker1_handle = tokio::spawn(async move {
+        let _ = broker1.run().await;
+    });
+    let broker2_handle = tokio::spawn(async move {
+        let _ = broker2.run().await;
+    });
 
     // Give brokers time to start
     sleep(Duration::from_millis(100)).await;
@@ -37,8 +57,8 @@ async fn test_bridge_between_brokers() {
     let client2 = MqttClient::new("client2");
 
     // Connect clients
-    client1.connect("mqtt://127.0.0.1:11883").await.unwrap();
-    client2.connect("mqtt://127.0.0.1:11884").await.unwrap();
+    client1.connect(&format!("mqtt://{}", broker1_addr)).await.unwrap();
+    client2.connect(&format!("mqtt://{}", broker2_addr)).await.unwrap();
 
     // Set up message channels to capture received messages
     let (tx1, mut rx1) = mpsc::channel(10);
@@ -96,8 +116,9 @@ async fn test_bridge_between_brokers() {
     client1.disconnect().await.unwrap();
     client2.disconnect().await.unwrap();
 
-    broker1.shutdown().await.unwrap();
-    broker2.shutdown().await.unwrap();
+    // Abort the broker tasks
+    broker1_handle.abort();
+    broker2_handle.abort();
 }
 
 #[tokio::test]
@@ -115,7 +136,7 @@ async fn test_bridge_configuration_serialization() {
 
     // Serialize to JSON
     let json = serde_json::to_string_pretty(&config).unwrap();
-    println!("Bridge config JSON:\n{}", json);
+    println!("Bridge config JSON:\n{json}");
 
     // Deserialize back
     let config2: BridgeConfig = serde_json::from_str(&json).unwrap();
@@ -149,10 +170,7 @@ async fn test_bridge_topic_pattern_matching() {
         assert_eq!(
             topic_matches_filter(topic, pattern),
             expected,
-            "Topic '{}' matching pattern '{}' expected {}",
-            topic,
-            pattern,
-            expected
+            "Topic '{topic}' matching pattern '{pattern}' expected {expected}"
         );
     }
 }

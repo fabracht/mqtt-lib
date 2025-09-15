@@ -334,13 +334,15 @@ mod unacked_message_tests {
                 let session = SessionState::new("client1".to_string(), SessionConfig::default(), true);
 
                 let mut qos_packets = vec![];
+                let mut seen_ids = std::collections::HashSet::new();
 
-                // Store unacked publishes
+                // Store unacked publishes, skipping duplicates (which would overwrite in real MQTT)
                 for (id, qos) in packets {
-                    if qos != QoS::AtMostOnce {
+                    if qos != QoS::AtMostOnce && !seen_ids.contains(&id) {
                         let packet = publish_packet(id, qos);
                         session.store_unacked_publish(packet.clone()).await.unwrap();
                         qos_packets.push((id, packet));
+                        seen_ids.insert(id);
                     }
                 }
 

@@ -10,7 +10,9 @@ use crate::packet::unsubscribe::UnsubscribePacket;
 use crate::protocol::v5::properties::Properties;
 use crate::transport::tcp::TcpConfig;
 use crate::transport::tls::TlsConfig;
-use crate::transport::{TcpTransport, TlsTransport, Transport, TransportType};
+use crate::transport::udp::UdpConfig;
+use crate::transport::dtls::DtlsConfig;
+use crate::transport::{TcpTransport, TlsTransport, UdpTransport, DtlsTransport, Transport, TransportType};
 use crate::types::{
     ConnectOptions, ConnectResult, PublishOptions, PublishResult, SubscribeOptions,
 };
@@ -420,6 +422,24 @@ impl MqttClient {
                     .await
                     .map_err(|e| MqttError::ConnectionError(format!("TLS connect failed: {e}")))?;
                 Ok(TransportType::Tls(Box::new(tls_transport)))
+            }
+            ClientTransportType::Udp => {
+                let config = UdpConfig::new(addr);
+                let mut udp_transport = UdpTransport::new(config);
+                udp_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("UDP connect failed: {e}")))?;
+                Ok(TransportType::Udp(udp_transport))
+            }
+            ClientTransportType::Dtls => {
+                let config = DtlsConfig::new(addr);
+                let mut dtls_transport = DtlsTransport::new(config);
+                dtls_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("DTLS connect failed: {e}")))?;
+                Ok(TransportType::Dtls(Box::new(dtls_transport)))
             }
         }
     }
@@ -1481,6 +1501,12 @@ impl MqttClient {
         } else if let Some(rest) = address.strip_prefix("mqtts://") {
             let (host, port) = Self::split_host_port(rest, 8883)?;
             Ok((ClientTransportType::Tls, host, port))
+        } else if let Some(rest) = address.strip_prefix("mqtt-udp://") {
+            let (host, port) = Self::split_host_port(rest, 1883)?;
+            Ok((ClientTransportType::Udp, host, port))
+        } else if let Some(rest) = address.strip_prefix("mqtts-dtls://") {
+            let (host, port) = Self::split_host_port(rest, 8883)?;
+            Ok((ClientTransportType::Dtls, host, port))
         } else if let Some(rest) = address.strip_prefix("tcp://") {
             let (host, port) = Self::split_host_port(rest, 1883)?;
             Ok((ClientTransportType::Tcp, host, port))
@@ -1743,6 +1769,8 @@ impl MqttClient {
 enum ClientTransportType {
     Tcp,
     Tls,
+    Udp,
+    Dtls,
 }
 
 #[cfg(test)]
@@ -1758,23 +1786,72 @@ mod tests {
 
     #[test]
     fn test_parse_address() {
-        // Test MQTT scheme
+        // Test MQTT scheme with explicit port
         let (transport, host, port) = MqttClient::parse_address("mqtt://localhost:1883").unwrap();
         assert!(matches!(transport, ClientTransportType::Tcp));
         assert_eq!(host, "localhost");
         assert_eq!(port, 1883);
 
-        // Test MQTTS scheme
+        // Test MQTT scheme with default port
+        let (transport, host, port) = MqttClient::parse_address("mqtt://localhost").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tcp));
+        assert_eq!(host, "localhost");
+        assert_eq!(port, 1883);
+
+        // Test MQTTS scheme with default port
         let (transport, host, port) =
             MqttClient::parse_address("mqtts://broker.example.com").unwrap();
         assert!(matches!(transport, ClientTransportType::Tls));
         assert_eq!(host, "broker.example.com");
         assert_eq!(port, 8883);
 
-        // Test no scheme (defaults to TCP)
+        // Test MQTTS scheme with custom port
+        let (transport, host, port) =
+            MqttClient::parse_address("mqtts://secure.broker:9999").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tls));
+        assert_eq!(host, "secure.broker");
+        assert_eq!(port, 9999);
+
+        // Test TCP scheme
+        let (transport, host, port) = MqttClient::parse_address("tcp://192.168.1.100:1234").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tcp));
+        assert_eq!(host, "192.168.1.100");
+        assert_eq!(port, 1234);
+
+        // Test SSL scheme (alias for TLS)
+        let (transport, host, port) = MqttClient::parse_address("ssl://secure.broker.com:8883").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tls));
+        assert_eq!(host, "secure.broker.com");
+        assert_eq!(port, 8883);
+
+        // Test UDP scheme
+        let (transport, host, port) = MqttClient::parse_address("mqtt-udp://udp.broker:1883").unwrap();
+        assert!(matches!(transport, ClientTransportType::Udp));
+        assert_eq!(host, "udp.broker");
+        assert_eq!(port, 1883);
+
+        // Test DTLS scheme
+        let (transport, host, port) = MqttClient::parse_address("mqtts-dtls://dtls.broker:8883").unwrap();
+        assert!(matches!(transport, ClientTransportType::Dtls));
+        assert_eq!(host, "dtls.broker");
+        assert_eq!(port, 8883);
+
+        // Test no scheme with host only (defaults to TCP)
         let (transport, host, port) = MqttClient::parse_address("localhost").unwrap();
         assert!(matches!(transport, ClientTransportType::Tcp));
         assert_eq!(host, "localhost");
+        assert_eq!(port, 1883);
+
+        // Test no scheme with host and port
+        let (transport, host, port) = MqttClient::parse_address("broker.local:9999").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tcp));
+        assert_eq!(host, "broker.local");
+        assert_eq!(port, 9999);
+
+        // Test IPv6 addresses
+        let (transport, host, port) = MqttClient::parse_address("[::1]:1883").unwrap();
+        assert!(matches!(transport, ClientTransportType::Tcp));
+        assert_eq!(host, "[::1]");
         assert_eq!(port, 1883);
     }
 }

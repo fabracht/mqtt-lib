@@ -230,14 +230,26 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_connect_real_broker() {
         use crate::broker::server::MqttBroker;
+        use crate::broker::config::{BrokerConfig, StorageConfig, StorageBackend};
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
 
-        // Start our own MQTT broker on a random port
-        let mut broker = MqttBroker::bind("127.0.0.1:0")
+        // Start our own MQTT broker on a random port with in-memory storage
+        
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+        
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_storage(storage_config);
+            
+        let mut broker = MqttBroker::with_config(config)
             .await
-            .expect("Failed to start broker");
+            .expect("Failed to create broker");
         let broker_addr = broker.local_addr().expect("Failed to get broker address");
         info!(broker_addr = %broker_addr, "Test broker bound to address");
 

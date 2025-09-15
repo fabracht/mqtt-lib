@@ -1,3 +1,6 @@
+mod common;
+use common::TestBroker;
+
 use mqtt5::{MqttClient, PublishOptions, PublishResult, QoS};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -6,11 +9,14 @@ use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_qos0_fire_and_forget() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos0-pub");
     let sub_client = MqttClient::new("qos0-sub");
 
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -45,11 +51,14 @@ async fn test_qos0_fire_and_forget() {
 
 #[tokio::test]
 async fn test_qos1_at_least_once() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos1-pub");
     let sub_client = MqttClient::new("qos1-sub");
 
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -101,11 +110,14 @@ async fn test_qos1_at_least_once() {
 
 #[tokio::test]
 async fn test_qos2_exactly_once() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos2-pub");
     let sub_client = MqttClient::new("qos2-sub");
 
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -160,11 +172,14 @@ async fn test_qos2_exactly_once() {
 
 #[tokio::test]
 async fn test_qos_downgrade() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos-downgrade-pub");
     let sub_client = MqttClient::new("qos-downgrade-sub");
 
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received_qos = Arc::new(AtomicU32::new(0));
     let received_qos_clone = received_qos.clone();
@@ -203,11 +218,14 @@ async fn test_qos_downgrade() {
 
 #[tokio::test]
 async fn test_qos_upgrade_not_allowed() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos-upgrade-pub");
     let sub_client = MqttClient::new("qos-upgrade-sub");
 
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received_qos = Arc::new(AtomicU32::new(3)); // Invalid initial value
     let received_qos_clone = received_qos.clone();
@@ -245,9 +263,12 @@ async fn test_qos_upgrade_not_allowed() {
 
 #[tokio::test]
 async fn test_qos1_retransmission() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     // This test simulates packet loss and retransmission
     let client = MqttClient::new("qos1-retrans");
-    client.connect("mqtt://localhost:1883").await.unwrap();
+    client.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -288,9 +309,12 @@ async fn test_qos1_retransmission() {
 
 #[tokio::test]
 async fn test_qos2_no_duplicates() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     // Test that QoS 2 prevents duplicate delivery
     let client = MqttClient::new("qos2-nodup");
-    client.connect("mqtt://localhost:1883").await.unwrap();
+    client.connect(broker.address()).await.unwrap();
 
     let messages = Arc::new(std::sync::Mutex::new(Vec::new()));
     let messages_clone = messages.clone();
@@ -341,8 +365,11 @@ async fn test_qos2_no_duplicates() {
 
 #[tokio::test]
 async fn test_mixed_qos_levels() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client = MqttClient::new("mixed-qos");
-    client.connect("mqtt://localhost:1883").await.unwrap();
+    client.connect(broker.address()).await.unwrap();
 
     let qos_counts = Arc::new(std::sync::Mutex::new([0u32; 3]));
     let qos_counts_clone = qos_counts.clone();
@@ -403,11 +430,14 @@ async fn test_mixed_qos_levels() {
 
 #[tokio::test]
 async fn test_qos_with_retain() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let pub_client = MqttClient::new("qos-retain-pub");
     let sub_client = MqttClient::new("qos-retain-sub");
 
     // Publisher sends retained message and disconnects
-    pub_client.connect("mqtt://localhost:1883").await.unwrap();
+    pub_client.connect(broker.address()).await.unwrap();
 
     let options = PublishOptions {
         qos: QoS::AtLeastOnce,
@@ -425,7 +455,7 @@ async fn test_qos_with_retain() {
     sleep(Duration::from_millis(100)).await;
 
     // Subscriber connects and subscribes
-    sub_client.connect("mqtt://localhost:1883").await.unwrap();
+    sub_client.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -460,8 +490,11 @@ async fn test_qos_with_retain() {
 
 #[tokio::test]
 async fn test_qos_packet_id_exhaustion() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+    
     let client = MqttClient::new("qos-exhaustion");
-    client.connect("mqtt://localhost:1883").await.unwrap();
+    client.connect(broker.address()).await.unwrap();
 
     // Try to send many QoS 1 messages quickly
     let mut packet_ids = Vec::new();

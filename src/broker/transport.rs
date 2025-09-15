@@ -4,7 +4,7 @@
 //! (TCP, TLS, WebSocket) used by the broker's client handler.
 
 use crate::error::Result;
-use crate::transport::Transport;
+use crate::transport::{Transport, UdpTransport, DtlsTransport};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -23,6 +23,10 @@ pub enum BrokerTransport {
     Tls(Box<TlsStreamWrapper>),
     /// WebSocket connection
     WebSocket(Box<WebSocketStreamWrapper>),
+    /// UDP connection
+    Udp(Box<UdpTransport>),
+    /// DTLS-encrypted connection
+    Dtls(Box<DtlsTransport>),
 }
 
 impl BrokerTransport {
@@ -41,12 +45,24 @@ impl BrokerTransport {
         Self::WebSocket(Box::new(stream))
     }
 
+    /// Creates a new UDP transport
+    pub fn udp(transport: UdpTransport) -> Self {
+        Self::Udp(Box::new(transport))
+    }
+
+    /// Creates a new DTLS transport
+    pub fn dtls(transport: DtlsTransport) -> Self {
+        Self::Dtls(Box::new(transport))
+    }
+
     /// Gets the peer address
     pub fn peer_addr(&self) -> Result<SocketAddr> {
         match self {
             Self::Tcp(stream) => Ok(stream.peer_addr()?),
             Self::Tls(stream) => stream.peer_addr(),
             Self::WebSocket(stream) => stream.peer_addr(),
+            Self::Udp(transport) => Ok(transport.remote_addr()),
+            Self::Dtls(transport) => Ok(transport.remote_addr()),
         }
     }
 
@@ -56,12 +72,14 @@ impl BrokerTransport {
             Self::Tcp(_) => "TCP",
             Self::Tls(_) => "TLS",
             Self::WebSocket(_) => "WebSocket",
+            Self::Udp(_) => "UDP",
+            Self::Dtls(_) => "DTLS",
         }
     }
 
     /// Checks if this is a secure connection
     pub fn is_secure(&self) -> bool {
-        matches!(self, Self::Tls(_))
+        matches!(self, Self::Tls(_) | Self::Dtls(_))
     }
 
     /// Gets client certificate info if available (for TLS connections)
@@ -74,7 +92,7 @@ impl BrokerTransport {
                     None
                 }
             }
-            Self::Tcp(_) | Self::WebSocket(_) => None,
+            Self::Tcp(_) | Self::WebSocket(_) | Self::Udp(_) | Self::Dtls(_) => None,
         }
     }
 }
@@ -85,6 +103,8 @@ impl Debug for BrokerTransport {
             Self::Tcp(_) => write!(f, "BrokerTransport::Tcp"),
             Self::Tls(_) => write!(f, "BrokerTransport::Tls"),
             Self::WebSocket(_) => write!(f, "BrokerTransport::WebSocket"),
+            Self::Udp(_) => write!(f, "BrokerTransport::Udp"),
+            Self::Dtls(_) => write!(f, "BrokerTransport::Dtls"),
         }
     }
 }
@@ -99,6 +119,12 @@ impl AsyncRead for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_read(cx, buf),
+            Self::Udp(_) | Self::Dtls(_) => {
+                Poll::Ready(Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "AsyncRead not supported for UDP/DTLS transports",
+                )))
+            }
         }
     }
 }
@@ -113,6 +139,12 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_write(cx, buf),
+            Self::Udp(_) | Self::Dtls(_) => {
+                Poll::Ready(Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "AsyncWrite not supported for UDP/DTLS transports",
+                )))
+            }
         }
     }
 
@@ -121,6 +153,7 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_flush(cx),
             Self::Tls(stream) => Pin::new(stream).poll_flush(cx),
             Self::WebSocket(stream) => Pin::new(stream).poll_flush(cx),
+            Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Ok(())),
         }
     }
 
@@ -129,6 +162,7 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::Tls(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::WebSocket(stream) => Pin::new(stream).poll_shutdown(cx),
+            Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Ok(())),
         }
     }
 }
@@ -141,18 +175,36 @@ impl Transport for BrokerTransport {
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Ok(AsyncReadExt::read(self, buf).await?)
+        match self {
+            Self::Tcp(_) | Self::Tls(_) | Self::WebSocket(_) => {
+                Ok(AsyncReadExt::read(self, buf).await?)
+            }
+            Self::Udp(transport) => transport.read(buf).await,
+            Self::Dtls(transport) => transport.read(buf).await,
+        }
     }
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
-        AsyncWriteExt::write_all(self, buf).await?;
-        AsyncWriteExt::flush(self).await?;
-        Ok(())
+        match self {
+            Self::Tcp(_) | Self::Tls(_) | Self::WebSocket(_) => {
+                AsyncWriteExt::write_all(self, buf).await?;
+                AsyncWriteExt::flush(self).await?;
+                Ok(())
+            }
+            Self::Udp(transport) => transport.write(buf).await,
+            Self::Dtls(transport) => transport.write(buf).await,
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
-        AsyncWriteExt::shutdown(self).await?;
-        Ok(())
+        match self {
+            Self::Tcp(_) | Self::Tls(_) | Self::WebSocket(_) => {
+                AsyncWriteExt::shutdown(self).await?;
+                Ok(())
+            }
+            Self::Udp(transport) => transport.close().await,
+            Self::Dtls(transport) => transport.close().await,
+        }
     }
 }
 

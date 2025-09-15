@@ -1,17 +1,26 @@
 // Debug test for mqtt-v5 TLS connection
+mod common;
+use common::TestBroker;
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use mqtt5::transport::tls::TlsConfig;
     use mqtt5::{ConnectOptions, MqttClient};
     use std::time::Duration;
 
     #[tokio::test]
     async fn debug_tls_connection() {
+        // Start test broker with TLS
+        let broker = TestBroker::start_with_tls().await;
+        
+        // Extract address from broker (format: mqtts://host:port)
+        let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
+        let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
+        
         // Create client
         let client = MqttClient::new("debug-tls-client");
 
-        // Parse address
-        let addr = "127.0.0.1:8883".parse().expect("Failed to parse address");
         println!("Connecting to address: {addr:?}");
 
         // Create TLS config

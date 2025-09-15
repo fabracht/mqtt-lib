@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run broker in background
     let broker_handle = tokio::spawn(async move {
         if let Err(e) = broker.run().await {
-            eprintln!("Broker error: {}", e);
+            eprintln!("Broker error: {e}");
         }
     });
 
@@ -156,7 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let payload = format!("Task {} - Process order #{}", i, i * 100);
 
         publisher.publish(&topic, payload.as_bytes()).await?;
-        println!("Published task {} to {}", i, topic);
+        println!("Published task {i} to {topic}");
 
         // Small delay to see distribution
         sleep(Duration::from_millis(500)).await;

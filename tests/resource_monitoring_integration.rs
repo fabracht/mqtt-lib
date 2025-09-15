@@ -154,7 +154,7 @@ async fn test_memory_monitoring() {
     // Add some connections
     for i in 0..3 {
         resource_monitor
-            .register_connection(format!("client{}", i), ip)
+            .register_connection(format!("client{i}"), ip)
             .await;
     }
 

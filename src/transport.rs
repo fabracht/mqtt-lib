@@ -1,17 +1,21 @@
+pub mod dtls;
 pub mod manager;
 #[cfg(test)]
 pub mod mock;
 pub mod packet_io;
 pub mod tcp;
 pub mod tls;
+pub mod udp;
 pub mod websocket;
 
 use crate::error::Result;
 
+pub use dtls::{DtlsConfig, DtlsTransport};
 pub use manager::{ConnectionState, ConnectionStats, ManagerConfig, TransportManager};
 pub use packet_io::{PacketIo, PacketReader, PacketWriter};
 pub use tcp::{TcpConfig, TcpTransport};
 pub use tls::{TlsConfig, TlsTransport};
+pub use udp::{UdpConfig, UdpTransport};
 pub use websocket::{WebSocketConfig, WebSocketTransport};
 
 pub trait Transport: Send + Sync {
@@ -49,6 +53,8 @@ pub enum TransportType {
     Tcp(TcpTransport),
     Tls(Box<TlsTransport>),
     WebSocket(Box<WebSocketTransport>),
+    Udp(UdpTransport),
+    Dtls(Box<DtlsTransport>),
 }
 
 impl Transport for TransportType {
@@ -57,6 +63,8 @@ impl Transport for TransportType {
             Self::Tcp(t) => t.connect().await,
             Self::Tls(t) => t.connect().await,
             Self::WebSocket(t) => t.connect().await,
+            Self::Udp(t) => t.connect().await,
+            Self::Dtls(t) => t.connect().await,
         }
     }
 
@@ -65,6 +73,8 @@ impl Transport for TransportType {
             Self::Tcp(t) => t.read(buf).await,
             Self::Tls(t) => t.read(buf).await,
             Self::WebSocket(t) => t.read(buf).await,
+            Self::Udp(t) => t.read(buf).await,
+            Self::Dtls(t) => t.read(buf).await,
         }
     }
 
@@ -73,6 +83,8 @@ impl Transport for TransportType {
             Self::Tcp(t) => t.write(buf).await,
             Self::Tls(t) => t.write(buf).await,
             Self::WebSocket(t) => t.write(buf).await,
+            Self::Udp(t) => t.write(buf).await,
+            Self::Dtls(t) => t.write(buf).await,
         }
     }
 
@@ -81,6 +93,8 @@ impl Transport for TransportType {
             Self::Tcp(t) => t.close().await,
             Self::Tls(t) => t.close().await,
             Self::WebSocket(t) => t.close().await,
+            Self::Udp(t) => t.close().await,
+            Self::Dtls(t) => t.close().await,
         }
     }
 }

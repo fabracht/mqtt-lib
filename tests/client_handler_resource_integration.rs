@@ -1,16 +1,25 @@
 //! Integration tests for ClientHandler with ResourceMonitor
 
+mod common;
 use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::broker::config::{StorageConfig, StorageBackend};
 use mqtt5::client::MqttClient;
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_real_client_connection_limits() {
-    // Create broker with very low connection limit
+    // Create broker with very low connection limit and in-memory storage
+    let storage_config = StorageConfig {
+        backend: StorageBackend::Memory,
+        enable_persistence: true,
+        ..Default::default()
+    };
+    
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
-        .with_max_clients(2);
+        .with_max_clients(2)
+        .with_storage(storage_config);
 
     let mut broker = MqttBroker::with_config(config).await.unwrap();
     let resource_monitor = broker.resource_monitor();
@@ -29,18 +38,17 @@ async fn test_real_client_connection_limits() {
 
     // First two clients should connect successfully
     for i in 0..2 {
-        let client_id = format!("client-{}", i);
+        let client_id = format!("client-{i}");
         let client = MqttClient::new(&client_id);
 
         match client.connect(&broker_addr.to_string()).await {
             Ok(_) => {
-                println!("Client {} connected successfully", client_id);
+                println!("Client {client_id} connected successfully");
                 clients.push(client);
             }
             Err(e) => {
                 panic!(
-                    "Client {} should have connected but failed: {}",
-                    client_id, e
+                    "Client {client_id} should have connected but failed: {e}"
                 );
             }
         }
@@ -78,9 +86,16 @@ async fn test_real_client_connection_limits() {
 #[tokio::test]
 async fn test_real_client_rate_limiting() {
     // Create broker with very low message rate limits for testing
+    let storage_config = StorageConfig {
+        backend: StorageBackend::Memory,
+        enable_persistence: true,
+        ..Default::default()
+    };
+    
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
-        .with_max_clients(5);
+        .with_max_clients(5)
+        .with_storage(storage_config);
 
     let mut broker = MqttBroker::with_config(config).await.unwrap();
     let resource_monitor = broker.resource_monitor();
@@ -107,7 +122,7 @@ async fn test_real_client_rate_limiting() {
 
     for i in 0..20 {
         match client
-            .publish(&format!("test/message/{}", i), "test payload")
+            .publish(&format!("test/message/{i}"), "test payload")
             .await
         {
             Ok(_) => {
@@ -123,8 +138,7 @@ async fn test_real_client_rate_limiting() {
     }
 
     println!(
-        "Published {} messages successfully, {} failed",
-        success_count, error_count
+        "Published {success_count} messages successfully, {error_count} failed"
     );
 
     // Check that messages were tracked in resource monitor
@@ -152,9 +166,16 @@ async fn test_real_client_rate_limiting() {
 
 #[tokio::test]
 async fn test_client_registration_unregistration() {
+    let storage_config = StorageConfig {
+        backend: StorageBackend::Memory,
+        enable_persistence: true,
+        ..Default::default()
+    };
+    
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
-        .with_max_clients(10);
+        .with_max_clients(10)
+        .with_storage(storage_config);
 
     let mut broker = MqttBroker::with_config(config).await.unwrap();
     let resource_monitor = broker.resource_monitor();

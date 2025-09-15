@@ -98,7 +98,7 @@ fn benchmark_ip_operations(c: &mut Criterion) {
             rt.block_on(async {
                 counter += 1;
                 monitor
-                    .register_connection(format!("client-{}", counter), ip)
+                    .register_connection(format!("client-{counter}"), ip)
                     .await;
             });
         });

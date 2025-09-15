@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Testing connection limits...");
 
     for i in 0..8 {
-        let client_id = format!("client-{}", i);
+        let client_id = format!("client-{i}");
         let client = MqttClient::new(&client_id);
 
         match client.connect(&broker_addr.to_string()).await {
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(client) = clients.first() {
         for i in 0..20 {
             match client
-                .publish(&format!("test/message/{}", i), "test payload")
+                .publish(&format!("test/message/{i}"), "test payload")
                 .await
             {
                 Ok(_) => {

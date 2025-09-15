@@ -24,6 +24,10 @@ pub struct PubCommand {
     #[arg(long)]
     pub stdin: bool,
 
+    /// MQTT broker URL (e.g., mqtt://localhost:1883, mqtt-udp://host:1883, mqtts-dtls://host:8883)
+    #[arg(long, short = 'U', conflicts_with_all = &["host", "port"])]
+    pub url: Option<String>,
+
     /// MQTT broker host
     #[arg(long, short = 'H', default_value = "localhost")]
     pub host: String,
@@ -130,7 +134,7 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     };
 
     // Build broker URL
-    let broker_url = format!("mqtt://{}:{}", cmd.host, cmd.port);
+    let broker_url = cmd.url.unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
     debug!("Connecting to broker: {}", broker_url);
 
     // Create client

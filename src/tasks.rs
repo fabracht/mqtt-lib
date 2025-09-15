@@ -423,7 +423,7 @@ mod tests {
         assert!(Arc::strong_count(&transport) >= 1);
 
         // In a real test, we'd verify PINGREQ packets are sent at intervals
-        let keepalive_interval = Duration::from_secs(30);
+        let keepalive_interval = Duration::from_millis(100);
 
         // Verify the interval is created correctly
         let mut interval = tokio::time::interval(keepalive_interval);

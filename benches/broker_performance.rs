@@ -62,7 +62,7 @@ fn benchmark_connection_establishment(c: &mut Criterion) {
                         let start = std::time::Instant::now();
 
                         for i in 0..num_connections {
-                            let client = MqttClient::new(format!("bench-client-{}", i));
+                            let client = MqttClient::new(format!("bench-client-{i}"));
                             match client.connect(&broker_addr.to_string()).await {
                                 Ok(_) => clients.push(client),
                                 Err(_) => break, // Stop if we hit connection limits
@@ -122,7 +122,7 @@ fn benchmark_concurrent_connections(c: &mut Criterion) {
                                 let addr = broker_addr.to_string();
                                 tokio::spawn(async move {
                                     let client =
-                                        MqttClient::new(format!("concurrent-client-{}", i));
+                                        MqttClient::new(format!("concurrent-client-{i}"));
                                     let result = client.connect(&addr).await;
                                     if result.is_ok() {
                                         let _ = client.disconnect().await;
@@ -206,7 +206,7 @@ fn benchmark_message_throughput(c: &mut Criterion) {
 
                         // Publish messages
                         for i in 0..10 {
-                            let topic = format!("throughput/test/{}", i);
+                            let topic = format!("throughput/test/{i}");
                             match publisher.publish(&topic, payload.as_bytes()).await {
                                 Ok(_) => {}
                                 Err(_) => break, // Stop on first error
@@ -260,7 +260,7 @@ fn benchmark_resource_monitoring(c: &mut Criterion) {
 
                 // Publish several messages to test monitoring overhead
                 for i in 0..5 {
-                    let _ = client.publish(&format!("test/{}", i), "benchmark").await;
+                    let _ = client.publish(&format!("test/{i}"), "benchmark").await;
                 }
 
                 start.elapsed()

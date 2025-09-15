@@ -69,7 +69,7 @@ fn test_shared_subscriptions_in_turmoil() {
         for i in 0..9 {
             let publish = PublishPacket::new(
                 format!("tasks/job{}", i % 3),
-                format!("Task {}", i).as_bytes(),
+                format!("Task {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
             router.route_message(&publish).await;

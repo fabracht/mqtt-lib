@@ -321,6 +321,10 @@ mod tests {
 
     #[test]
     fn test_build_server_config_without_client_auth() {
+        // Initialize the crypto provider for tests
+        let _ = rustls::crypto::ring::default_provider()
+            .install_default();
+        
         let cert = CertificateDer::from(vec![0x30, 0x82, 0x01, 0x00]);
         let key = PrivateKeyDer::from(rustls::pki_types::PrivatePkcs8KeyDer::from(vec![
             0x30, 0x48, 0x02, 0x01,

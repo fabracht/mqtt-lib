@@ -50,6 +50,7 @@ pub struct ClientHandler {
     publish_tx: mpsc::Sender<PublishPacket>,
     inflight_publishes: HashMap<u16, PublishPacket>,
     session: Option<ClientSession>,
+    next_packet_id: u16,
 }
 
 impl ClientHandler {
@@ -85,6 +86,7 @@ impl ClientHandler {
             publish_tx,
             inflight_publishes: HashMap::new(),
             session: None,
+            next_packet_id: 1,
         }
     }
 
@@ -142,15 +144,35 @@ impl ClientHandler {
             .register_client(client_id.clone(), self.publish_tx.clone())
             .await;
 
-        // Start keep-alive timer
-        let mut keep_alive_interval = interval(self.keep_alive);
-        keep_alive_interval.reset();
-
         // Handle packets until disconnect
-        let result = self.handle_packets(&mut keep_alive_interval).await;
+        trace!("Starting packet handling loop, keep_alive = {:?}", self.keep_alive);
+        let result = if self.keep_alive.is_zero() {
+            trace!("Using no-keepalive packet handler");
+            // No keepalive checking when keepalive is disabled
+            self.handle_packets_no_keepalive().await
+        } else {
+            trace!("Using keepalive packet handler");
+            // Start keep-alive timer
+            let mut keep_alive_interval = interval(self.keep_alive);
+            keep_alive_interval.reset();
+            self.handle_packets(&mut keep_alive_interval).await
+        };
+        trace!("Packet handling loop ended with result: {:?}", result);
 
-        // Cleanup
-        self.router.unregister_client(&client_id).await;
+        // Check if we should preserve the session
+        let preserve_session = if let Some(ref session) = self.session {
+            session.expiry_interval != Some(0)
+        } else {
+            false
+        };
+
+        // Only unregister client and remove subscriptions if session is not persistent
+        if !preserve_session {
+            self.router.unregister_client(&client_id).await;
+        } else {
+            // Just remove the client connection, but keep subscriptions
+            self.router.disconnect_client(&client_id).await;
+        }
 
         // Unregister connection from resource monitor
         self.resource_monitor
@@ -197,6 +219,41 @@ impl ClientHandler {
         }
     }
 
+    /// Handles incoming packets without keepalive checking
+    async fn handle_packets_no_keepalive(&mut self) -> Result<()> {
+        loop {
+            tokio::select! {
+                // Read incoming packets
+                packet_result = self.transport.read_packet() => {
+                    match packet_result {
+                        Ok(packet) => {
+                            self.handle_packet(packet).await?;
+                        }
+                        Err(MqttError::Io(e)) if e.contains("stream has been shut down") => {
+                            debug!("Client disconnected");
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            error!("Read error in handle_packets_no_keepalive: {}", e);
+                            return Err(e);
+                        }
+                    }
+                }
+
+                // Send outgoing publishes
+                publish_opt = self.publish_rx.recv() => {
+                    if let Some(publish) = publish_opt {
+                        trace!("Sending queued publish packet");
+                        self.send_publish(publish).await?;
+                    } else {
+                        warn!("Publish channel closed unexpectedly");
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+
     /// Handles incoming packets
     async fn handle_packets(
         &mut self,
@@ -218,15 +275,21 @@ impl ClientHandler {
                             return Ok(());
                         }
                         Err(e) => {
-                            error!("Read error: {}", e);
+                            error!("Read error in handle_packets: {}", e);
                             return Err(e);
                         }
                     }
                 }
 
                 // Send outgoing publishes
-                Some(publish) = self.publish_rx.recv() => {
-                    self.send_publish(publish).await?;
+                publish_opt = self.publish_rx.recv() => {
+                    if let Some(publish) = publish_opt {
+                        trace!("Sending queued publish packet");
+                        self.send_publish(publish).await?;
+                    } else {
+                        warn!("Publish channel closed unexpectedly in handle_packets");
+                        return Ok(());
+                    }
                 }
 
                 // Keep-alive check
@@ -345,15 +408,6 @@ impl ClientHandler {
                 session.touch();
                 storage.store_session(session.clone()).await?;
                 self.session = Some(session);
-
-                // Deliver queued messages
-                let queued_messages = storage.get_queued_messages(&connect.client_id).await?;
-                for msg in queued_messages {
-                    let publish = msg.to_publish_packet();
-                    self.publish_tx.try_send(publish).ok();
-                }
-                // Clear delivered messages
-                storage.remove_queued_messages(&connect.client_id).await?;
             }
         }
 
@@ -392,7 +446,14 @@ impl ClientHandler {
             session_present = session_present,
             "Sending CONNACK"
         );
-        self.transport.write_packet(Packet::ConnAck(connack)).await
+        self.transport.write_packet(Packet::ConnAck(connack)).await?;
+        
+        // Deliver queued messages if session is present
+        if session_present {
+            self.deliver_queued_messages(&connect.client_id).await?;
+        }
+        
+        Ok(())
     }
 
     /// Handles SUBSCRIBE packet
@@ -619,6 +680,47 @@ impl ClientHandler {
     fn handle_disconnect(&mut self, _disconnect: DisconnectPacket) -> Result<()> {
         // Client initiated disconnect
         Err(MqttError::ClientClosed)
+    }
+
+    /// Generate next packet ID
+    fn next_packet_id(&mut self) -> u16 {
+        let id = self.next_packet_id;
+        self.next_packet_id = if self.next_packet_id == u16::MAX {
+            1
+        } else {
+            self.next_packet_id + 1
+        };
+        id
+    }
+
+    /// Deliver queued messages to reconnected client
+    async fn deliver_queued_messages(&mut self, client_id: &str) -> Result<()> {
+        // Get messages and clear them from storage
+        let queued_messages = if let Some(ref storage) = self.storage {
+            let messages = storage.get_queued_messages(client_id).await?;
+            storage.remove_queued_messages(client_id).await?;
+            messages
+        } else {
+            Vec::new()
+        };
+        
+        if !queued_messages.is_empty() {
+            info!("Delivering {} queued messages to {}", queued_messages.len(), client_id);
+            
+            // Convert messages and generate packet IDs
+            for msg in queued_messages {
+                let mut publish = msg.to_publish_packet();
+                // Generate packet ID for QoS > 0
+                if publish.qos != QoS::AtMostOnce && publish.packet_id.is_none() {
+                    publish.packet_id = Some(self.next_packet_id());
+                }
+                if let Err(e) = self.publish_tx.try_send(publish) {
+                    warn!("Failed to deliver queued message to {}: {:?}", client_id, e);
+                }
+            }
+        }
+        
+        Ok(())
     }
 
     /// Sends a publish to the client

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 /// Client subscription information
 #[derive(Debug, Clone)]
@@ -108,7 +108,14 @@ impl MessageRouter {
         debug!("Registered client: {}", client_id);
     }
 
-    /// Unregisters a client connection
+    /// Disconnects a client but keeps subscriptions (for persistent sessions)
+    pub async fn disconnect_client(&self, client_id: &str) {
+        let mut clients = self.clients.write().await;
+        clients.remove(client_id);
+        debug!("Disconnected client (keeping subscriptions): {}", client_id);
+    }
+
+    /// Unregisters a client connection and removes all subscriptions
     pub async fn unregister_client(&self, client_id: &str) {
         let mut clients = self.clients.write().await;
         clients.remove(client_id);
@@ -136,17 +143,30 @@ impl MessageRouter {
         let (actual_filter, share_group) = Self::parse_shared_subscription(&topic_filter);
 
         let mut subscriptions = self.subscriptions.write().await;
+        
+        let subs = subscriptions
+            .entry(actual_filter.to_string())
+            .or_default();
+        
+        // Check if this client already has a subscription for this topic
+        let existing_pos = subs.iter().position(|s| s.client_id == client_id);
+        
         let subscription = Subscription {
             client_id: client_id.clone(),
             qos,
             subscription_id,
             share_group: share_group.clone(),
         };
-
-        subscriptions
-            .entry(actual_filter.to_string())
-            .or_default()
-            .push(subscription);
+        
+        if let Some(pos) = existing_pos {
+            // Update existing subscription
+            subs[pos] = subscription;
+            debug!("Client {} updated subscription to {}", client_id, topic_filter);
+        } else {
+            // Add new subscription
+            subs.push(subscription);
+            debug!("Client {} subscribed to {}", client_id, topic_filter);
+        }
 
         // Initialize share group counter if needed
         if let Some(group) = share_group {
@@ -155,8 +175,6 @@ impl MessageRouter {
                 .entry(group)
                 .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
         }
-
-        debug!("Client {} subscribed to {}", client_id, topic_filter);
     }
 
     /// Parses a shared subscription topic filter
@@ -385,9 +403,11 @@ impl MessageRouter {
                             sub.client_id, e
                         );
                     } else {
-                        debug!("Queued message for offline client {}", sub.client_id);
+                        info!("Queued message for offline client {} on topic {}", sub.client_id, publish.topic_name);
                     }
                 }
+            } else {
+                debug!("No storage configured, cannot queue message for offline client {}", sub.client_id);
             }
         }
     }

@@ -466,7 +466,7 @@ mod tests {
 
         // Wait for change notification with timeout
         let change_result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
+            std::time::Duration::from_secs(2),
             subscriber.wait_for_change(),
         )
         .await;

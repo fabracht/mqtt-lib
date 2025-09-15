@@ -207,7 +207,7 @@ impl PacketReader for OwnedReadHalf {
 }
 
 /// Helper function to encode any packet to a buffer
-fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
+pub fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
     match packet {
         Packet::Connect(p) => {
             encode_packet(buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;

@@ -87,35 +87,34 @@ panic = "abort"
 debug = true
 
 [workspace]
-members = [
-    ".",
-    "crates/mqttv5-cli",
-]
+members = [".", "crates/mqttv5-cli"]
 
 [dependencies]
-base64 = "0.22.1"
-bcrypt = "0.17.0"
-bebytes = "2.8"
-bytes = "1.10.1"
-futures = "0.3.31"
-futures-util = "0.3.31"
-hex = "0.4.3"
+base64 = "0.22"
+bcrypt = "0.17"
+bebytes = "2.10"
+bytes = "1.10"
+futures = "0.3"
+futures-util = "0.3"
+hex = "0.4"
 humantime-serde = "1.1"
-rand = "0.9.2"
-rustls = "0.23.29"
-rustls-pemfile = "2.2.0"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.141"
-sha2 = "0.10.8"
-thiserror = "2.0.12"
-tokio = { version = "1.47.1", features = ["full"] }
-tokio-rustls = "0.26.2"
-tokio-tungstenite = "0.27.0"
-toml = "0.9.4"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = [
+rand = "0.9"
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+tokio = { version = "1.47", features = ["full"] }
+tokio-rustls = "0.26"
+tokio-tungstenite = "0.27"
+toml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ], optional = true }
-turmoil = { version = "0.6.6", optional = true }
-url = "2.5.4"
-webpki-roots = "1.0.2"
+turmoil = { version = "0.6", optional = true }
+url = "2.5"
+webpki-roots = "1.0"
+webrtc-dtls = "0.12"
+webrtc-util = "0.11"

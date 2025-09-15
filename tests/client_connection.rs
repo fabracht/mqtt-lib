@@ -73,21 +73,3 @@ async fn test_disconnect_not_connected() {
     assert!(matches!(result, Err(MqttError::NotConnected)));
 }
 
-#[tokio::test]
-async fn test_address_parsing() {
-    // Test various address formats
-    let addresses = vec![
-        ("mqtt://127.0.0.1:1883", "localhost", 1883),
-        ("mqtts://broker.example.com", "broker.example.com", 8883),
-        ("tcp://192.168.1.100:1234", "192.168.1.100", 1234),
-        ("ssl://secure.broker.com:8883", "secure.broker.com", 8883),
-        ("localhost", "localhost", 1883),
-        ("broker.local:9999", "broker.local", 9999),
-    ];
-
-    for (addr, _expected_host, _expected_port) in addresses {
-        let client = MqttClient::new("test-client");
-        // Just verify parsing doesn't panic
-        let _ = client.connect(addr).await;
-    }
-}

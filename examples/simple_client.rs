@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(tokio::spawn(async move {
             let mut broker = broker;
             if let Err(e) = broker.run().await {
-                eprintln!("❌ Broker error: {}", e);
+                eprintln!("❌ Broker error: {e}");
             }
         }))
     } else {

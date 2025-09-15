@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::select! {
         result = broker.run() => {
             if let Err(e) = result {
-                eprintln!("Broker error: {}", e);
+                eprintln!("Broker error: {e}");
             }
         }
         _ = tokio::signal::ctrl_c() => {

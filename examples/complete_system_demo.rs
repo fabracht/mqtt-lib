@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run broker in background
     let broker_handle = tokio::spawn(async move {
         if let Err(e) = broker.run().await {
-            eprintln!("❌ Broker error: {}", e);
+            eprintln!("❌ Broker error: {e}");
         }
     });
 
@@ -248,7 +248,7 @@ async fn simulate_sensors(client: MqttClient) {
         for (sensor_type, min, max) in &sensors {
             // Generate random value
             let value = min + (max - min) * rand::random::<f64>();
-            let topic = format!("sensors/{}/data", sensor_type);
+            let topic = format!("sensors/{sensor_type}/data");
 
             // Alternate between QoS levels
             let qos = match counter % 3 {
@@ -263,10 +263,10 @@ async fn simulate_sensors(client: MqttClient) {
             };
 
             if let Err(e) = client
-                .publish_with_options(&topic, format!("{:.2}", value).as_bytes(), options)
+                .publish_with_options(&topic, format!("{value:.2}").as_bytes(), options)
                 .await
             {
-                eprintln!("Failed to publish sensor data: {}", e);
+                eprintln!("Failed to publish sensor data: {e}");
                 return;
             }
         }
@@ -292,14 +292,14 @@ async fn control_loop(client: MqttClient) {
         ticker.tick().await;
 
         let (cmd_type, cmd_value) = commands[index % commands.len()];
-        let topic = format!("commands/{}", cmd_type);
+        let topic = format!("commands/{cmd_type}");
 
         if let Err(e) = client.publish_qos2(&topic, cmd_value.as_bytes()).await {
-            eprintln!("Failed to send command: {}", e);
+            eprintln!("Failed to send command: {e}");
             return;
         }
 
-        println!("🎯 Sent command: {} = {}", topic, cmd_value);
+        println!("🎯 Sent command: {topic} = {cmd_value}");
         index += 1;
     }
 }

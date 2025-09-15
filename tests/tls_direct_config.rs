@@ -1,87 +1,147 @@
+mod common;
+use common::TestBroker;
 use mqtt5::transport::tls::TlsConfig;
 use mqtt5::validation::{RestrictiveValidator, StandardValidator, TopicValidator};
 use mqtt5::{ConnectOptions, MqttClient};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 
 // For AWS IoT validator, import from the submodule
 use mqtt5::validation::namespace::NamespaceValidator;
 
 #[tokio::test]
-#[ignore = "Integration test - requires certificates and TLS broker"]
 async fn test_direct_tls_config_with_alpn() {
-    // This test demonstrates the new direct TLS configuration API
-    let client = MqttClient::new("direct-tls-test");
+    // Initialize rustls crypto provider
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    
+    // Start test broker with TLS
+    let broker = TestBroker::start_with_tls().await;
+    
+    // Extract address from broker
+    let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
+    let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
+    
+    let client = MqttClient::new("direct-tls-alpn-test");
 
-    // Create TLS config with AWS IoT settings
-    let tls_config = TlsConfig::new(
-        "test-endpoint.iot.us-east-1.amazonaws.com:443"
-            .parse()
-            .unwrap(),
-        "test-endpoint.iot.us-east-1.amazonaws.com",
-    )
-    .with_aws_iot_alpn() // Convenience method for AWS IoT ALPN
-    .with_verify_server_cert(false); // For testing with self-signed certs
+    // Create TLS config with ALPN - use standard mqtt protocol
+    let mut tls_config = TlsConfig::new(addr, "localhost")
+        .with_alpn_protocols(&["mqtt"])  // Use standard MQTT ALPN
+        .with_verify_server_cert(false);
+    
+    // Load test certificates
+    tls_config
+        .load_ca_cert_pem("test_certs/ca.pem")
+        .expect("Failed to load CA cert");
 
-    // This would work with actual certificates:
-    // .load_client_cert_pem("device-cert.pem")
-    // .load_client_key_pem("device-key.pem")
-    // .load_ca_cert_pem("AmazonRootCA1.pem")
-
-    let result = client.connect_with_tls(tls_config).await;
-
-    // This will fail in CI since we don't have a real AWS IoT endpoint
-    // but demonstrates the API
-    assert!(result.is_err());
-
-    // Verify error is connection-related, not API-related
-    let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("connect") || error_msg.contains("TLS"));
+    // Connect and verify it works
+    client.connect_with_tls(tls_config).await
+        .expect("Failed to connect with ALPN TLS config");
+    
+    // Test that we can publish/subscribe
+    let received = Arc::new(AtomicBool::new(false));
+    let received_clone = received.clone();
+    
+    client.subscribe("test/alpn", move |_| {
+        received_clone.store(true, Ordering::SeqCst);
+    }).await.expect("Failed to subscribe");
+    
+    client.publish("test/alpn", b"ALPN test").await
+        .expect("Failed to publish");
+    
+    sleep(Duration::from_millis(100)).await;
+    assert!(received.load(Ordering::SeqCst), "Message not received via ALPN TLS connection");
+    
+    client.disconnect().await.expect("Failed to disconnect");
 }
 
 #[tokio::test]
-#[ignore = "Integration test - requires certificates and TLS broker"]
 async fn test_tls_config_with_custom_alpn() {
+    // Initialize rustls crypto provider
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    
+    // Start test broker with TLS
+    let broker = TestBroker::start_with_tls().await;
+    
+    // Extract address from broker
+    let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
+    let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
+    
     let client = MqttClient::new("custom-alpn-test");
 
-    // Demonstrate custom ALPN protocols
-    let tls_config = TlsConfig::new(
-        "broker.example.com:8883".parse().unwrap(),
-        "broker.example.com",
-    )
-    .with_alpn_protocols(&["mqtt", "http/1.1"])
-    .with_verify_server_cert(false);
+    // Test custom ALPN protocols
+    let mut tls_config = TlsConfig::new(addr, "localhost")
+        .with_alpn_protocols(&["mqtt"])
+        .with_verify_server_cert(false);
+    
+    // Load test certificates
+    tls_config
+        .load_ca_cert_pem("test_certs/ca.pem")
+        .expect("Failed to load CA cert");
 
-    let result = client.connect_with_tls(tls_config).await;
-
-    // Will fail without real broker, but API should work
-    assert!(result.is_err());
+    // Connect and verify it works
+    client.connect_with_tls(tls_config).await
+        .expect("Failed to connect with custom ALPN");
+    
+    // Quick connectivity test
+    client.publish("test/custom-alpn", b"Custom ALPN test").await
+        .expect("Failed to publish with custom ALPN");
+    
+    client.disconnect().await.expect("Failed to disconnect");
 }
 
 #[tokio::test]
-#[ignore = "Integration test - requires certificates and broker"]
 async fn test_tls_config_with_connect_options() {
-    // Demonstrate combining TLS config with MQTT options
-    let mut options = ConnectOptions::new("tls-options-test")
-        .with_clean_start(false)
-        .with_keep_alive(std::time::Duration::from_secs(30));
+    // Initialize rustls crypto provider
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    
+    // Start test broker with TLS
+    let broker = TestBroker::start_with_tls().await;
+    
+    // Extract address from broker
+    let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
+    let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
 
-    // Set AWS IoT message size limit
+    // Test combining TLS config with MQTT options
+    let mut options = ConnectOptions::new("tls-options-test")
+        .with_clean_start(true)
+        .with_keep_alive(Duration::from_secs(30));
+
+    // Set custom packet size limit
     options.properties.maximum_packet_size = Some(131072); // 128KB
 
-    let tls_config = TlsConfig::new(
-        "test-endpoint.iot.us-east-1.amazonaws.com:443"
-            .parse()
-            .unwrap(),
-        "test-endpoint.iot.us-east-1.amazonaws.com",
-    )
-    .with_aws_iot_alpn();
+    let mut tls_config = TlsConfig::new(addr, "localhost")
+        .with_verify_server_cert(false);
+    
+    // Load test certificates
+    tls_config
+        .load_ca_cert_pem("test_certs/ca.pem")
+        .expect("Failed to load CA cert");
 
     let client = MqttClient::with_options(options.clone());
-    let result = client
+    client
         .connect_with_tls_and_options(tls_config, options)
-        .await;
-
-    // Will fail without real broker, but demonstrates combined API
-    assert!(result.is_err());
+        .await
+        .expect("Failed to connect with TLS and custom options");
+    
+    // Verify connection works with custom options
+    let received = Arc::new(AtomicBool::new(false));
+    let received_clone = received.clone();
+    
+    client.subscribe("test/options", move |_| {
+        received_clone.store(true, Ordering::SeqCst);
+    }).await.expect("Failed to subscribe");
+    
+    // Test that packet size limit is respected
+    let large_payload = vec![0u8; 1024]; // Well within limit
+    client.publish("test/options", large_payload.as_slice()).await
+        .expect("Failed to publish within size limit");
+    
+    sleep(Duration::from_millis(100)).await;
+    assert!(received.load(Ordering::SeqCst), "Message not received with custom options");
+    
+    client.disconnect().await.expect("Failed to disconnect");
 }
 
 #[test]

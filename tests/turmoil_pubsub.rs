@@ -196,7 +196,7 @@ fn test_multiple_subscribers_same_topic() {
         for i in 0..5 {
             let publish = PublishPacket::new(
                 topic.to_string(),
-                format!("Message {}", i).as_bytes(),
+                format!("Message {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
             router.route_message(&publish).await;
@@ -217,9 +217,9 @@ fn test_multiple_subscribers_same_topic() {
                 messages.push(String::from_utf8(msg.payload).unwrap());
             }
 
-            assert_eq!(count, 5, "{} should receive 5 messages", name);
+            assert_eq!(count, 5, "{name} should receive 5 messages");
             for i in 0..5 {
-                assert!(messages.contains(&format!("Message {}", i)));
+                assert!(messages.contains(&format!("Message {i}")));
             }
         }
 

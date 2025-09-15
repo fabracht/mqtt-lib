@@ -182,7 +182,7 @@ async fn test_cli_startup_performance() {
         "CLI should start quickly (< 500ms)"
     );
 
-    println!("✅ CLI startup performance: {:?}", cli_duration);
+    println!("✅ CLI startup performance: {cli_duration:?}");
 
     // Try to compare with mosquitto if available
     if let Ok(_mosquitto_result) = Command::new("mosquitto_pub").args(["--help"]).output() {
@@ -191,8 +191,8 @@ async fn test_cli_startup_performance() {
         let mosquitto_duration = mosquitto_start.elapsed();
 
         println!("📊 Performance comparison:");
-        println!("   mqttv5 CLI: {:?}", cli_duration);
-        println!("   mosquitto_pub: {:?}", mosquitto_duration);
+        println!("   mqttv5 CLI: {cli_duration:?}");
+        println!("   mosquitto_pub: {mosquitto_duration:?}");
 
         if cli_duration < mosquitto_duration {
             println!("🚀 Our CLI is faster!");

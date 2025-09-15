@@ -288,7 +288,7 @@ fn test_message_ordering_with_multiple_clients() {
         for i in 0..5 {
             let msg = PublishPacket::new(
                 "sequence/test".to_string(),
-                format!("Message {}", i).as_bytes(),
+                format!("Message {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
             router.route_message(&msg).await;
@@ -316,8 +316,8 @@ fn test_message_ordering_with_multiple_clients() {
 
         // Verify ordering
         for i in 0..5 {
-            assert_eq!(client1_messages[i], format!("Message {}", i));
-            assert_eq!(client2_messages[i], format!("Message {}", i));
+            assert_eq!(client1_messages[i], format!("Message {i}"));
+            assert_eq!(client2_messages[i], format!("Message {i}"));
         }
 
         Ok::<(), Box<dyn std::error::Error>>(())
