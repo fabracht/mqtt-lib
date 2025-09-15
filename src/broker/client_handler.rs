@@ -657,7 +657,8 @@ impl ClientHandler {
                 self.create_new_session(connect, &storage).await?;
             } else if let Some(session) = existing_session {
                 session_present = true;
-                self.restore_existing_session(connect, session, &storage).await?;
+                self.restore_existing_session(connect, session, &storage)
+                    .await?;
             }
         }
         Ok(session_present)
