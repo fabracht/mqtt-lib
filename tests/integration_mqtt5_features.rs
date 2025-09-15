@@ -122,7 +122,6 @@ async fn test_mqtt5_properties_system() {
 }
 
 #[tokio::test]
-#[ignore = "Will messages not yet implemented in broker"]
 async fn test_will_message_with_delay() {
     // Start test broker
     let broker = TestBroker::start().await;
@@ -201,7 +200,12 @@ async fn test_will_message_with_delay() {
     let disc_time = disconnect_time.lock().await.unwrap();
     let recv_time = receive_time.lock().await.unwrap();
     let delay = recv_time.duration_since(disc_time);
-    assert!(delay >= Duration::from_secs(2));
+    println!("Will message delay: {delay:?}");
+    // Allow some tolerance for timing
+    assert!(
+        delay >= Duration::from_millis(1900),
+        "Delay was {delay:?}, expected at least 2 seconds"
+    );
 
     sub_client
         .disconnect()

@@ -406,15 +406,71 @@ impl ConnectPacket {
             _ => return Err(MqttError::MalformedPacket("Invalid will QoS".to_string())),
         };
 
+        // Convert Properties to WillProperties
+        let will_props = Self::properties_to_will_properties(&will_properties);
+
         let will = WillMessage {
             topic,
             payload: payload.to_vec(),
             qos,
             retain: flags.will_retain,
-            properties: WillProperties::default(),
+            properties: will_props,
         };
 
         Ok((Some(will), will_properties))
+    }
+
+    /// Convert Properties to WillProperties
+    fn properties_to_will_properties(props: &Properties) -> WillProperties {
+        use crate::protocol::v5::properties::{PropertyId, PropertyValue};
+
+        let mut will_props = WillProperties::default();
+
+        // Extract will delay interval
+        if let Some(PropertyValue::FourByteInteger(delay)) =
+            props.get(PropertyId::WillDelayInterval)
+        {
+            will_props.will_delay_interval = Some(*delay);
+        }
+
+        // Extract payload format indicator
+        if let Some(PropertyValue::Byte(indicator)) = props.get(PropertyId::PayloadFormatIndicator)
+        {
+            will_props.payload_format_indicator = Some(*indicator != 0);
+        }
+
+        // Extract message expiry interval
+        if let Some(PropertyValue::FourByteInteger(expiry)) =
+            props.get(PropertyId::MessageExpiryInterval)
+        {
+            will_props.message_expiry_interval = Some(*expiry);
+        }
+
+        // Extract content type
+        if let Some(PropertyValue::Utf8String(content_type)) = props.get(PropertyId::ContentType) {
+            will_props.content_type = Some(content_type.clone());
+        }
+
+        // Extract response topic
+        if let Some(PropertyValue::Utf8String(topic)) = props.get(PropertyId::ResponseTopic) {
+            will_props.response_topic = Some(topic.clone());
+        }
+
+        // Extract correlation data
+        if let Some(PropertyValue::BinaryData(data)) = props.get(PropertyId::CorrelationData) {
+            will_props.correlation_data = Some(data.to_vec());
+        }
+
+        // Extract user properties
+        if let Some(values) = props.get_all(PropertyId::UserProperty) {
+            for value in values {
+                if let PropertyValue::Utf8StringPair(key, val) = value {
+                    will_props.user_properties.push((key.clone(), val.clone()));
+                }
+            }
+        }
+
+        will_props
     }
 
     /// Decode username and password if present

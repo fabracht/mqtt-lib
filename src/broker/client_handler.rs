@@ -51,6 +51,7 @@ pub struct ClientHandler {
     inflight_publishes: HashMap<u16, PublishPacket>,
     session: Option<ClientSession>,
     next_packet_id: u16,
+    normal_disconnect: bool,
 }
 
 impl ClientHandler {
@@ -87,6 +88,7 @@ impl ClientHandler {
             inflight_publishes: HashMap::new(),
             session: None,
             next_packet_id: 1,
+            normal_disconnect: false,
         }
     }
 
@@ -196,6 +198,11 @@ impl ClientHandler {
                     );
                 }
             }
+        }
+
+        // Handle will message if this was an abnormal disconnect
+        if !self.normal_disconnect {
+            self.publish_will_message(&client_id).await;
         }
 
         info!("Client {} disconnected", client_id);
@@ -371,40 +378,7 @@ impl ClientHandler {
         self.keep_alive = Duration::from_secs(u64::from(connect.keep_alive));
 
         // Handle session
-        let mut session_present = false;
-        if let Some(ref storage) = self.storage {
-            // Get or create session
-            let existing_session = storage.get_session(&connect.client_id).await?;
-
-            if connect.clean_start || existing_session.is_none() {
-                // Create new session
-                // Extract session expiry interval from properties
-                let session_expiry = connect.properties.get_session_expiry_interval();
-                
-                let session = ClientSession::new(
-                    connect.client_id.clone(),
-                    true, // persistent
-                    session_expiry,
-                );
-                storage.store_session(session.clone()).await?;
-                self.session = Some(session);
-            } else if let Some(mut session) = existing_session {
-                // Existing session found
-                session_present = true;
-
-                // Restore subscriptions
-                for (topic_filter, qos) in &session.subscriptions {
-                    self.router
-                        .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None)
-                        .await;
-                }
-
-                // Update last seen
-                session.touch();
-                storage.store_session(session.clone()).await?;
-                self.session = Some(session);
-            }
-        }
+        let session_present = self.handle_session(&connect).await?;
 
         // Send CONNACK
         let mut connack = ConnAckPacket::new(session_present, ReasonCode::Success);
@@ -672,9 +646,142 @@ impl ClientHandler {
         self.transport.write_packet(Packet::PingResp).await
     }
 
+    /// Handles session creation or restoration
+    async fn handle_session(&mut self, connect: &ConnectPacket) -> Result<bool> {
+        let mut session_present = false;
+        if let Some(storage) = self.storage.clone() {
+            // Get or create session
+            let existing_session = storage.get_session(&connect.client_id).await?;
+
+            if connect.clean_start || existing_session.is_none() {
+                self.create_new_session(connect, &storage).await?;
+            } else if let Some(session) = existing_session {
+                session_present = true;
+                self.restore_existing_session(connect, session, &storage).await?;
+            }
+        }
+        Ok(session_present)
+    }
+
+    /// Creates a new session for the client
+    async fn create_new_session(
+        &mut self,
+        connect: &ConnectPacket,
+        storage: &Arc<DynamicStorage>,
+    ) -> Result<()> {
+        // Extract session expiry interval from properties
+        let session_expiry = connect.properties.get_session_expiry_interval();
+
+        // Extract will message if present
+        let will_message = connect.will.clone();
+        if let Some(ref will) = will_message {
+            debug!(
+                "Will message present with delay: {:?}",
+                will.properties.will_delay_interval
+            );
+        }
+
+        let session = ClientSession::new_with_will(
+            connect.client_id.clone(),
+            true, // persistent
+            session_expiry,
+            will_message,
+        );
+        debug!(
+            "Created new session with will_delay_interval: {:?}",
+            session.will_delay_interval
+        );
+        storage.store_session(session.clone()).await?;
+        self.session = Some(session);
+        Ok(())
+    }
+
+    /// Restores an existing session for the client
+    async fn restore_existing_session(
+        &mut self,
+        connect: &ConnectPacket,
+        mut session: ClientSession,
+        storage: &Arc<DynamicStorage>,
+    ) -> Result<()> {
+        // Restore subscriptions
+        for (topic_filter, qos) in &session.subscriptions {
+            self.router
+                .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None)
+                .await;
+        }
+
+        // Update will message from new connection (replaces any existing will)
+        session.will_message.clone_from(&connect.will);
+        session.will_delay_interval = connect
+            .will
+            .as_ref()
+            .and_then(|w| w.properties.will_delay_interval);
+
+        // Update last seen
+        session.touch();
+        storage.store_session(session.clone()).await?;
+        self.session = Some(session);
+        Ok(())
+    }
+
+    /// Publishes will message on abnormal disconnect
+    async fn publish_will_message(&self, client_id: &str) {
+        if let Some(ref session) = self.session {
+            if let Some(ref will) = session.will_message {
+                debug!("Publishing will message for client {}", client_id);
+
+                // Create publish packet from will message
+                let mut publish =
+                    PublishPacket::new(will.topic.clone(), will.payload.clone(), will.qos);
+                publish.retain = will.retain;
+
+                // Handle will delay interval
+                if let Some(delay) = session.will_delay_interval {
+                    debug!("Using will delay from session: {} seconds", delay);
+                    if delay > 0 {
+                        debug!("Spawning task to publish will after {} seconds", delay);
+                        // Spawn task to publish will after delay
+                        let router = Arc::clone(&self.router);
+                        let publish_clone = publish.clone();
+                        let client_id_clone = client_id.to_string();
+                        tokio::spawn(async move {
+                            debug!(
+                                "Task started: waiting {} seconds before publishing will for {}",
+                                delay, client_id_clone
+                            );
+                            tokio::time::sleep(Duration::from_secs(u64::from(delay))).await;
+                            debug!(
+                                "Task completed: publishing delayed will message for {}",
+                                client_id_clone
+                            );
+                            router.route_message(&publish_clone).await;
+                        });
+                        debug!("Spawned delayed will task for {}", client_id);
+                    } else {
+                        debug!("Publishing will immediately (delay = 0)");
+                        // Publish immediately
+                        self.router.route_message(&publish).await;
+                    }
+                } else {
+                    debug!("Publishing will immediately (no delay specified)");
+                    // No delay specified, publish immediately
+                    self.router.route_message(&publish).await;
+                }
+            }
+        }
+    }
+
     /// Handles DISCONNECT packet
-    #[allow(clippy::unused_self)]
     fn handle_disconnect(&mut self, _disconnect: DisconnectPacket) -> Result<()> {
+        // Mark as normal disconnect (client sent DISCONNECT packet)
+        self.normal_disconnect = true;
+
+        // Clear will message since this is a normal disconnect
+        if let Some(ref mut session) = self.session {
+            session.will_message = None;
+            session.will_delay_interval = None;
+        }
+
         // Client initiated disconnect
         Err(MqttError::ClientClosed)
     }
