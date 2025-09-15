@@ -13,11 +13,11 @@ mod tests {
     async fn debug_tls_connection() {
         // Start test broker with TLS
         let broker = TestBroker::start_with_tls().await;
-        
+
         // Extract address from broker (format: mqtts://host:port)
         let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
         let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-        
+
         // Create client
         let client = MqttClient::new("debug-tls-client");
 

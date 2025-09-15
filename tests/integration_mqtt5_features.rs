@@ -21,7 +21,7 @@ fn test_client_id(test_name: &str) -> String {
 async fn test_mqtt5_properties_system() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("mqtt5-props"));
 
     // Connect with v5.0 specific properties
@@ -126,7 +126,7 @@ async fn test_mqtt5_properties_system() {
 async fn test_will_message_with_delay() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Client that will have a Will message
     let will_client_id = test_client_id("will-sender");
     let will_client = MqttClient::new(will_client_id.clone());
@@ -213,7 +213,7 @@ async fn test_will_message_with_delay() {
 async fn test_topic_aliases() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("topic-alias"));
 
     // Connect with topic alias support
@@ -290,7 +290,7 @@ async fn test_topic_aliases() {
 async fn test_flow_control_receive_maximum() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("flow-control"));
 
     // Connect with limited receive maximum
@@ -363,7 +363,7 @@ async fn test_flow_control_receive_maximum() {
 async fn test_subscription_identifiers() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("sub-id"));
 
     client
@@ -424,7 +424,9 @@ async fn test_subscription_identifiers() {
         assert!(ids.contains(&1)); // From first subscription
         assert!(ids.contains(&2)); // From second subscription
     } else {
-        println!("Warning: No subscription identifiers received - feature may not be fully implemented");
+        println!(
+            "Warning: No subscription identifiers received - feature may not be fully implemented"
+        );
     }
 
     client.disconnect().await.expect("Failed to disconnect");
@@ -434,7 +436,7 @@ async fn test_subscription_identifiers() {
 async fn test_shared_subscriptions() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Note: Shared subscriptions require broker support
     // This test assumes Mosquitto is configured with shared subscription support
 
@@ -519,7 +521,7 @@ async fn test_shared_subscriptions() {
 async fn test_maximum_packet_size() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("max-packet"));
 
     // Connect with maximum packet size limit
@@ -550,7 +552,7 @@ async fn test_maximum_packet_size() {
 async fn test_reason_codes_and_strings() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("reason-codes"));
 
     let disconnect_reason = Arc::new(Mutex::new(None));

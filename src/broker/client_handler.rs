@@ -145,19 +145,15 @@ impl ClientHandler {
             .await;
 
         // Handle packets until disconnect
-        trace!("Starting packet handling loop, keep_alive = {:?}", self.keep_alive);
         let result = if self.keep_alive.is_zero() {
-            trace!("Using no-keepalive packet handler");
             // No keepalive checking when keepalive is disabled
             self.handle_packets_no_keepalive().await
         } else {
-            trace!("Using keepalive packet handler");
             // Start keep-alive timer
             let mut keep_alive_interval = interval(self.keep_alive);
             keep_alive_interval.reset();
             self.handle_packets(&mut keep_alive_interval).await
         };
-        trace!("Packet handling loop ended with result: {:?}", result);
 
         // Check if we should preserve the session
         let preserve_session = if let Some(ref session) = self.session {
@@ -243,7 +239,6 @@ impl ClientHandler {
                 // Send outgoing publishes
                 publish_opt = self.publish_rx.recv() => {
                     if let Some(publish) = publish_opt {
-                        trace!("Sending queued publish packet");
                         self.send_publish(publish).await?;
                     } else {
                         warn!("Publish channel closed unexpectedly");
@@ -284,7 +279,6 @@ impl ClientHandler {
                 // Send outgoing publishes
                 publish_opt = self.publish_rx.recv() => {
                     if let Some(publish) = publish_opt {
-                        trace!("Sending queued publish packet");
                         self.send_publish(publish).await?;
                     } else {
                         warn!("Publish channel closed unexpectedly in handle_packets");
@@ -314,8 +308,6 @@ impl ClientHandler {
 
     /// Handles a single packet
     async fn handle_packet(&mut self, packet: Packet) -> Result<()> {
-        trace!("Received packet: {:?}", packet);
-
         match packet {
             Packet::Connect(_) => {
                 // Duplicate CONNECT
@@ -446,13 +438,15 @@ impl ClientHandler {
             session_present = session_present,
             "Sending CONNACK"
         );
-        self.transport.write_packet(Packet::ConnAck(connack)).await?;
-        
+        self.transport
+            .write_packet(Packet::ConnAck(connack))
+            .await?;
+
         // Deliver queued messages if session is present
         if session_present {
             self.deliver_queued_messages(&connect.client_id).await?;
         }
-        
+
         Ok(())
     }
 
@@ -703,10 +697,14 @@ impl ClientHandler {
         } else {
             Vec::new()
         };
-        
+
         if !queued_messages.is_empty() {
-            info!("Delivering {} queued messages to {}", queued_messages.len(), client_id);
-            
+            info!(
+                "Delivering {} queued messages to {}",
+                queued_messages.len(),
+                client_id
+            );
+
             // Convert messages and generate packet IDs
             for msg in queued_messages {
                 let mut publish = msg.to_publish_packet();
@@ -719,7 +717,7 @@ impl ClientHandler {
                 }
             }
         }
-        
+
         Ok(())
     }
 

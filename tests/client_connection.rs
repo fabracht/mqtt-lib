@@ -72,4 +72,3 @@ async fn test_disconnect_not_connected() {
     let result = client.disconnect().await;
     assert!(matches!(result, Err(MqttError::NotConnected)));
 }
-

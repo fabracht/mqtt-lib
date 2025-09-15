@@ -11,7 +11,7 @@ use tokio::time::sleep;
 async fn test_basic_pub_sub_separation() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let publisher = MqttClient::new("test-publisher");
     let subscriber = MqttClient::new("test-subscriber");
 
@@ -56,7 +56,7 @@ async fn test_basic_pub_sub_separation() {
 async fn test_multiple_publishers_one_subscriber() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub1 = MqttClient::new("multi-pub-1");
     let pub2 = MqttClient::new("multi-pub-2");
     let pub3 = MqttClient::new("multi-pub-3");
@@ -115,7 +115,7 @@ async fn test_multiple_publishers_one_subscriber() {
 async fn test_one_publisher_multiple_subscribers() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let publisher = MqttClient::new("one-pub");
     let sub1 = MqttClient::new("multi-sub-1");
     let sub2 = MqttClient::new("multi-sub-2");
@@ -179,7 +179,7 @@ async fn test_one_publisher_multiple_subscribers() {
 async fn test_qos_levels_separate_clients() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let publisher = MqttClient::new("qos-pub");
     let subscriber = MqttClient::new("qos-sub");
 
@@ -243,7 +243,7 @@ async fn test_qos_levels_separate_clients() {
 async fn test_wildcard_subscriptions_separate_clients() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub1 = MqttClient::new("wild-pub-1");
     let pub2 = MqttClient::new("wild-pub-2");
     let subscriber = MqttClient::new("wild-sub");
@@ -302,7 +302,7 @@ async fn test_wildcard_subscriptions_separate_clients() {
 async fn test_retained_messages_separate_clients() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let publisher = MqttClient::new("retain-pub");
 
     // Publish retained message and disconnect
@@ -353,7 +353,7 @@ async fn test_retained_messages_separate_clients() {
 async fn test_concurrent_publishers() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let subscriber = MqttClient::new("concurrent-sub");
     subscriber.connect(broker.address()).await.unwrap();
 
@@ -414,7 +414,7 @@ async fn test_concurrent_publishers() {
 async fn test_publisher_subscriber_isolation() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Test that a client can both publish and subscribe without interference
     let client1 = MqttClient::new("iso-client-1");
     let client2 = MqttClient::new("iso-client-2");
@@ -470,7 +470,7 @@ async fn test_publisher_subscriber_isolation() {
 async fn test_late_subscriber() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let publisher = MqttClient::new("late-pub");
     publisher.connect(broker.address()).await.unwrap();
 
@@ -524,7 +524,7 @@ async fn test_late_subscriber() {
 async fn test_publish_subscribe_timing() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Test subscribe-first scenario
     {
         let publisher = MqttClient::new("timing-pub-subfirst");

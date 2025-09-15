@@ -9,17 +9,16 @@ use tokio::time::timeout;
 async fn test_tls_connection() {
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker (format: mqtts://host:port)
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let socket_addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     // Create client
     let client = MqttClient::new("tls-test-client");
 
     // Create TLS config for local broker
-    let mut tls_config = TlsConfig::new(socket_addr, "localhost")
-        .with_verify_server_cert(false); // Self-signed cert in test
+    let mut tls_config = TlsConfig::new(socket_addr, "localhost").with_verify_server_cert(false); // Self-signed cert in test
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
         .expect("Failed to load CA cert");
@@ -77,17 +76,16 @@ async fn test_tls_connection() {
 async fn test_mtls_connection() {
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker (format: mqtts://host:port)
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let socket_addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     // Create client
     let client = MqttClient::new("mtls-test-client");
 
     // Create mTLS config with client certificates
-    let mut tls_config = TlsConfig::new(socket_addr, "localhost")
-        .with_verify_server_cert(false); // Self-signed cert in test
+    let mut tls_config = TlsConfig::new(socket_addr, "localhost").with_verify_server_cert(false); // Self-signed cert in test
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
         .expect("Failed to load CA cert");
@@ -153,11 +151,11 @@ async fn test_mtls_connection() {
 async fn test_tls_with_alpn() {
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker (format: mqtts://host:port)
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let socket_addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     // Create client
     let client = MqttClient::new("alpn-test-client");
 
@@ -201,17 +199,16 @@ async fn test_tls_with_alpn() {
 async fn test_tls_reconnection() {
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker (format: mqtts://host:port)
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let socket_addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     // Create client with reconnection enabled
     let client = MqttClient::new("tls-reconnect-client");
 
     // Create TLS config
-    let mut tls_config = TlsConfig::new(socket_addr, "localhost")
-        .with_verify_server_cert(false);
+    let mut tls_config = TlsConfig::new(socket_addr, "localhost").with_verify_server_cert(false);
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
         .expect("Failed to load CA cert");

@@ -18,7 +18,7 @@ async fn test_dtls_transport_creation() {
 async fn test_dtls_psk_connection() {
     // Initialize the crypto provider for tests
     let _ = rustls::crypto::ring::default_provider().install_default();
-    
+
     let addr: SocketAddr = "127.0.0.1:8883".parse().unwrap();
 
     let config = DtlsConfig::new(addr)

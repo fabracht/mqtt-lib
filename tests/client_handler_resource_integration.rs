@@ -1,8 +1,8 @@
 //! Integration tests for ClientHandler with ResourceMonitor
 
 mod common;
+use mqtt5::broker::config::{StorageBackend, StorageConfig};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
-use mqtt5::broker::config::{StorageConfig, StorageBackend};
 use mqtt5::client::MqttClient;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -15,7 +15,7 @@ async fn test_real_client_connection_limits() {
         enable_persistence: true,
         ..Default::default()
     };
-    
+
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
         .with_max_clients(2)
@@ -47,9 +47,7 @@ async fn test_real_client_connection_limits() {
                 clients.push(client);
             }
             Err(e) => {
-                panic!(
-                    "Client {client_id} should have connected but failed: {e}"
-                );
+                panic!("Client {client_id} should have connected but failed: {e}");
             }
         }
 
@@ -91,7 +89,7 @@ async fn test_real_client_rate_limiting() {
         enable_persistence: true,
         ..Default::default()
     };
-    
+
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
         .with_max_clients(5)
@@ -137,9 +135,7 @@ async fn test_real_client_rate_limiting() {
         sleep(Duration::from_millis(1)).await;
     }
 
-    println!(
-        "Published {success_count} messages successfully, {error_count} failed"
-    );
+    println!("Published {success_count} messages successfully, {error_count} failed");
 
     // Check that messages were tracked in resource monitor
     let final_stats = resource_monitor.get_stats().await;
@@ -171,7 +167,7 @@ async fn test_client_registration_unregistration() {
         enable_persistence: true,
         ..Default::default()
     };
-    
+
     let config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
         .with_max_clients(10)

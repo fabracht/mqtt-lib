@@ -134,7 +134,9 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     };
 
     // Build broker URL
-    let broker_url = cmd.url.unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
+    let broker_url = cmd
+        .url
+        .unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
     debug!("Connecting to broker: {}", broker_url);
 
     // Create client

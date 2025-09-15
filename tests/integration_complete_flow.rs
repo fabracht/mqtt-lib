@@ -51,7 +51,7 @@ use tokio::sync::Mutex;
 async fn test_complete_mqtt_flow() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Create and connect client
     let client = create_test_client_with_broker("complete-flow", broker.address()).await;
     assert!(client.is_connected().await);
@@ -111,7 +111,7 @@ async fn test_complete_mqtt_flow() {
 async fn test_multiple_subscriptions_and_wildcards() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("multi-sub"));
 
     client
@@ -234,7 +234,7 @@ async fn test_multiple_subscriptions_and_wildcards() {
 async fn test_qos_levels_and_acknowledgments() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("qos-test"));
 
     client
@@ -327,7 +327,7 @@ async fn test_qos_levels_and_acknowledgments() {
 async fn test_session_persistence() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client_id = test_client_id("session-test");
 
     // First connection with clean_start = false
@@ -435,7 +435,7 @@ async fn test_session_persistence() {
 async fn test_publish_options_and_properties() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("pub-options"));
 
     client
@@ -526,7 +526,7 @@ async fn test_publish_options_and_properties() {
 async fn test_subscription_options() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("sub-options"));
 
     client
@@ -544,7 +544,7 @@ async fn test_subscription_options() {
         .publish_retain("test/retain/handling", b"Retained message")
         .await
         .expect("Failed to publish retained");
-    
+
     // Give broker time to process retained message
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -577,7 +577,7 @@ async fn test_subscription_options() {
 async fn test_large_payload_handling() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("large-payload"));
 
     client
@@ -624,7 +624,7 @@ async fn test_concurrent_operations() {
     // Start test broker
     let broker = TestBroker::start().await;
     let broker_addr = broker.address().to_string();
-    
+
     let client = Arc::new(MqttClient::new(test_client_id("concurrent")));
 
     client

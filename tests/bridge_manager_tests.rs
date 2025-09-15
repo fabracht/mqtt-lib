@@ -145,8 +145,11 @@ async fn test_bridge_manager_stop_all() {
 
     // Add some bridges
     for i in 1..=3 {
-        let config = BridgeConfig::new(format!("bridge{i}"), format!("broker{i}:1883"))
-            .add_topic("test/#", BridgeDirection::Both, QoS::AtMostOnce);
+        let config = BridgeConfig::new(format!("bridge{i}"), format!("broker{i}:1883")).add_topic(
+            "test/#",
+            BridgeDirection::Both,
+            QoS::AtMostOnce,
+        );
         let _ = manager.add_bridge(config).await;
     }
 
@@ -221,11 +224,9 @@ async fn test_bridge_manager_concurrent_operations() {
     for i in 1..=5 {
         let manager_clone = manager.clone();
         let handle = tokio::spawn(async move {
-            let config = BridgeConfig::new(
-                format!("concurrent-bridge-{i}"),
-                format!("broker{i}:1883"),
-            )
-            .add_topic("test/#", BridgeDirection::Both, QoS::AtMostOnce);
+            let config =
+                BridgeConfig::new(format!("concurrent-bridge-{i}"), format!("broker{i}:1883"))
+                    .add_topic("test/#", BridgeDirection::Both, QoS::AtMostOnce);
             let _ = manager_clone.add_bridge(config).await;
         });
         handles.push(handle);

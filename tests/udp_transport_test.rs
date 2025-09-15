@@ -59,5 +59,3 @@ async fn test_udp_fragmentation() {
     assert_eq!(header.fragment_index, decoded.fragment_index);
     assert_eq!(header.total_fragments, decoded.total_fragments);
 }
-
-

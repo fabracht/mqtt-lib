@@ -6,7 +6,7 @@ use mqtt5::MqttClient;
 async fn test_minimal_connection() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     println!("Creating client...");
     let client = MqttClient::new("test-minimal-client");
 

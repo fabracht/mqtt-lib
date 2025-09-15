@@ -15,44 +15,54 @@ use mqtt5::validation::namespace::NamespaceValidator;
 async fn test_direct_tls_config_with_alpn() {
     // Initialize rustls crypto provider
     let _ = rustls::crypto::ring::default_provider().install_default();
-    
+
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     let client = MqttClient::new("direct-tls-alpn-test");
 
     // Create TLS config with ALPN - use standard mqtt protocol
     let mut tls_config = TlsConfig::new(addr, "localhost")
-        .with_alpn_protocols(&["mqtt"])  // Use standard MQTT ALPN
+        .with_alpn_protocols(&["mqtt"]) // Use standard MQTT ALPN
         .with_verify_server_cert(false);
-    
+
     // Load test certificates
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
         .expect("Failed to load CA cert");
 
     // Connect and verify it works
-    client.connect_with_tls(tls_config).await
+    client
+        .connect_with_tls(tls_config)
+        .await
         .expect("Failed to connect with ALPN TLS config");
-    
+
     // Test that we can publish/subscribe
     let received = Arc::new(AtomicBool::new(false));
     let received_clone = received.clone();
-    
-    client.subscribe("test/alpn", move |_| {
-        received_clone.store(true, Ordering::SeqCst);
-    }).await.expect("Failed to subscribe");
-    
-    client.publish("test/alpn", b"ALPN test").await
+
+    client
+        .subscribe("test/alpn", move |_| {
+            received_clone.store(true, Ordering::SeqCst);
+        })
+        .await
+        .expect("Failed to subscribe");
+
+    client
+        .publish("test/alpn", b"ALPN test")
+        .await
         .expect("Failed to publish");
-    
+
     sleep(Duration::from_millis(100)).await;
-    assert!(received.load(Ordering::SeqCst), "Message not received via ALPN TLS connection");
-    
+    assert!(
+        received.load(Ordering::SeqCst),
+        "Message not received via ALPN TLS connection"
+    );
+
     client.disconnect().await.expect("Failed to disconnect");
 }
 
@@ -60,34 +70,38 @@ async fn test_direct_tls_config_with_alpn() {
 async fn test_tls_config_with_custom_alpn() {
     // Initialize rustls crypto provider
     let _ = rustls::crypto::ring::default_provider().install_default();
-    
+
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
-    
+
     let client = MqttClient::new("custom-alpn-test");
 
     // Test custom ALPN protocols
     let mut tls_config = TlsConfig::new(addr, "localhost")
         .with_alpn_protocols(&["mqtt"])
         .with_verify_server_cert(false);
-    
+
     // Load test certificates
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
         .expect("Failed to load CA cert");
 
     // Connect and verify it works
-    client.connect_with_tls(tls_config).await
+    client
+        .connect_with_tls(tls_config)
+        .await
         .expect("Failed to connect with custom ALPN");
-    
+
     // Quick connectivity test
-    client.publish("test/custom-alpn", b"Custom ALPN test").await
+    client
+        .publish("test/custom-alpn", b"Custom ALPN test")
+        .await
         .expect("Failed to publish with custom ALPN");
-    
+
     client.disconnect().await.expect("Failed to disconnect");
 }
 
@@ -95,10 +109,10 @@ async fn test_tls_config_with_custom_alpn() {
 async fn test_tls_config_with_connect_options() {
     // Initialize rustls crypto provider
     let _ = rustls::crypto::ring::default_provider().install_default();
-    
+
     // Start test broker with TLS
     let broker = TestBroker::start_with_tls().await;
-    
+
     // Extract address from broker
     let broker_addr = broker.address().strip_prefix("mqtts://").unwrap();
     let addr: std::net::SocketAddr = broker_addr.parse().unwrap();
@@ -111,9 +125,8 @@ async fn test_tls_config_with_connect_options() {
     // Set custom packet size limit
     options.properties.maximum_packet_size = Some(131072); // 128KB
 
-    let mut tls_config = TlsConfig::new(addr, "localhost")
-        .with_verify_server_cert(false);
-    
+    let mut tls_config = TlsConfig::new(addr, "localhost").with_verify_server_cert(false);
+
     // Load test certificates
     tls_config
         .load_ca_cert_pem("test_certs/ca.pem")
@@ -124,23 +137,31 @@ async fn test_tls_config_with_connect_options() {
         .connect_with_tls_and_options(tls_config, options)
         .await
         .expect("Failed to connect with TLS and custom options");
-    
+
     // Verify connection works with custom options
     let received = Arc::new(AtomicBool::new(false));
     let received_clone = received.clone();
-    
-    client.subscribe("test/options", move |_| {
-        received_clone.store(true, Ordering::SeqCst);
-    }).await.expect("Failed to subscribe");
-    
+
+    client
+        .subscribe("test/options", move |_| {
+            received_clone.store(true, Ordering::SeqCst);
+        })
+        .await
+        .expect("Failed to subscribe");
+
     // Test that packet size limit is respected
     let large_payload = vec![0u8; 1024]; // Well within limit
-    client.publish("test/options", large_payload.as_slice()).await
+    client
+        .publish("test/options", large_payload.as_slice())
+        .await
         .expect("Failed to publish within size limit");
-    
+
     sleep(Duration::from_millis(100)).await;
-    assert!(received.load(Ordering::SeqCst), "Message not received with custom options");
-    
+    assert!(
+        received.load(Ordering::SeqCst),
+        "Message not received with custom options"
+    );
+
     client.disconnect().await.expect("Failed to disconnect");
 }
 

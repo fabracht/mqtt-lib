@@ -11,7 +11,7 @@ use tokio::time::sleep;
 async fn test_qos0_fire_and_forget() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos0-pub");
     let sub_client = MqttClient::new("qos0-sub");
 
@@ -53,7 +53,7 @@ async fn test_qos0_fire_and_forget() {
 async fn test_qos1_at_least_once() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos1-pub");
     let sub_client = MqttClient::new("qos1-sub");
 
@@ -112,7 +112,7 @@ async fn test_qos1_at_least_once() {
 async fn test_qos2_exactly_once() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos2-pub");
     let sub_client = MqttClient::new("qos2-sub");
 
@@ -174,7 +174,7 @@ async fn test_qos2_exactly_once() {
 async fn test_qos_downgrade() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos-downgrade-pub");
     let sub_client = MqttClient::new("qos-downgrade-sub");
 
@@ -220,7 +220,7 @@ async fn test_qos_downgrade() {
 async fn test_qos_upgrade_not_allowed() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos-upgrade-pub");
     let sub_client = MqttClient::new("qos-upgrade-sub");
 
@@ -265,7 +265,7 @@ async fn test_qos_upgrade_not_allowed() {
 async fn test_qos1_retransmission() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // This test simulates packet loss and retransmission
     let client = MqttClient::new("qos1-retrans");
     client.connect(broker.address()).await.unwrap();
@@ -311,7 +311,7 @@ async fn test_qos1_retransmission() {
 async fn test_qos2_no_duplicates() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Test that QoS 2 prevents duplicate delivery
     let client = MqttClient::new("qos2-nodup");
     client.connect(broker.address()).await.unwrap();
@@ -367,7 +367,7 @@ async fn test_qos2_no_duplicates() {
 async fn test_mixed_qos_levels() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new("mixed-qos");
     client.connect(broker.address()).await.unwrap();
 
@@ -432,7 +432,7 @@ async fn test_mixed_qos_levels() {
 async fn test_qos_with_retain() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let pub_client = MqttClient::new("qos-retain-pub");
     let sub_client = MqttClient::new("qos-retain-sub");
 
@@ -492,7 +492,7 @@ async fn test_qos_with_retain() {
 async fn test_qos_packet_id_exhaustion() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new("qos-exhaustion");
     client.connect(broker.address()).await.unwrap();
 

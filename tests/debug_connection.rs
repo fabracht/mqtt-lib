@@ -7,7 +7,7 @@ use std::time::Duration;
 async fn test_simple_connection_and_subscribe() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     println!("Creating client...");
     let client = MqttClient::new("debug-client");
 

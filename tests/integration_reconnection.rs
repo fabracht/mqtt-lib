@@ -17,7 +17,7 @@ fn test_client_id(test_name: &str) -> String {
 async fn test_automatic_reconnection() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("auto-reconnect"));
 
     // Track connection events
@@ -104,10 +104,10 @@ async fn test_message_queuing_during_disconnection() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .try_init();
-    
+
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Create client with persistent session
     let client_id = test_client_id("queue-test");
     let client = MqttClient::new(client_id.clone());
@@ -178,19 +178,25 @@ async fn test_message_queuing_during_disconnection() {
 
     let session_present = reconnect_result.session_present;
     println!("Reconnected with session_present: {session_present}");
-    
+
     // Wait a bit for queued messages to be delivered
     tokio::time::sleep(Duration::from_millis(500)).await;
-    
+
     // Send one more message to verify subscription is still active
     let publisher2 = MqttClient::new(test_client_id("queue-publisher2"));
-    publisher2.connect(broker.address()).await.expect("Failed to connect publisher2");
+    publisher2
+        .connect(broker.address())
+        .await
+        .expect("Failed to connect publisher2");
     publisher2
         .publish_qos1("test/queue/msg6", b"New message after reconnect")
         .await
         .expect("Failed to publish test message");
-    publisher2.disconnect().await.expect("Failed to disconnect publisher2");
-    
+    publisher2
+        .disconnect()
+        .await
+        .expect("Failed to disconnect publisher2");
+
     tokio::time::sleep(Duration::from_millis(500)).await;
     {
         let messages = received.read().unwrap();
@@ -199,7 +205,11 @@ async fn test_message_queuing_during_disconnection() {
         for msg in messages.iter() {
             println!("  - {msg}");
         }
-        assert_eq!(messages.len(), 6, "Should have received exactly 5 queued messages plus 1 new one");
+        assert_eq!(
+            messages.len(),
+            6,
+            "Should have received exactly 5 queued messages plus 1 new one"
+        );
         assert!(messages.contains(&"Offline message 1".to_string()));
         assert!(messages.contains(&"Offline message 2".to_string()));
         assert!(messages.contains(&"Offline message 3".to_string()));
@@ -215,7 +225,7 @@ async fn test_message_queuing_during_disconnection() {
 async fn test_exponential_backoff_reconnection() {
     // Start test broker (not used in this test - testing connection failure)
     let _broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("backoff-test"));
 
     let attempt_times = Arc::new(RwLock::new(Vec::<std::time::Instant>::new()));
@@ -267,7 +277,7 @@ async fn test_exponential_backoff_reconnection() {
 async fn test_clean_session_reconnection() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client_id = test_client_id("clean-session");
 
     // First connection with clean_start = true
@@ -350,7 +360,7 @@ async fn test_clean_session_reconnection() {
 async fn test_keep_alive_timeout_detection() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client = MqttClient::new(test_client_id("keepalive-test"));
 
     let disconnected = Arc::new(AtomicBool::new(false));
@@ -494,7 +504,7 @@ async fn publish_reconnect_messages(
 async fn test_subscription_restoration_after_reconnect() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let client_id = test_client_id("sub-restore");
     let client = MqttClient::new(client_id.clone());
     let message_count = Arc::new(AtomicU32::new(0));

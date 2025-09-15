@@ -11,7 +11,7 @@ use tokio::time::sleep;
 async fn test_keepalive_ping_sent() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-1");
     options.keep_alive = Duration::from_secs(2); // 2 second keep-alive
 
@@ -34,7 +34,7 @@ async fn test_keepalive_ping_sent() {
 async fn test_keepalive_activity_resets_timer() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-2");
     options.keep_alive = Duration::from_secs(3);
 
@@ -61,7 +61,7 @@ async fn test_keepalive_activity_resets_timer() {
 async fn test_keepalive_zero_disables() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-3");
     options.keep_alive = Duration::from_secs(0); // Disabled
 
@@ -83,7 +83,7 @@ async fn test_keepalive_zero_disables() {
 async fn test_keepalive_minimum_interval() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-4");
     options.keep_alive = Duration::from_secs(1); // Very short interval
 
@@ -103,7 +103,7 @@ async fn test_keepalive_minimum_interval() {
 async fn test_keepalive_with_qos_messages() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-5");
     options.keep_alive = Duration::from_secs(2);
 
@@ -145,7 +145,7 @@ async fn test_keepalive_with_qos_messages() {
 async fn test_keepalive_during_idle_subscription() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-6");
     options.keep_alive = Duration::from_secs(2);
 
@@ -174,7 +174,7 @@ async fn test_keepalive_during_idle_subscription() {
 async fn test_keepalive_ping_response_tracking() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-7");
     options.keep_alive = Duration::from_secs(2);
 
@@ -193,7 +193,7 @@ async fn test_keepalive_ping_response_tracking() {
 async fn test_keepalive_with_connection_loss_detection() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-8");
     options.keep_alive = Duration::from_secs(2);
 
@@ -217,7 +217,7 @@ async fn test_keepalive_with_connection_loss_detection() {
 async fn test_keepalive_boundary_conditions() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     // Test with maximum allowed keep-alive (18 hours, 12 minutes, 15 seconds)
     let mut options = ConnectOptions::new("keepalive-test-9");
     options.keep_alive = Duration::from_secs(65535); // Max u16 value
@@ -238,7 +238,7 @@ async fn test_keepalive_boundary_conditions() {
 async fn test_keepalive_with_rapid_reconnect() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-10");
     options.keep_alive = Duration::from_secs(2);
 
@@ -265,7 +265,7 @@ async fn test_keepalive_with_rapid_reconnect() {
 async fn test_keepalive_stats_accuracy() {
     // Start test broker
     let broker = TestBroker::start().await;
-    
+
     let mut options = ConnectOptions::new("keepalive-test-11");
     options.keep_alive = Duration::from_secs(1); // Fast interval for testing
 

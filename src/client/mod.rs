@@ -8,11 +8,13 @@ use crate::packet::publish::PublishPacket;
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsubscribe::UnsubscribePacket;
 use crate::protocol::v5::properties::Properties;
+use crate::transport::dtls::DtlsConfig;
 use crate::transport::tcp::TcpConfig;
 use crate::transport::tls::TlsConfig;
 use crate::transport::udp::UdpConfig;
-use crate::transport::dtls::DtlsConfig;
-use crate::transport::{TcpTransport, TlsTransport, UdpTransport, DtlsTransport, Transport, TransportType};
+use crate::transport::{
+    DtlsTransport, TcpTransport, TlsTransport, Transport, TransportType, UdpTransport,
+};
 use crate::types::{
     ConnectOptions, ConnectResult, PublishOptions, PublishResult, SubscribeOptions,
 };
@@ -1813,25 +1815,29 @@ mod tests {
         assert_eq!(port, 9999);
 
         // Test TCP scheme
-        let (transport, host, port) = MqttClient::parse_address("tcp://192.168.1.100:1234").unwrap();
+        let (transport, host, port) =
+            MqttClient::parse_address("tcp://192.168.1.100:1234").unwrap();
         assert!(matches!(transport, ClientTransportType::Tcp));
         assert_eq!(host, "192.168.1.100");
         assert_eq!(port, 1234);
 
         // Test SSL scheme (alias for TLS)
-        let (transport, host, port) = MqttClient::parse_address("ssl://secure.broker.com:8883").unwrap();
+        let (transport, host, port) =
+            MqttClient::parse_address("ssl://secure.broker.com:8883").unwrap();
         assert!(matches!(transport, ClientTransportType::Tls));
         assert_eq!(host, "secure.broker.com");
         assert_eq!(port, 8883);
 
         // Test UDP scheme
-        let (transport, host, port) = MqttClient::parse_address("mqtt-udp://udp.broker:1883").unwrap();
+        let (transport, host, port) =
+            MqttClient::parse_address("mqtt-udp://udp.broker:1883").unwrap();
         assert!(matches!(transport, ClientTransportType::Udp));
         assert_eq!(host, "udp.broker");
         assert_eq!(port, 1883);
 
         // Test DTLS scheme
-        let (transport, host, port) = MqttClient::parse_address("mqtts-dtls://dtls.broker:8883").unwrap();
+        let (transport, host, port) =
+            MqttClient::parse_address("mqtts-dtls://dtls.broker:8883").unwrap();
         assert!(matches!(transport, ClientTransportType::Dtls));
         assert_eq!(host, "dtls.broker");
         assert_eq!(port, 8883);

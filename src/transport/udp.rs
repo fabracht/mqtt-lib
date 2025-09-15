@@ -140,39 +140,34 @@ impl UdpTransport {
             SocketAddr::V6(_) => "[::]:0",
         };
 
-        let socket = timeout(
-            self.config.connect_timeout,
-            UdpSocket::bind(bind_addr),
-        )
-        .await
-        .map_err(|_| MqttError::Timeout)?
-        .map_err(|e| MqttError::Io(e.to_string()))?;
+        let socket = timeout(self.config.connect_timeout, UdpSocket::bind(bind_addr))
+            .await
+            .map_err(|_| MqttError::Timeout)?
+            .map_err(|e| MqttError::Io(e.to_string()))?;
 
         socket.connect(self.config.addr).await?;
-        
+
         let socket = Arc::new(socket);
         self.socket = Some(socket.clone());
-        
+
         debug!("UDP transport connected to {}", self.config.addr);
         Ok(socket)
     }
 
     async fn send_raw(&self, data: &[u8]) -> Result<()> {
-        let socket = self.socket.as_ref()
-            .ok_or(MqttError::NotConnected)?;
-        
+        let socket = self.socket.as_ref().ok_or(MqttError::NotConnected)?;
+
         socket.send(data).await?;
         Ok(())
     }
 
     async fn receive_raw(&self) -> Result<Vec<u8>> {
-        let socket = self.socket.as_ref()
-            .ok_or(MqttError::NotConnected)?;
-        
+        let socket = self.socket.as_ref().ok_or(MqttError::NotConnected)?;
+
         let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
         let len = socket.recv(&mut buf).await?;
         buf.truncate(len);
-        
+
         Ok(buf)
     }
 
@@ -192,8 +187,8 @@ impl UdpTransport {
             return Ok(vec![packet_bytes.to_vec()]);
         }
 
-        let total_fragments = u16::try_from(packet_bytes.len().div_ceil(max_payload_size))
-            .unwrap_or(u16::MAX);
+        let total_fragments =
+            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
         let mut packet_id = self.next_packet_id.lock().await;
         let current_packet_id = *packet_id;
         *packet_id = packet_id.wrapping_add(1);
@@ -203,7 +198,7 @@ impl UdpTransport {
         for i in 0..total_fragments {
             let start = (i as usize) * max_payload_size;
             let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-            
+
             let header = FragmentHeader {
                 packet_id: current_packet_id,
                 fragment_index: i,
@@ -213,7 +208,7 @@ impl UdpTransport {
             let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
             fragment.extend_from_slice(&header.to_bytes());
             fragment.extend_from_slice(&packet_bytes[start..end]);
-            
+
             fragments.push(fragment);
         }
 
@@ -236,25 +231,31 @@ impl UdpTransport {
 
         let payload = &data[FragmentHeader::SIZE..];
         let mut reassembly_map = self.fragment_reassembly.lock().await;
-        
-        reassembly_map.retain(|_, v| {
-            v.started_at.elapsed() < Duration::from_secs(30)
-        });
 
-        let reassembly = reassembly_map.entry(header.packet_id)
-            .or_insert_with(|| FragmentReassembly {
-                fragments: HashMap::new(),
-                total_fragments: header.total_fragments,
-                received_fragments: 0,
-                started_at: Instant::now(),
-            });
+        reassembly_map.retain(|_, v| v.started_at.elapsed() < Duration::from_secs(30));
+
+        let reassembly =
+            reassembly_map
+                .entry(header.packet_id)
+                .or_insert_with(|| FragmentReassembly {
+                    fragments: HashMap::new(),
+                    total_fragments: header.total_fragments,
+                    received_fragments: 0,
+                    started_at: Instant::now(),
+                });
 
         if reassembly.fragments.contains_key(&header.fragment_index) {
-            trace!("Duplicate fragment {} for packet {}", header.fragment_index, header.packet_id);
+            trace!(
+                "Duplicate fragment {} for packet {}",
+                header.fragment_index,
+                header.packet_id
+            );
             return Ok(None);
         }
 
-        reassembly.fragments.insert(header.fragment_index, payload.to_vec());
+        reassembly
+            .fragments
+            .insert(header.fragment_index, payload.to_vec());
         reassembly.received_fragments += 1;
 
         if reassembly.received_fragments == reassembly.total_fragments {
@@ -269,24 +270,33 @@ impl UdpTransport {
             }
 
             reassembly_map.remove(&header.packet_id);
-            trace!("Reassembled complete packet {} ({} bytes)", header.packet_id, complete_packet.len());
+            trace!(
+                "Reassembled complete packet {} ({} bytes)",
+                header.packet_id,
+                complete_packet.len()
+            );
             Ok(Some(complete_packet))
         } else {
-            trace!("Received fragment {}/{} for packet {}", 
-                   reassembly.received_fragments, 
-                   reassembly.total_fragments, 
-                   header.packet_id);
+            trace!(
+                "Received fragment {}/{} for packet {}",
+                reassembly.received_fragments,
+                reassembly.total_fragments,
+                header.packet_id
+            );
             Ok(None)
         }
     }
 
-    async fn check_duplicate(&self, addr: SocketAddr, packet_id: u16, data: &[u8]) -> Result<Option<Vec<u8>>> {
+    async fn check_duplicate(
+        &self,
+        addr: SocketAddr,
+        packet_id: u16,
+        data: &[u8],
+    ) -> Result<Option<Vec<u8>>> {
         let mut cache = self.message_cache.lock().await;
         let now = Instant::now();
-        
-        cache.retain(|_, (timestamp, _)| {
-            now.duration_since(*timestamp) < MESSAGE_CACHE_TIMEOUT
-        });
+
+        cache.retain(|_, (timestamp, _)| now.duration_since(*timestamp) < MESSAGE_CACHE_TIMEOUT);
 
         let key = (addr, packet_id);
         if let Some((_, cached_data)) = cache.get(&key) {
@@ -308,7 +318,7 @@ impl Transport for UdpTransport {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         loop {
             let data = self.receive_raw().await?;
-            
+
             if let Some(complete_packet) = self.reassemble_fragment(&data).await? {
                 let len = complete_packet.len().min(buf.len());
                 buf[..len].copy_from_slice(&complete_packet[..len]);
@@ -319,11 +329,11 @@ impl Transport for UdpTransport {
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
         let fragments = self.fragment_packet(buf).await?;
-        
+
         for fragment in fragments {
             self.send_raw(&fragment).await?;
         }
-        
+
         Ok(())
     }
 
@@ -336,12 +346,11 @@ impl Transport for UdpTransport {
 
 impl UdpTransport {
     pub fn into_split(self) -> Result<(UdpReadHalf, UdpWriteHalf)> {
-        let socket = self.socket
-            .ok_or(MqttError::NotConnected)?;
-        
+        let socket = self.socket.ok_or(MqttError::NotConnected)?;
+
         let reader = UdpReadHalf::new(socket.clone(), self.config.mtu);
         let writer = UdpWriteHalf::new(socket, self.config.mtu);
-        
+
         Ok((reader, writer))
     }
 }
@@ -376,16 +385,20 @@ impl UdpReadHalf {
 
         let payload = &data[FragmentHeader::SIZE..];
         let mut reassembly_map = self.fragment_reassembly.lock().await;
-        
-        let reassembly = reassembly_map.entry(header.packet_id)
-            .or_insert_with(|| FragmentReassembly {
-                fragments: HashMap::new(),
-                total_fragments: header.total_fragments,
-                received_fragments: 0,
-                started_at: Instant::now(),
-            });
 
-        reassembly.fragments.insert(header.fragment_index, payload.to_vec());
+        let reassembly =
+            reassembly_map
+                .entry(header.packet_id)
+                .or_insert_with(|| FragmentReassembly {
+                    fragments: HashMap::new(),
+                    total_fragments: header.total_fragments,
+                    received_fragments: 0,
+                    started_at: Instant::now(),
+                });
+
+        reassembly
+            .fragments
+            .insert(header.fragment_index, payload.to_vec());
         reassembly.received_fragments += 1;
 
         if reassembly.received_fragments == reassembly.total_fragments {
@@ -409,18 +422,18 @@ impl PacketReader for UdpReadHalf {
         loop {
             let len = self.socket.recv(&mut buf).await?;
             buf.truncate(len);
-            
+
             if let Some(complete_packet) = self.reassemble_fragment(&buf).await? {
                 // Parse packet from bytes
                 let mut bytes = BytesMut::from(&complete_packet[..]);
                 let fixed_header = FixedHeader::decode(&mut bytes)?;
-                let packet = Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut bytes)?;
+                let packet =
+                    Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut bytes)?;
                 return Ok(packet);
             }
         }
     }
 }
-
 
 pub struct UdpWriteHalf {
     socket: Arc<UdpSocket>,
@@ -443,8 +456,8 @@ impl UdpWriteHalf {
             return Ok(vec![packet_bytes.to_vec()]);
         }
 
-        let total_fragments = u16::try_from(packet_bytes.len().div_ceil(max_payload_size))
-            .unwrap_or(u16::MAX);
+        let total_fragments =
+            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
         let mut packet_id = self.next_packet_id.lock().await;
         let current_packet_id = *packet_id;
         *packet_id = packet_id.wrapping_add(1);
@@ -454,7 +467,7 @@ impl UdpWriteHalf {
         for i in 0..total_fragments {
             let start = (i as usize) * max_payload_size;
             let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-            
+
             let header = FragmentHeader {
                 packet_id: current_packet_id,
                 fragment_index: i,
@@ -464,7 +477,7 @@ impl UdpWriteHalf {
             let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
             fragment.extend_from_slice(&header.to_bytes());
             fragment.extend_from_slice(&packet_bytes[start..end]);
-            
+
             fragments.push(fragment);
         }
 
@@ -477,15 +490,14 @@ impl PacketWriter for UdpWriteHalf {
         let mut buf = BytesMut::with_capacity(1024);
         encode_packet_to_buffer(&packet, &mut buf)?;
         let fragments = self.fragment_packet(&buf).await?;
-        
+
         for fragment in fragments {
             self.socket.send(&fragment).await?;
         }
-        
+
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

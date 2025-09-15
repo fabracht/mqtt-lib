@@ -100,7 +100,9 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     };
 
     // Build broker URL
-    let broker_url = cmd.url.unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
+    let broker_url = cmd
+        .url
+        .unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
     debug!("Connecting to broker: {}", broker_url);
 
     // Create client
@@ -121,9 +123,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     let verbose = cmd.verbose;
 
     info!("Subscribing to '{}' (QoS {})...", topic, qos as u8);
-    println!(
-        "✓ Subscribed to '{topic}' - waiting for messages (Ctrl+C to exit)"
-    );
+    println!("✓ Subscribed to '{topic}' - waiting for messages (Ctrl+C to exit)");
 
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;

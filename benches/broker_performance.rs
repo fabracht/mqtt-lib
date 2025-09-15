@@ -121,8 +121,7 @@ fn benchmark_concurrent_connections(c: &mut Criterion) {
                             .map(|i| {
                                 let addr = broker_addr.to_string();
                                 tokio::spawn(async move {
-                                    let client =
-                                        MqttClient::new(format!("concurrent-client-{i}"));
+                                    let client = MqttClient::new(format!("concurrent-client-{i}"));
                                     let result = client.connect(&addr).await;
                                     if result.is_ok() {
                                         let _ = client.disconnect().await;

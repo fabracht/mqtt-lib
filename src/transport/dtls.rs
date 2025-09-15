@@ -1,6 +1,8 @@
 use crate::error::{MqttError, Result};
 use crate::packet::{FixedHeader, Packet};
-use crate::transport::{packet_io::encode_packet_to_buffer, PacketReader, PacketWriter, Transport, udp::FragmentHeader};
+use crate::transport::{
+    packet_io::encode_packet_to_buffer, udp::FragmentHeader, PacketReader, PacketWriter, Transport,
+};
 use bytes::BytesMut;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -113,9 +115,11 @@ impl DtlsTransport {
     fn create_dtls_config(&self) -> Result<WebRtcDtlsConfig> {
         if let (Some(identity), Some(key)) = (&self.config.psk_identity, &self.config.psk_key) {
             let key_clone = key.clone();
-            let psk_callback = Arc::new(move |_hint: &[u8]| -> std::result::Result<Vec<u8>, webrtc_dtls::Error> {
-                Ok(key_clone.clone())
-            });
+            let psk_callback = Arc::new(
+                move |_hint: &[u8]| -> std::result::Result<Vec<u8>, webrtc_dtls::Error> {
+                    Ok(key_clone.clone())
+                },
+            );
 
             Ok(WebRtcDtlsConfig {
                 psk: Some(psk_callback),
@@ -147,15 +151,14 @@ impl DtlsTransport {
             SocketAddr::V6(_) => "[::]:0",
         };
 
-        let udp_socket = timeout(
-            self.config.connect_timeout,
-            UdpSocket::bind(bind_addr),
-        )
-        .await
-        .map_err(|_| MqttError::Timeout)?
-        .map_err(|e| MqttError::Io(e.to_string()))?;
+        let udp_socket = timeout(self.config.connect_timeout, UdpSocket::bind(bind_addr))
+            .await
+            .map_err(|_| MqttError::Timeout)?
+            .map_err(|e| MqttError::Io(e.to_string()))?;
 
-        udp_socket.connect(self.config.addr).await
+        udp_socket
+            .connect(self.config.addr)
+            .await
             .map_err(|e| MqttError::Io(e.to_string()))?;
 
         let udp_conn: Arc<dyn Conn + Send + Sync> = Arc::new(udp_socket);
@@ -163,11 +166,13 @@ impl DtlsTransport {
 
         let dtls_conn = timeout(
             self.config.connect_timeout,
-            DTLSConn::new(udp_conn, dtls_config, true, None)
+            DTLSConn::new(udp_conn, dtls_config, true, None),
         )
         .await
         .map_err(|_| MqttError::Timeout)?
-        .map_err(|e| MqttError::ConnectionError(format!("Failed to create DTLS connection: {e}")))?;
+        .map_err(|e| {
+            MqttError::ConnectionError(format!("Failed to create DTLS connection: {e}"))
+        })?;
 
         let conn: Arc<dyn Conn + Send + Sync> = Arc::new(dtls_conn);
         self.conn = Some(conn.clone());
@@ -177,23 +182,24 @@ impl DtlsTransport {
     }
 
     async fn send_raw(&self, data: &[u8]) -> Result<()> {
-        let conn = self.conn.as_ref()
-            .ok_or(MqttError::NotConnected)?;
-        
-        conn.send(data).await
+        let conn = self.conn.as_ref().ok_or(MqttError::NotConnected)?;
+
+        conn.send(data)
+            .await
             .map_err(|e| MqttError::Io(e.to_string()))?;
         Ok(())
     }
 
     async fn receive_raw(&self) -> Result<Vec<u8>> {
-        let conn = self.conn.as_ref()
-            .ok_or(MqttError::NotConnected)?;
-        
+        let conn = self.conn.as_ref().ok_or(MqttError::NotConnected)?;
+
         let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
-        let len = conn.recv(&mut buf).await
+        let len = conn
+            .recv(&mut buf)
+            .await
             .map_err(|e| MqttError::Io(e.to_string()))?;
         buf.truncate(len);
-        
+
         Ok(buf)
     }
 
@@ -203,8 +209,8 @@ impl DtlsTransport {
             return Ok(vec![packet_bytes.to_vec()]);
         }
 
-        let total_fragments = u16::try_from(packet_bytes.len().div_ceil(max_payload_size))
-            .unwrap_or(u16::MAX);
+        let total_fragments =
+            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
         let mut packet_id = self.next_packet_id.lock().await;
         let current_packet_id = *packet_id;
         *packet_id = packet_id.wrapping_add(1);
@@ -214,7 +220,7 @@ impl DtlsTransport {
         for i in 0..total_fragments {
             let start = (i as usize) * max_payload_size;
             let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-            
+
             let header = FragmentHeader {
                 packet_id: current_packet_id,
                 fragment_index: i,
@@ -224,7 +230,7 @@ impl DtlsTransport {
             let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
             fragment.extend_from_slice(&header.to_bytes());
             fragment.extend_from_slice(&packet_bytes[start..end]);
-            
+
             fragments.push(fragment);
         }
 
@@ -247,25 +253,31 @@ impl DtlsTransport {
 
         let payload = &data[FragmentHeader::SIZE..];
         let mut reassembly_map = self.fragment_reassembly.lock().await;
-        
-        reassembly_map.retain(|_, v| {
-            v.started_at.elapsed() < Duration::from_secs(30)
-        });
 
-        let reassembly = reassembly_map.entry(header.packet_id)
-            .or_insert_with(|| FragmentReassembly {
-                fragments: HashMap::new(),
-                total_fragments: header.total_fragments,
-                received_fragments: 0,
-                started_at: Instant::now(),
-            });
+        reassembly_map.retain(|_, v| v.started_at.elapsed() < Duration::from_secs(30));
+
+        let reassembly =
+            reassembly_map
+                .entry(header.packet_id)
+                .or_insert_with(|| FragmentReassembly {
+                    fragments: HashMap::new(),
+                    total_fragments: header.total_fragments,
+                    received_fragments: 0,
+                    started_at: Instant::now(),
+                });
 
         if reassembly.fragments.contains_key(&header.fragment_index) {
-            trace!("Duplicate fragment {} for packet {}", header.fragment_index, header.packet_id);
+            trace!(
+                "Duplicate fragment {} for packet {}",
+                header.fragment_index,
+                header.packet_id
+            );
             return Ok(None);
         }
 
-        reassembly.fragments.insert(header.fragment_index, payload.to_vec());
+        reassembly
+            .fragments
+            .insert(header.fragment_index, payload.to_vec());
         reassembly.received_fragments += 1;
 
         if reassembly.received_fragments == reassembly.total_fragments {
@@ -280,13 +292,19 @@ impl DtlsTransport {
             }
 
             reassembly_map.remove(&header.packet_id);
-            trace!("Reassembled complete packet {} ({} bytes)", header.packet_id, complete_packet.len());
+            trace!(
+                "Reassembled complete packet {} ({} bytes)",
+                header.packet_id,
+                complete_packet.len()
+            );
             Ok(Some(complete_packet))
         } else {
-            trace!("Received fragment {}/{} for packet {}", 
-                   reassembly.received_fragments, 
-                   reassembly.total_fragments, 
-                   header.packet_id);
+            trace!(
+                "Received fragment {}/{} for packet {}",
+                reassembly.received_fragments,
+                reassembly.total_fragments,
+                header.packet_id
+            );
             Ok(None)
         }
     }
@@ -301,7 +319,7 @@ impl Transport for DtlsTransport {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         loop {
             let data = self.receive_raw().await?;
-            
+
             if let Some(complete_packet) = self.reassemble_fragment(&data).await? {
                 let len = complete_packet.len().min(buf.len());
                 buf[..len].copy_from_slice(&complete_packet[..len]);
@@ -312,11 +330,11 @@ impl Transport for DtlsTransport {
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
         let fragments = self.fragment_packet(buf).await?;
-        
+
         for fragment in fragments {
             self.send_raw(&fragment).await?;
         }
-        
+
         Ok(())
     }
 
@@ -333,12 +351,11 @@ impl Transport for DtlsTransport {
 
 impl DtlsTransport {
     pub fn into_split(self) -> Result<(DtlsReadHalf, DtlsWriteHalf)> {
-        let conn = self.conn
-            .ok_or(MqttError::NotConnected)?;
-        
+        let conn = self.conn.ok_or(MqttError::NotConnected)?;
+
         let reader = DtlsReadHalf::new(conn.clone(), self.config.mtu);
         let writer = DtlsWriteHalf::new(conn, self.config.mtu);
-        
+
         Ok((reader, writer))
     }
 }
@@ -373,16 +390,20 @@ impl DtlsReadHalf {
 
         let payload = &data[FragmentHeader::SIZE..];
         let mut reassembly_map = self.fragment_reassembly.lock().await;
-        
-        let reassembly = reassembly_map.entry(header.packet_id)
-            .or_insert_with(|| FragmentReassembly {
-                fragments: HashMap::new(),
-                total_fragments: header.total_fragments,
-                received_fragments: 0,
-                started_at: Instant::now(),
-            });
 
-        reassembly.fragments.insert(header.fragment_index, payload.to_vec());
+        let reassembly =
+            reassembly_map
+                .entry(header.packet_id)
+                .or_insert_with(|| FragmentReassembly {
+                    fragments: HashMap::new(),
+                    total_fragments: header.total_fragments,
+                    received_fragments: 0,
+                    started_at: Instant::now(),
+                });
+
+        reassembly
+            .fragments
+            .insert(header.fragment_index, payload.to_vec());
         reassembly.received_fragments += 1;
 
         if reassembly.received_fragments == reassembly.total_fragments {
@@ -404,21 +425,24 @@ impl PacketReader for DtlsReadHalf {
     async fn read_packet(&mut self) -> Result<Packet> {
         let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
         loop {
-            let len = self.conn.recv(&mut buf).await
+            let len = self
+                .conn
+                .recv(&mut buf)
+                .await
                 .map_err(|e| MqttError::Io(e.to_string()))?;
             buf.truncate(len);
-            
+
             if let Some(complete_packet) = self.reassemble_fragment(&buf).await? {
                 // Parse packet from bytes
                 let mut bytes = BytesMut::from(&complete_packet[..]);
                 let fixed_header = FixedHeader::decode(&mut bytes)?;
-                let packet = Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut bytes)?;
+                let packet =
+                    Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut bytes)?;
                 return Ok(packet);
             }
         }
     }
 }
-
 
 pub struct DtlsWriteHalf {
     conn: Arc<dyn Conn + Send + Sync>,
@@ -441,8 +465,8 @@ impl DtlsWriteHalf {
             return Ok(vec![packet_bytes.to_vec()]);
         }
 
-        let total_fragments = u16::try_from(packet_bytes.len().div_ceil(max_payload_size))
-            .unwrap_or(u16::MAX);
+        let total_fragments =
+            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
         let mut packet_id = self.next_packet_id.lock().await;
         let current_packet_id = *packet_id;
         *packet_id = packet_id.wrapping_add(1);
@@ -452,7 +476,7 @@ impl DtlsWriteHalf {
         for i in 0..total_fragments {
             let start = (i as usize) * max_payload_size;
             let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-            
+
             let header = FragmentHeader {
                 packet_id: current_packet_id,
                 fragment_index: i,
@@ -462,7 +486,7 @@ impl DtlsWriteHalf {
             let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
             fragment.extend_from_slice(&header.to_bytes());
             fragment.extend_from_slice(&packet_bytes[start..end]);
-            
+
             fragments.push(fragment);
         }
 
@@ -475,16 +499,17 @@ impl PacketWriter for DtlsWriteHalf {
         let mut buf = BytesMut::with_capacity(1024);
         encode_packet_to_buffer(&packet, &mut buf)?;
         let fragments = self.fragment_packet(&buf).await?;
-        
+
         for fragment in fragments {
-            self.conn.send(&fragment).await
+            self.conn
+                .send(&fragment)
+                .await
                 .map_err(|e| MqttError::Io(e.to_string()))?;
         }
-        
+
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

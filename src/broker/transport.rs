@@ -4,7 +4,7 @@
 //! (TCP, TLS, WebSocket) used by the broker's client handler.
 
 use crate::error::Result;
-use crate::transport::{Transport, UdpTransport, DtlsTransport};
+use crate::transport::{DtlsTransport, Transport, UdpTransport};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -119,12 +119,10 @@ impl AsyncRead for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_read(cx, buf),
-            Self::Udp(_) | Self::Dtls(_) => {
-                Poll::Ready(Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "AsyncRead not supported for UDP/DTLS transports",
-                )))
-            }
+            Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "AsyncRead not supported for UDP/DTLS transports",
+            ))),
         }
     }
 }
@@ -139,12 +137,10 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_write(cx, buf),
-            Self::Udp(_) | Self::Dtls(_) => {
-                Poll::Ready(Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "AsyncWrite not supported for UDP/DTLS transports",
-                )))
-            }
+            Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "AsyncWrite not supported for UDP/DTLS transports",
+            ))),
         }
     }
 

@@ -186,24 +186,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_bridge_manager_lifecycle() {
+        use crate::broker::config::{BrokerConfig, StorageBackend, StorageConfig};
         use crate::broker::server::MqttBroker;
-        use crate::broker::config::{BrokerConfig, StorageConfig, StorageBackend};
 
         let router = Arc::new(MessageRouter::new());
         let manager = BridgeManager::new(router);
 
         // Start our own MQTT broker for testing with in-memory storage
-        
+
         let storage_config = StorageConfig {
             backend: StorageBackend::Memory,
             enable_persistence: true,
             ..Default::default()
         };
-        
+
         let config = BrokerConfig::default()
             .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
             .with_storage(storage_config);
-            
+
         let mut broker = MqttBroker::with_config(config)
             .await
             .expect("Failed to create broker");

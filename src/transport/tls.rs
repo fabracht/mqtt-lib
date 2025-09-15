@@ -613,8 +613,7 @@ mod tests {
         use crate::protocol::v5::properties::Properties;
 
         // Initialize the crypto provider for tests
-        let _ = rustls::crypto::ring::default_provider()
-            .install_default();
+        let _ = rustls::crypto::ring::default_provider().install_default();
 
         let mut config = TlsConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8884),

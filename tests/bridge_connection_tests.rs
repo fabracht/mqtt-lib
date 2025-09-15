@@ -241,7 +241,7 @@ async fn test_bridge_backup_brokers() {
 
     // Verify the bridge accepts configuration with backup brokers
     let bridge = BridgeConnection::new(config, router).unwrap();
-    
+
     // Verify initial state
     let stats = bridge.get_stats().await;
     assert_eq!(stats.connection_attempts, 0);
@@ -263,7 +263,7 @@ async fn test_bridge_tls_config() {
 
     // Verify the bridge accepts TLS configuration
     let _bridge = BridgeConnection::new(config.clone(), router).unwrap();
-    
+
     // Verify the TLS configuration was stored correctly
     assert!(config.use_tls);
     assert_eq!(config.tls_server_name, Some("secure.broker".to_string()));
@@ -284,7 +284,7 @@ async fn test_bridge_authentication() {
 
     // Verify the bridge accepts configuration with authentication
     let _bridge = BridgeConnection::new(config.clone(), router).unwrap();
-    
+
     // Verify the configuration was stored correctly
     assert_eq!(config.username, Some("bridge-user".to_string()));
     assert_eq!(config.password, Some("bridge-pass".to_string()));

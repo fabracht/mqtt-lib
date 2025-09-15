@@ -2,8 +2,8 @@
 //!
 //! This test demonstrates a real bridge scenario between two brokers
 
+use mqtt5::broker::config::{StorageBackend, StorageConfig};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
-use mqtt5::broker::config::{StorageConfig, StorageBackend};
 use mqtt5::client::MqttClient;
 use std::sync::Arc;
 use std::time::Duration;
@@ -37,10 +37,10 @@ async fn test_bridge_between_brokers() {
 
     let mut broker1 = MqttBroker::with_config(broker1_config).await.unwrap();
     let mut broker2 = MqttBroker::with_config(broker2_config).await.unwrap();
-    
+
     let broker1_addr = broker1.local_addr().expect("Failed to get broker1 address");
     let broker2_addr = broker2.local_addr().expect("Failed to get broker2 address");
-    
+
     // Start brokers in background
     let broker1_handle = tokio::spawn(async move {
         let _ = broker1.run().await;
@@ -57,8 +57,14 @@ async fn test_bridge_between_brokers() {
     let client2 = MqttClient::new("client2");
 
     // Connect clients
-    client1.connect(&format!("mqtt://{}", broker1_addr)).await.unwrap();
-    client2.connect(&format!("mqtt://{}", broker2_addr)).await.unwrap();
+    client1
+        .connect(&format!("mqtt://{}", broker1_addr))
+        .await
+        .unwrap();
+    client2
+        .connect(&format!("mqtt://{}", broker2_addr))
+        .await
+        .unwrap();
 
     // Set up message channels to capture received messages
     let (tx1, mut rx1) = mpsc::channel(10);
