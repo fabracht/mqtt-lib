@@ -41,17 +41,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn worker 1
     let count1 = worker1_count.clone();
     tokio::spawn(async move {
-        let client = MqttClient::new("worker-1");
-        client.connect("127.0.0.1:1885").await.unwrap();
-
         let options = ConnectOptions::new("worker-1")
             .with_clean_start(true)
             .with_keep_alive(Duration::from_secs(30));
 
-        client
-            .connect_with_options("127.0.0.1:1885", options)
-            .await
-            .unwrap();
+        let client = MqttClient::with_options(options);
+        client.connect("127.0.0.1:1885").await.unwrap();
 
         // Subscribe to shared subscription
         client
@@ -73,17 +68,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn worker 2
     let count2 = worker2_count.clone();
     tokio::spawn(async move {
-        let client = MqttClient::new("worker-2");
-        client.connect("127.0.0.1:1885").await.unwrap();
-
         let options = ConnectOptions::new("worker-2")
             .with_clean_start(true)
             .with_keep_alive(Duration::from_secs(30));
 
-        client
-            .connect_with_options("127.0.0.1:1885", options)
-            .await
-            .unwrap();
+        let client = MqttClient::with_options(options);
+        client.connect("127.0.0.1:1885").await.unwrap();
 
         // Subscribe to same shared subscription
         client
@@ -105,17 +95,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn worker 3
     let count3 = worker3_count.clone();
     tokio::spawn(async move {
-        let client = MqttClient::new("worker-3");
-        client.connect("127.0.0.1:1885").await.unwrap();
-
         let options = ConnectOptions::new("worker-3")
             .with_clean_start(true)
             .with_keep_alive(Duration::from_secs(30));
 
-        client
-            .connect_with_options("127.0.0.1:1885", options)
-            .await
-            .unwrap();
+        let client = MqttClient::with_options(options);
+        client.connect("127.0.0.1:1885").await.unwrap();
 
         // Subscribe to same shared subscription
         client
@@ -138,16 +123,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sleep(Duration::from_secs(2)).await;
 
     // Create publisher
-    let publisher = MqttClient::new("publisher");
-    publisher.connect("127.0.0.1:1885").await?;
-
     let pub_options = ConnectOptions::new("publisher")
         .with_clean_start(true)
         .with_keep_alive(Duration::from_secs(30));
 
-    publisher
-        .connect_with_options("127.0.0.1:1885", pub_options)
-        .await?;
+    let publisher = MqttClient::with_options(pub_options);
+    publisher.connect("127.0.0.1:1885").await?;
 
     println!("\nPublishing 12 tasks...");
 
@@ -191,16 +172,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Mixed Subscription Demo ===");
 
     // Add a regular (non-shared) subscriber
-    let monitor = MqttClient::new("monitor");
-    monitor.connect("127.0.0.1:1885").await?;
-
     let mon_options = ConnectOptions::new("monitor")
         .with_clean_start(true)
         .with_keep_alive(Duration::from_secs(30));
 
-    monitor
-        .connect_with_options("127.0.0.1:1885", mon_options)
-        .await?;
+    let monitor = MqttClient::with_options(mon_options);
+    monitor.connect("127.0.0.1:1885").await?;
 
     let monitor_count = Arc::new(AtomicUsize::new(0));
     let count_m = monitor_count.clone();

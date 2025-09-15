@@ -163,13 +163,16 @@ async fn create_dashboard_client() -> Result<MqttClient, Box<dyn std::error::Err
     let stats_clone = stats.clone();
     client
         .subscribe("sensors/+/data", move |msg| {
-            let mut s = stats_clone.blocking_write();
-            s.messages_received += 1;
+            let stats_clone = stats_clone.clone();
+            tokio::spawn(async move {
+                let mut s = stats_clone.write().await;
+                s.messages_received += 1;
 
-            if let Ok(value) = String::from_utf8_lossy(&msg.payload).parse::<f64>() {
-                s.last_value = value;
-                s.total_value += value;
-            }
+                if let Ok(value) = String::from_utf8_lossy(&msg.payload).parse::<f64>() {
+                    s.last_value = value;
+                    s.total_value += value;
+                }
+            });
         })
         .await?;
 
