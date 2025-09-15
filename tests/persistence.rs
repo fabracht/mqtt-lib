@@ -115,7 +115,6 @@ async fn test_clean_start_false() {
 }
 
 #[tokio::test]
-#[ignore = "Session expiry not yet implemented in broker"]
 async fn test_session_expiry_interval() {
     // Start test broker
     let broker = TestBroker::start().await;

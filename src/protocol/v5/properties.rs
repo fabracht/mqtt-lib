@@ -511,6 +511,20 @@ impl Properties {
             .push(PropertyValue::FourByteInteger(seconds));
     }
 
+    /// Gets the session expiry interval
+    pub fn get_session_expiry_interval(&self) -> Option<u32> {
+        self.properties
+            .get(&PropertyId::SessionExpiryInterval)
+            .and_then(|values| values.first())
+            .and_then(|value| {
+                if let PropertyValue::FourByteInteger(v) = value {
+                    Some(*v)
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Sets the assigned client identifier
     pub fn set_assigned_client_identifier(&mut self, id: String) {
         self.properties

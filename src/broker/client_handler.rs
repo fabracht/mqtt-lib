@@ -378,10 +378,13 @@ impl ClientHandler {
 
             if connect.clean_start || existing_session.is_none() {
                 // Create new session
+                // Extract session expiry interval from properties
+                let session_expiry = connect.properties.get_session_expiry_interval();
+                
                 let session = ClientSession::new(
                     connect.client_id.clone(),
                     true, // persistent
-                    None, // TODO: Extract session expiry from properties
+                    session_expiry,
                 );
                 storage.store_session(session.clone()).await?;
                 self.session = Some(session);
