@@ -38,7 +38,7 @@
 //! cargo run --example industrial_sensor_network
 //! ```
 //!
-//! Industrial IoT patterns showcased:
+//! Industrial `IoT` patterns showcased:
 //! - Sensor fusion from multiple redundant sources
 //! - Byzantine fault tolerance for critical measurements
 //! - Graceful degradation during partial network failures
@@ -187,6 +187,7 @@ impl Default for SensorFailoverManager {
 }
 
 impl SensorFailoverManager {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             primary_sensors: Arc::new(RwLock::new(HashMap::new())),
@@ -275,10 +276,9 @@ impl SensorFailoverManager {
                 }
 
                 return Ok(Some(backup_sensor));
-            } else {
-                error!(zone_id = %zone_id, "No backup sensor available for failover");
-                return Ok(None);
             }
+            error!(zone_id = %zone_id, "No backup sensor available for failover");
+            return Ok(None);
         }
 
         Ok(None)
@@ -329,8 +329,7 @@ impl SensorFailoverManager {
         for (zone_id, active_sensor) in active_sensors.iter() {
             let is_primary = primary_sensors
                 .get(zone_id)
-                .map(|config| &config.sensor_id == active_sensor)
-                .unwrap_or(false);
+                .is_some_and(|config| &config.sensor_id == active_sensor);
 
             let sensor_state = sensor_states
                 .get(active_sensor)
@@ -389,6 +388,7 @@ impl Default for AlertManager {
 }
 
 impl AlertManager {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_alerts: Arc::new(RwLock::new(HashMap::new())),
@@ -844,7 +844,7 @@ impl IndustrialSensorNetwork {
                     historical.push_back(data_point.clone());
 
                     // Limit historical data size
-                    if historical.len() > 100000 {
+                    if historical.len() > 100_000 {
                         historical.pop_front();
                     }
 
@@ -889,8 +889,7 @@ impl IndustrialSensorNetwork {
 
                 let uptime = metrics
                     .network_uptime_start
-                    .map(|start| start.elapsed().as_secs())
-                    .unwrap_or(0);
+                    .map_or(0, |start| start.elapsed().as_secs());
 
                 let health_report = serde_json::json!({
                     "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
@@ -1041,8 +1040,7 @@ impl IndustrialSensorNetwork {
             uptime_seconds: self
                 .network_metrics
                 .network_uptime_start
-                .map(|start| start.elapsed().as_secs())
-                .unwrap_or(0),
+                .map_or(0, |start| start.elapsed().as_secs()),
         }
     }
 }
@@ -1125,7 +1123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         validation_threshold: 2.0,
         criticality: CriticalityLevel::Critical,
         calibration_interval: Duration::from_secs(86400), // Daily
-        maintenance_schedule: Some(Duration::from_secs(604800)), // Weekly
+        maintenance_schedule: Some(Duration::from_secs(604_800)), // Weekly
     };
 
     let temp_sensor_backup = SensorConfig {
@@ -1138,7 +1136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         validation_threshold: 2.0,
         criticality: CriticalityLevel::Critical,
         calibration_interval: Duration::from_secs(86400),
-        maintenance_schedule: Some(Duration::from_secs(604800)),
+        maintenance_schedule: Some(Duration::from_secs(604_800)),
     };
 
     let pressure_sensor_primary = SensorConfig {
@@ -1151,7 +1149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         validation_threshold: 5.0,
         criticality: CriticalityLevel::Emergency,
         calibration_interval: Duration::from_secs(43200), // Twice daily
-        maintenance_schedule: Some(Duration::from_secs(259200)), // Every 3 days
+        maintenance_schedule: Some(Duration::from_secs(259_200)), // Every 3 days
     };
 
     network.add_sensor(temp_sensor_primary).await?;

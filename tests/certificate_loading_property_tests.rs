@@ -19,8 +19,7 @@ fn valid_pem_cert() -> impl Strategy<Value = Vec<u8>> {
                 2 => format!("{:02x}{:02x}=", chunk[0], chunk[1]),
                 _ => format!("{:02x}{:02x}{:02x}", chunk[0], chunk[1], chunk[2]),
             })
-            .collect::<Vec<_>>()
-            .join("");
+            .collect::<String>();
 
         // Add line breaks every 64 characters
         for (i, c) in b64_data.chars().enumerate() {
@@ -45,8 +44,7 @@ fn valid_pem_key() -> impl Strategy<Value = Vec<u8>> {
                 2 => format!("{:02x}{:02x}=", chunk[0], chunk[1]),
                 _ => format!("{:02x}{:02x}{:02x}", chunk[0], chunk[1], chunk[2]),
             })
-            .collect::<Vec<_>>()
-            .join("");
+            .collect::<String>();
 
         for (i, c) in b64_data.chars().enumerate() {
             if i % 64 == 0 && i > 0 {
@@ -78,6 +76,7 @@ fn invalid_pem_data() -> impl Strategy<Value = Vec<u8>> {
 }
 
 // Generate valid DER certificate data (simplified)
+#[allow(clippy::cast_possible_truncation)]
 fn valid_der_cert() -> impl Strategy<Value = Vec<u8>> {
     prop::collection::vec(any::<u8>(), 100..2000).prop_map(|mut data| {
         // DER always starts with SEQUENCE tag (0x30)
@@ -127,7 +126,7 @@ proptest! {
 
         // The important thing is that it doesn't panic and returns a Result
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 // If it succeeds, certificate should be loaded
                 assert!(config.client_cert.is_some());
             }
@@ -146,7 +145,7 @@ proptest! {
         let result = config.load_client_key_pem_bytes(&key_data);
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 assert!(config.client_key.is_some());
             }
             Err(e) => {
@@ -188,7 +187,7 @@ proptest! {
         // DER loading is more permissive since we just wrap the bytes
         // Most valid-looking DER data should succeed
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 assert!(config.client_cert.is_some());
             }
             Err(e) => {
@@ -205,7 +204,7 @@ proptest! {
         let result = config.load_client_key_der_bytes(&key_data);
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 assert!(config.client_key.is_some());
             }
             Err(e) => {
@@ -224,7 +223,7 @@ proptest! {
         // DER loading might succeed even with invalid data since we just wrap bytes
         // The important thing is it doesn't panic and returns a valid Result
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 // If it succeeds, cert should be loaded
                 assert!(config.client_cert.is_some());
             }
@@ -393,7 +392,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
 
         // Should handle multiple certificates gracefully
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 assert!(config.client_cert.is_some());
                 // Should load all certificates found
                 let certs = config.client_cert.as_ref().unwrap();
@@ -421,7 +420,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
 
         // Should handle large certificates without panicking
         match result {
-            Ok(_) => assert!(config.client_cert.is_some()),
+            Ok(()) => assert!(config.client_cert.is_some()),
             Err(e) => assert!(!e.to_string().is_empty()),
         }
     }
@@ -437,7 +436,7 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7VJTUt9Us8cKB
 
         // Should handle unusual whitespace gracefully
         match result {
-            Ok(_) => assert!(config.client_cert.is_some()),
+            Ok(()) => assert!(config.client_cert.is_some()),
             Err(e) => assert!(!e.to_string().is_empty()),
         }
     }

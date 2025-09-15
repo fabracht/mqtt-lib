@@ -1,7 +1,7 @@
 //! Shared subscription tests using Turmoil
 //!
 //! These tests verify the shared subscription functionality using
-//! the existing MessageRouter directly, which we know works.
+//! the existing `MessageRouter` directly, which we know works.
 
 #[cfg(feature = "turmoil-testing")]
 use mqtt5::broker::router::MessageRouter;

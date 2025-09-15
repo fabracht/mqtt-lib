@@ -4,7 +4,7 @@
 //! - Wildcard patterns (+, #)
 //! - Maximum length constraints
 //! - Invalid character handling
-//! - AWS IoT specific restrictions
+//! - AWS `IoT` specific restrictions
 //! - Unicode and special character validation
 
 use mqtt5::topic_matching::{validate_filter, validate_topic};
@@ -53,7 +53,7 @@ fn topic_filter_with_wildcards() -> impl Strategy<Value = String> {
 fn potentially_invalid_topic() -> impl Strategy<Value = String> {
     prop_oneof![
         // Empty topic
-        Just("".to_string()),
+        Just(String::new()),
         // Topics with null characters
         string_regex("[a-z]+\0[a-z]+").unwrap(),
         // Topics with invalid UTF-8 (using replacement char as proxy)
@@ -67,7 +67,7 @@ fn potentially_invalid_topic() -> impl Strategy<Value = String> {
     ]
 }
 
-/// Generate AWS IoT specific topics
+/// Generate AWS `IoT` specific topics
 fn aws_iot_topic() -> impl Strategy<Value = String> {
     prop_oneof![
         // $aws/ prefixed topics (reserved)

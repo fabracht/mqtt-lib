@@ -123,7 +123,7 @@ async fn test_tls_config_with_connect_options() {
         .with_keep_alive(Duration::from_secs(30));
 
     // Set custom packet size limit
-    options.properties.maximum_packet_size = Some(131072); // 128KB
+    options.properties.maximum_packet_size = Some(131_072); // 128KB
 
     let mut tls_config = TlsConfig::new(addr, "localhost").with_verify_server_cert(false);
 

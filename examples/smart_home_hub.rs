@@ -1,7 +1,7 @@
 //! Smart Home Hub Example
 //!
 //! This example demonstrates a comprehensive smart home hub that manages multiple devices
-//! concurrently with different QoS requirements, device coordination, and automation scenarios.
+//! concurrently with different `QoS` requirements, device coordination, and automation scenarios.
 //!
 //! ## Security Configuration
 //!
@@ -31,7 +31,7 @@
 //! ```
 //!
 //! Features demonstrated:
-//! - Concurrent device management with different protocols and QoS levels
+//! - Concurrent device management with different protocols and `QoS` levels
 //! - Device discovery and automatic registration
 //! - Scene automation with multiple device coordination
 //! - Security monitoring with alert prioritization
@@ -87,6 +87,7 @@ pub enum DeviceType {
 
 /// Device capabilities for automation
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct DeviceCapabilities {
     pub can_dim: bool,
     pub has_color: bool,
@@ -214,6 +215,7 @@ impl Default for AutomationEngine {
 }
 
 impl AutomationEngine {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             last_trigger_time: Arc::new(RwLock::new(HashMap::new())),
@@ -268,7 +270,7 @@ impl AutomationEngine {
                     ) && device
                         .properties
                         .get("armed")
-                        .and_then(|v| v.as_bool())
+                        .and_then(serde_json::Value::as_bool)
                         .unwrap_or(false)
                         == *armed
                 })
@@ -433,8 +435,6 @@ impl SmartHomeHub {
 
         let devices = Arc::clone(&self.devices);
         let alert_sender = self.alert_sender.clone();
-        let _automation_engine = Arc::clone(&self.automation_engine);
-        let _home_mode = Arc::clone(&self.home_mode);
         let device_registry = Arc::clone(&self.device_registry);
 
         // Subscribe to device state updates
@@ -442,8 +442,6 @@ impl SmartHomeHub {
             .subscribe("devices/+/state", move |msg| {
                 let devices = Arc::clone(&devices);
                 let alert_sender = alert_sender.clone();
-                let _automation_engine = Arc::clone(&_automation_engine);
-                let _home_mode = Arc::clone(&_home_mode);
                 let device_registry = Arc::clone(&device_registry);
 
                 tokio::spawn(async move {
@@ -470,7 +468,7 @@ impl SmartHomeHub {
                                 }
 
                                 // Check for security alerts
-                                Self::check_security_alerts(device, &alert_sender).await;
+                                Self::check_security_alerts(device, &alert_sender);
                             }
 
                             // Register device if not known
@@ -534,13 +532,17 @@ impl SmartHomeHub {
     }
 
     /// Check for security alerts based on device state
-    async fn check_security_alerts(
+    fn check_security_alerts(
         device: &DeviceState,
         alert_sender: &broadcast::Sender<SecurityAlert>,
     ) {
         match device.device_type {
             DeviceType::MotionSensor => {
-                if let Some(motion) = device.properties.get("motion").and_then(|v| v.as_bool()) {
+                if let Some(motion) = device
+                    .properties
+                    .get("motion")
+                    .and_then(serde_json::Value::as_bool)
+                {
                     if motion {
                         let alert = SecurityAlert {
                             id: format!(
@@ -568,7 +570,7 @@ impl SmartHomeHub {
                 if let Some(smoke) = device
                     .properties
                     .get("smoke_detected")
-                    .and_then(|v| v.as_bool())
+                    .and_then(serde_json::Value::as_bool)
                 {
                     if smoke {
                         let alert = SecurityAlert {
@@ -597,7 +599,7 @@ impl SmartHomeHub {
                 if let Some(forced) = device
                     .properties
                     .get("forced_entry")
-                    .and_then(|v| v.as_bool())
+                    .and_then(serde_json::Value::as_bool)
                 {
                     if forced {
                         let alert = SecurityAlert {
@@ -927,7 +929,6 @@ impl SmartHomeHub {
     async fn start_security_monitor(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut alert_receiver = self.alert_sender.subscribe();
         let client = Arc::clone(&self.client);
-        let _home_mode = Arc::clone(&self.home_mode);
         let devices = Arc::clone(&self.devices);
         let is_running = Arc::clone(&self.is_running);
 
@@ -970,9 +971,8 @@ impl SmartHomeHub {
                             }
                         }
                     }
-                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    () = tokio::time::sleep(Duration::from_secs(1)) => {
                         // Periodic security checks
-                        continue;
                     }
                 }
             }
@@ -1131,6 +1131,7 @@ impl SmartHomeHub {
 
     /// Setup default automation scenes
     #[instrument(skip(self))]
+    #[allow(clippy::too_many_lines)]
     async fn setup_default_scenes(&self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Setting up default automation scenes");
 
@@ -1159,7 +1160,7 @@ impl SmartHomeHub {
                         serde_json::Value::Number(serde_json::Number::from(22)),
                     )]
                     .into(),
-                    delay_ms: Some(300000), // 5 minutes
+                    delay_ms: Some(300_000), // 5 minutes
                 },
             ],
             conditions: vec![
@@ -1243,6 +1244,14 @@ impl SmartHomeHub {
     }
 
     /// Set home mode
+    ///
+    /// # Errors
+    ///
+    /// Returns error if publishing mode change fails
+    ///
+    /// # Panics
+    ///
+    /// Panics if system time is before UNIX epoch
     #[instrument(skip(self))]
     pub async fn set_home_mode(&self, mode: HomeMode) -> Result<(), Box<dyn std::error::Error>> {
         info!(mode = ?mode, "Setting home mode");

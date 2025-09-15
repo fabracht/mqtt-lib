@@ -1,6 +1,6 @@
-//! IoT Device Simulator Example
+//! `IoT` Device Simulator Example
 //!
-//! This example demonstrates a comprehensive IoT device simulator with:
+//! This example demonstrates a comprehensive `IoT` device simulator with:
 //! - Device lifecycle management (boot, register, operate, shutdown)
 //! - Robust error handling and recovery patterns
 //! - Telemetry collection with buffering and retry logic
@@ -32,7 +32,7 @@
 //! MQTT_BROKER_URL=mqtts://your-broker.com:8883 cargo run --example iot_device_simulator
 //! ```
 //!
-//! The simulator showcases real-world IoT patterns including:
+//! The simulator showcases real-world `IoT` patterns including:
 //! - Circuit breaker for broker failures
 //! - Exponential backoff for retries
 //! - Local data caching during offline periods
@@ -114,6 +114,7 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
+    #[must_use]
     pub fn new(threshold: usize, timeout: Duration) -> Self {
         Self {
             state: Arc::new(RwLock::new(CircuitBreakerState::Closed)),
@@ -180,7 +181,7 @@ impl CircuitBreaker {
     }
 }
 
-/// IoT Device Simulator with comprehensive error handling
+/// `IoT` Device Simulator with comprehensive error handling
 pub struct IoTDeviceSimulator {
     config: DeviceConfig,
     client: Arc<MqttClient>,
@@ -517,7 +518,7 @@ impl IoTDeviceSimulator {
                 let heartbeat = serde_json::json!({
                     "device_id": device_id,
                     "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                    "uptime": metrics.uptime_start.map(|start| start.elapsed().as_secs()).unwrap_or(0),
+                    "uptime": metrics.uptime_start.map_or(0, |start| start.elapsed().as_secs()),
                     "messages_sent": metrics.messages_sent.load(Ordering::SeqCst),
                     "messages_failed": metrics.messages_failed.load(Ordering::SeqCst),
                 });
@@ -632,15 +633,12 @@ impl IoTDeviceSimulator {
                         })
                         .await;
 
-                    match result {
-                        Ok(_) => {
-                            successfully_sent += 1;
-                        }
-                        Err(_) => {
-                            // Put the message back at the front of the queue
-                            buffer_guard.push_front(telemetry);
-                            break; // Stop trying if we can't send
-                        }
+                    if result.is_ok() {
+                        successfully_sent += 1;
+                    } else {
+                        // Put the message back at the front of the queue
+                        buffer_guard.push_front(telemetry);
+                        break; // Stop trying if we can't send
                     }
                 }
 
@@ -689,7 +687,7 @@ impl IoTDeviceSimulator {
                     "device_id": device_id,
                     "state": format!("{:?}", current_state),
                     "health_status": health_status,
-                    "uptime": metrics.uptime_start.map(|start| start.elapsed().as_secs()).unwrap_or(0),
+                    "uptime": metrics.uptime_start.map_or(0, |start| start.elapsed().as_secs()),
                     "messages_sent": messages_sent,
                     "messages_failed": messages_failed,
                     "connection_failures": connection_failures,

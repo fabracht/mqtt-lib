@@ -1,7 +1,7 @@
 //! Comprehensive pub/sub tests using Turmoil
 //!
 //! These tests verify publish/subscribe functionality in a deterministic
-//! environment, testing various QoS levels, topic patterns, and edge cases.
+//! environment, testing various `QoS` levels, topic patterns, and edge cases.
 
 #[cfg(feature = "turmoil-testing")]
 use mqtt5::broker::router::MessageRouter;
@@ -117,7 +117,7 @@ fn test_wildcard_subscriptions() {
 
         for (topic, payload) in &topics_and_payloads {
             let publish =
-                PublishPacket::new(topic.to_string(), payload.as_bytes(), QoS::AtMostOnce);
+                PublishPacket::new((*topic).to_string(), payload.as_bytes(), QoS::AtMostOnce);
             router.route_message(&publish).await;
         }
 

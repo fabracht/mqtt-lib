@@ -1,4 +1,4 @@
-//! Integration tests for ClientHandler with ResourceMonitor
+//! Integration tests for `ClientHandler` with `ResourceMonitor`
 
 mod common;
 use mqtt5::broker::config::{StorageBackend, StorageConfig};
@@ -42,7 +42,7 @@ async fn test_real_client_connection_limits() {
         let client = MqttClient::new(&client_id);
 
         match client.connect(&broker_addr.to_string()).await {
-            Ok(_) => {
+            Ok(()) => {
                 println!("Client {client_id} connected successfully");
                 clients.push(client);
             }
@@ -57,11 +57,11 @@ async fn test_real_client_connection_limits() {
     // Check resource statistics
     let stats = resource_monitor.get_stats().await;
     assert_eq!(stats.current_connections, 2);
-    assert_eq!(stats.connection_utilization(), 100.0);
+    assert!((stats.connection_utilization() - 100.0).abs() < f64::EPSILON);
 
     // Third client should fail to connect due to limits
-    let client3 = MqttClient::new("client-3");
-    let result = client3.connect(&broker_addr.to_string()).await;
+    let third_client = MqttClient::new("client-3");
+    let result = third_client.connect(&broker_addr.to_string()).await;
 
     // The connection should be rejected at TCP level, so we expect a connection error
     assert!(

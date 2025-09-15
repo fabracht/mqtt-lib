@@ -1,6 +1,6 @@
 //! Demonstrates shared subscriptions feature
 //!
-//! Run with: cargo run --example shared_subscription_demo
+//! Run with: cargo run --example `shared_subscription_demo`
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use mqtt5::{ConnectOptions, MqttClient};
@@ -10,6 +10,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 

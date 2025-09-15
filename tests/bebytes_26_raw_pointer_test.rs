@@ -1,7 +1,8 @@
-//! Test BeBytes 2.6.0 raw pointer methods for eligible MQTT structures
+//! Test `BeBytes` 2.6.0 raw pointer methods for eligible MQTT structures
 //!
 //! This test identifies which MQTT structures are eligible for the raw pointer
-//! methods that provide 40-80x performance improvements in BeBytes 2.6.0.
+//! methods that provide 40-80x performance improvements in `BeBytes` 2.6.0.
+#![allow(clippy::cast_precision_loss)]
 
 use bebytes::BeBytes;
 use mqtt5::encoding::mqtt_string::MqttString;

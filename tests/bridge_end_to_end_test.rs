@@ -58,11 +58,11 @@ async fn test_bridge_between_brokers() {
 
     // Connect clients
     client1
-        .connect(&format!("mqtt://{}", broker1_addr))
+        .connect(&format!("mqtt://{broker1_addr}"))
         .await
         .unwrap();
     client2
-        .connect(&format!("mqtt://{}", broker2_addr))
+        .connect(&format!("mqtt://{broker2_addr}"))
         .await
         .unwrap();
 

@@ -45,7 +45,7 @@ async fn test_connection_limits_enforcement() {
     let stats = resource_monitor.get_stats().await;
     assert_eq!(stats.current_connections, 2);
     assert_eq!(stats.max_connections, 2);
-    assert_eq!(stats.connection_utilization(), 100.0);
+    assert!((stats.connection_utilization() - 100.0).abs() < f64::EPSILON);
 
     // Clean up
     resource_monitor.unregister_connection("client1", ip).await;

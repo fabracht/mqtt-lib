@@ -74,16 +74,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args: Vec<String> = env::args().collect();
-    let demo_mode = args.get(1).map(|s| s.as_str()).unwrap_or("both");
+    let demo_mode = args.get(1).map_or("both", std::string::String::as_str);
 
     info!("=== Certificate Loading Demonstration ===");
 
     match demo_mode {
-        "file" => demo_file_based_loading().await?,
-        "bytes" => demo_byte_based_loading().await?,
+        "file" => demo_file_based_loading()?,
+        "bytes" => demo_byte_based_loading()?,
         _ => {
-            demo_file_based_loading().await?;
-            demo_byte_based_loading().await?;
+            demo_file_based_loading()?;
+            demo_byte_based_loading()?;
         }
     }
 
@@ -91,29 +91,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Demonstrate loading certificates from files (traditional method)
-async fn demo_file_based_loading() -> Result<(), Box<dyn std::error::Error>> {
+fn demo_file_based_loading() -> Result<(), Box<dyn std::error::Error>> {
     info!("--- File-Based Certificate Loading ---");
 
     let addr: SocketAddr = "127.0.0.1:8883".parse()?;
     let mut tls_config = TlsConfig::new(addr, "localhost");
 
     // Try to load from actual files if they exist
-    match (
+    if let (Ok(()), Ok(()), Ok(())) = (
         tls_config.load_client_cert_pem("test_certs/client.pem"),
         tls_config.load_client_key_pem("test_certs/client.key"),
         tls_config.load_ca_cert_pem("test_certs/ca.pem"),
     ) {
-        (Ok(()), Ok(()), Ok(())) => {
-            info!("✅ Successfully loaded certificates from files");
-            info!("   - Client certificate: test_certs/client.pem");
-            info!("   - Client key: test_certs/client.key");
-            info!("   - CA certificate: test_certs/ca.pem");
-        }
-        _ => {
-            warn!("⚠️  Certificate files not found in test_certs/ directory");
-            info!("   This is expected if test certificates haven't been generated");
-            info!("   Run: ./scripts/generate_test_certs.sh to create them");
-        }
+        info!("✅ Successfully loaded certificates from files");
+        info!("   - Client certificate: test_certs/client.pem");
+        info!("   - Client key: test_certs/client.key");
+        info!("   - CA certificate: test_certs/ca.pem");
+    } else {
+        warn!("⚠️  Certificate files not found in test_certs/ directory");
+        info!("   This is expected if test certificates haven't been generated");
+        info!("   Run: ./scripts/generate_test_certs.sh to create them");
     }
 
     // Demonstrate the configuration
@@ -126,7 +123,7 @@ async fn demo_file_based_loading() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Demonstrate loading certificates from bytes in memory (new method)
-async fn demo_byte_based_loading() -> Result<(), Box<dyn std::error::Error>> {
+fn demo_byte_based_loading() -> Result<(), Box<dyn std::error::Error>> {
     info!("--- Byte-Based Certificate Loading ---");
 
     let addr: SocketAddr = "127.0.0.1:8883".parse()?;
@@ -157,13 +154,13 @@ async fn demo_byte_based_loading() -> Result<(), Box<dyn std::error::Error>> {
     info!("TLS configuration ready for byte-based certificates");
 
     // Demonstrate DER format loading as well
-    demo_der_format_loading().await?;
+    demo_der_format_loading()?;
 
     Ok(())
 }
 
 /// Demonstrate loading DER format certificates
-async fn demo_der_format_loading() -> Result<(), Box<dyn std::error::Error>> {
+fn demo_der_format_loading() -> Result<(), Box<dyn std::error::Error>> {
     info!("--- DER Format Certificate Loading ---");
 
     let addr: SocketAddr = "127.0.0.1:8883".parse()?;
@@ -244,9 +241,9 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
     let mut vault_config = TlsConfig::new(addr, "broker.company.com");
 
     // Example: retrieve from a hypothetical secret store
-    let cert_bytes = retrieve_secret("pki/cert/mqtt-client").await?;
-    let key_bytes = retrieve_secret("pki/key/mqtt-client").await?;
-    let ca_bytes = retrieve_secret("pki/ca/root").await?;
+    let cert_bytes = retrieve_secret("pki/cert/mqtt-client")?;
+    let key_bytes = retrieve_secret("pki/key/mqtt-client")?;
+    let ca_bytes = retrieve_secret("pki/ca/root")?;
 
     vault_config.load_client_cert_pem_bytes(&cert_bytes)?;
     vault_config.load_client_key_pem_bytes(&key_bytes)?;
@@ -259,7 +256,7 @@ async fn deployment_scenarios() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Mock function representing secret retrieval from a secret store
 #[allow(dead_code)]
-async fn retrieve_secret(path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn retrieve_secret(path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     // In a real implementation, this would make API calls to your secret store
     info!("Retrieving secret from path: {}", path);
     Ok(DEMO_CERT_PEM.to_vec()) // Return demo cert for illustration

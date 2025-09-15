@@ -6,11 +6,12 @@
 //! - Session expiry interval handling
 //! - Concurrent session operations
 //! - Unacked message tracking
-//! - QoS state consistency
+//! - `QoS` state consistency
 //! - Subscription management
 
 use mqtt5::packet::publish::PublishPacket;
 use mqtt5::packet::subscribe::{RetainHandling, SubscriptionOptions};
+use mqtt5::protocol::v5::properties::Properties;
 use mqtt5::session::queue::QueuedMessage;
 use mqtt5::session::subscription::Subscription;
 use mqtt5::session::{SessionConfig, SessionState};
@@ -23,7 +24,7 @@ fn valid_packet_id() -> impl Strategy<Value = u16> {
     1..=65535u16
 }
 
-/// Generate QoS levels
+/// Generate `QoS` levels
 fn qos_level() -> impl Strategy<Value = QoS> {
     prop_oneof![
         Just(QoS::AtMostOnce),
@@ -54,7 +55,7 @@ fn publish_packet(packet_id: u16, qos: QoS) -> PublishPacket {
         } else {
             Some(packet_id)
         },
-        properties: Default::default(),
+        properties: Properties::default(),
         payload: vec![1, 2, 3, 4],
     }
 }
@@ -73,7 +74,7 @@ mod clean_start_tests {
             rt.block_on(async {
                 let config = SessionConfig {
                     session_expiry_interval: 3600,
-                    ..Default::default()
+                    ..SessionConfig::default()
                 };
 
                 let session = SessionState::new("client1".to_string(), config.clone(), false);
@@ -124,7 +125,7 @@ mod clean_start_tests {
             rt.block_on(async {
                 let config = SessionConfig {
                     session_expiry_interval: 3600,
-                    ..Default::default()
+                    ..SessionConfig::default()
                 };
 
                 // Sessions with clean_start = false preserve state
@@ -161,7 +162,7 @@ mod session_expiry_tests {
             rt.block_on(async {
                 let config = SessionConfig {
                     session_expiry_interval: expiry,
-                    ..Default::default()
+                    ..SessionConfig::default()
                 };
 
                 let session = SessionState::new("client1".to_string(), config.clone(), false);
@@ -247,7 +248,7 @@ mod subscription_management_tests {
                         topic_filter: topic_filter.clone(),
                         options: SubscriptionOptions {
                             qos: *qos,
-                            ..Default::default()
+                            ..SubscriptionOptions::default()
                         },
                     };
                     session.add_subscription(topic_filter, sub).await.unwrap();
@@ -445,7 +446,7 @@ mod message_queue_tests {
                 let config = SessionConfig {
                     max_queued_messages: 20,
                     max_queued_size: 1000,
-                    ..Default::default()
+                    ..SessionConfig::default()
                 };
 
                 let session = SessionState::new("client1".to_string(), config, true);
@@ -624,7 +625,7 @@ mod retained_message_tests {
                         retain: true,
                         topic_name: topic.clone(),
                         packet_id: Some((i as u16) + 1),
-                        properties: Default::default(),
+                        properties: Properties::default(),
                         payload: vec![i as u8],
                     };
                     session.store_retained_message(&packet).await;
@@ -645,7 +646,7 @@ mod retained_message_tests {
                         retain: true,
                         topic_name: topic.clone(),
                         packet_id: None,
-                        properties: Default::default(),
+                        properties: Properties::default(),
                         payload: vec![],
                     };
                     session.store_retained_message(&clear_packet).await;
@@ -679,7 +680,7 @@ mod retained_message_tests {
                         retain: true,
                         topic_name: topic,
                         packet_id: Some((i as u16) + 1),
-                        properties: Default::default(),
+                        properties: Properties::default(),
                         payload: vec![i as u8],
                     };
                     session.store_retained_message(&packet).await;
@@ -758,7 +759,7 @@ mod concurrent_session_tests {
             rt.block_on(async {
                 let config = SessionConfig {
                     max_queued_messages: 1000,
-                    ..Default::default()
+                    ..SessionConfig::default()
                 };
 
                 let session = Arc::new(SessionState::new(

@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let client = MqttClient::new(&client_id);
 
         match client.connect(&broker_addr.to_string()).await {
-            Ok(_) => {
+            Ok(()) => {
                 info!("Client {} connected successfully", client_id);
                 clients.push(client);
 

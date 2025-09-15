@@ -70,7 +70,7 @@ async fn test_retained_message_delivery() -> Result<(), Box<dyn std::error::Erro
     .await;
 
     match result {
-        Ok(_) => println!("\n✅ SUCCESS: Retained message was delivered to new subscriber!"),
+        Ok(()) => println!("\n✅ SUCCESS: Retained message was delivered to new subscriber!"),
         Err(_) => println!("\n❌ FAILED: Retained message was NOT delivered to new subscriber"),
     }
 

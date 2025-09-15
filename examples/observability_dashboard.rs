@@ -1,11 +1,11 @@
 //! Observability Dashboard Example
 //!
 //! This example demonstrates a comprehensive observability dashboard that collects,
-//! aggregates, and exposes metrics from multiple IoT deployments and MQTT infrastructure.
+//! aggregates, and exposes metrics from multiple `IoT` deployments and MQTT infrastructure.
 //!
 //! ## Features Demonstrated
 //!
-//! - **Multi-source metrics collection** from IoT devices, hubs, and industrial networks
+//! - **Multi-source metrics collection** from `IoT` devices, hubs, and industrial networks
 //! - **Real-time metric aggregation** with time-series data processing
 //! - **Prometheus-compatible metrics export** for monitoring integration
 //! - **Health check endpoints** for service discovery and monitoring
@@ -59,6 +59,7 @@ use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, QoS, WillMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
+use std::fmt::Write as _;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -68,7 +69,7 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::time::{interval, sleep};
 use tracing::{debug, error, info, instrument, warn};
 
-/// Types of metrics collected from IoT systems
+/// Types of metrics collected from `IoT` systems
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum MetricType {
     Counter,   // Monotonic increasing values (message count, errors)
@@ -170,6 +171,7 @@ pub struct TimeSeriesDatabase {
 }
 
 impl TimeSeriesDatabase {
+    #[must_use]
     pub fn new(retention_hours: u64) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(HashMap::new())),
@@ -218,6 +220,10 @@ impl TimeSeriesDatabase {
     }
 
     /// Clean up old metric data based on retention policy
+    ///
+    /// # Panics
+    ///
+    /// Panics if system time is before UNIX epoch
     #[instrument(skip(self))]
     pub async fn cleanup_old_data(&self) {
         let cutoff_time = SystemTime::now()
@@ -272,7 +278,7 @@ impl TimeSeriesDatabase {
                 continue;
             }
 
-            for point in series.iter() {
+            for point in series {
                 if point.timestamp >= start_time && point.timestamp <= end_time {
                     // Apply label filters if provided
                     if let Some(filters) = labels_filter {
@@ -331,7 +337,7 @@ impl AggregatedMetric {
         let mut keys: Vec<_> = self.labels.keys().collect();
         keys.sort();
         keys.into_iter()
-            .map(|k| format!("{}={}", k, self.labels.get(k).unwrap_or(&"".to_string())))
+            .map(|k| format!("{}={}", k, self.labels.get(k).unwrap_or(&String::new())))
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -345,6 +351,7 @@ pub struct MetricAggregator {
 }
 
 impl MetricAggregator {
+    #[must_use]
     pub fn new(window_duration: Duration) -> Self {
         Self {
             aggregation_window: window_duration,
@@ -364,6 +371,10 @@ impl MetricAggregator {
     }
 
     /// Process pending metrics and generate aggregations
+    ///
+    /// # Panics
+    ///
+    /// Panics if system time is before UNIX epoch
     #[instrument(skip(self))]
     pub async fn process_aggregations(&self) -> Vec<AggregatedMetric> {
         let mut pending = self.pending_metrics.lock().await;
@@ -436,7 +447,7 @@ impl MetricDataPoint {
         let mut keys: Vec<_> = self.labels.keys().collect();
         keys.sort();
         keys.into_iter()
-            .map(|k| format!("{}={}", k, self.labels.get(k).unwrap_or(&"".to_string())))
+            .map(|k| format!("{}={}", k, self.labels.get(k).unwrap_or(&String::new())))
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -480,6 +491,7 @@ impl Default for AlertEngine {
 }
 
 impl AlertEngine {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             thresholds: Arc::new(RwLock::new(HashMap::new())),
@@ -524,7 +536,7 @@ impl AlertEngine {
 
             // Evaluate thresholds
             let alert_severity = if let Some(critical) = threshold_config.critical_threshold {
-                if self.threshold_violated(metric.value, critical, &threshold_config.comparison) {
+                if Self::threshold_violated(metric.value, critical, &threshold_config.comparison) {
                     Some(AlertSeverity::Critical)
                 } else {
                     None
@@ -535,7 +547,7 @@ impl AlertEngine {
 
             let alert_severity = alert_severity.or_else(|| {
                 if let Some(warning) = threshold_config.warning_threshold {
-                    if self.threshold_violated(metric.value, warning, &threshold_config.comparison)
+                    if Self::threshold_violated(metric.value, warning, &threshold_config.comparison)
                     {
                         Some(AlertSeverity::Warning)
                     } else {
@@ -610,12 +622,7 @@ impl AlertEngine {
         None
     }
 
-    fn threshold_violated(
-        &self,
-        value: f64,
-        threshold: f64,
-        comparison: &ThresholdComparison,
-    ) -> bool {
+    fn threshold_violated(value: f64, threshold: f64, comparison: &ThresholdComparison) -> bool {
         match comparison {
             ThresholdComparison::GreaterThan => value > threshold,
             ThresholdComparison::LessThan => value < threshold,
@@ -639,7 +646,7 @@ impl ThresholdConfig {
                 format!(
                     "{}={}",
                     k,
-                    self.labels_filter.get(k).unwrap_or(&"".to_string())
+                    self.labels_filter.get(k).unwrap_or(&String::new())
                 )
             })
             .collect::<Vec<_>>()
@@ -657,6 +664,7 @@ pub struct MetricsServer {
 }
 
 impl MetricsServer {
+    #[must_use]
     pub fn new(
         port: u16,
         health_port: u16,
@@ -1077,8 +1085,7 @@ impl ObservabilityDashboard {
 
                 let uptime = metrics
                     .uptime_start
-                    .map(|start| start.elapsed().as_secs())
-                    .unwrap_or(0);
+                    .map_or(0, |start| start.elapsed().as_secs());
 
                 let active_alerts = alert_engine.get_active_alerts().await;
 
@@ -1151,8 +1158,7 @@ impl ObservabilityDashboard {
             uptime_seconds: self
                 .dashboard_metrics
                 .uptime_start
-                .map(|start| start.elapsed().as_secs())
-                .unwrap_or(0),
+                .map_or(0, |start| start.elapsed().as_secs()),
             metrics_collected: self
                 .dashboard_metrics
                 .metrics_collected
@@ -1199,61 +1205,67 @@ async fn handle_metrics_request(
     req: Request<hyper::body::Incoming>,
     database: Arc<TimeSeriesDatabase>,
 ) -> Result<Response<String>, Infallible> {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/metrics") => {
-            // Get all metrics from the database
-            let metrics = database.get_all_metrics().await;
+    if let (&Method::GET, "/metrics") = (req.method(), req.uri().path()) {
+        // Get all metrics from the database
+        let metrics = database.get_all_metrics().await;
 
-            // Format metrics in Prometheus exposition format
-            let mut prometheus_output = String::new();
+        // Format metrics in Prometheus exposition format
+        let mut prometheus_output = String::new();
 
-            for metric in metrics {
-                // Add metric help and type
-                prometheus_output.push_str(&format!("# HELP {} {}\n", metric.name, metric.help));
-                prometheus_output.push_str(&format!(
-                    "# TYPE {} {}\n",
-                    metric.name,
-                    match metric.metric_type {
-                        MetricType::Counter => "counter",
-                        MetricType::Gauge => "gauge",
-                        MetricType::Histogram => "histogram",
-                        MetricType::Summary => "summary",
-                    }
-                ));
-
-                // Add metric with labels
-                if metric.labels.is_empty() {
-                    prometheus_output.push_str(&format!("{} {}\n", metric.name, metric.value));
-                } else {
-                    let labels: Vec<String> = metric
-                        .labels
-                        .iter()
-                        .map(|(k, v)| format!("{k}=\"{v}\""))
-                        .collect();
-                    prometheus_output.push_str(&format!(
-                        "{}{{{}}} {}\n",
-                        metric.name,
-                        labels.join(","),
-                        metric.value
-                    ));
+        for metric in metrics {
+            // Add metric help and type
+            writeln!(
+                &mut prometheus_output,
+                "# HELP {} {}",
+                metric.name, metric.help
+            )
+            .unwrap();
+            writeln!(
+                &mut prometheus_output,
+                "# TYPE {} {}",
+                metric.name,
+                match metric.metric_type {
+                    MetricType::Counter => "counter",
+                    MetricType::Gauge => "gauge",
+                    MetricType::Histogram => "histogram",
+                    MetricType::Summary => "summary",
                 }
+            )
+            .unwrap();
+
+            // Add metric with labels
+            if metric.labels.is_empty() {
+                writeln!(&mut prometheus_output, "{} {}", metric.name, metric.value).unwrap();
+            } else {
+                let labels: Vec<String> = metric
+                    .labels
+                    .iter()
+                    .map(|(k, v)| format!("{k}=\"{v}\""))
+                    .collect();
+                writeln!(
+                    &mut prometheus_output,
+                    "{}{{{}}} {}",
+                    metric.name,
+                    labels.join(","),
+                    metric.value
+                )
+                .unwrap();
             }
-
-            let response = Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "text/plain; version=0.0.4")
-                .body(prometheus_output)
-                .unwrap();
-
-            Ok(response)
         }
-        _ => {
-            let response = Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body("Not Found".to_string())
-                .unwrap();
-            Ok(response)
-        }
+
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "text/plain; version=0.0.4")
+            .body(prometheus_output)
+            .unwrap();
+
+        Ok(response)
+    } else {
+        let response = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body("Not Found".to_string())
+            .unwrap();
+        Ok(response)
     }
 }
 
@@ -1262,54 +1274,51 @@ async fn handle_health_request(
     req: Request<hyper::body::Incoming>,
     alert_engine: Arc<AlertEngine>,
 ) -> Result<Response<String>, Infallible> {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/health") => {
-            let active_alerts = alert_engine.get_active_alerts().await;
+    if let (&Method::GET, "/health") = (req.method(), req.uri().path()) {
+        let active_alerts = alert_engine.get_active_alerts().await;
 
-            let has_critical_alerts = active_alerts.iter().any(|alert| {
-                matches!(
-                    alert.severity,
-                    AlertSeverity::Critical | AlertSeverity::Emergency
-                )
-            });
+        let has_critical_alerts = active_alerts.iter().any(|alert| {
+            matches!(
+                alert.severity,
+                AlertSeverity::Critical | AlertSeverity::Emergency
+            )
+        });
 
-            let health_status = serde_json::json!({
-                "status": if has_critical_alerts { "degraded" } else { "healthy" },
-                "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                "active_alerts": active_alerts.len(),
-                "critical_alerts": active_alerts.iter()
-                    .filter(|a| matches!(a.severity, AlertSeverity::Critical | AlertSeverity::Emergency))
-                    .count(),
-                "alerts": active_alerts.iter().take(10).map(|alert| serde_json::json!({
-                    "id": alert.alert_id,
-                    "metric": alert.metric_name,
-                    "severity": format!("{:?}", alert.severity),
-                    "description": alert.description,
-                    "timestamp": alert.timestamp
-                })).collect::<Vec<_>>()
-            });
+        let health_status = serde_json::json!({
+            "status": if has_critical_alerts { "degraded" } else { "healthy" },
+            "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            "active_alerts": active_alerts.len(),
+            "critical_alerts": active_alerts.iter()
+                .filter(|a| matches!(a.severity, AlertSeverity::Critical | AlertSeverity::Emergency))
+                .count(),
+            "alerts": active_alerts.iter().take(10).map(|alert| serde_json::json!({
+                "id": alert.alert_id,
+                "metric": alert.metric_name,
+                "severity": format!("{:?}", alert.severity),
+                "description": alert.description,
+                "timestamp": alert.timestamp
+            })).collect::<Vec<_>>()
+        });
 
-            let status_code = if has_critical_alerts {
-                StatusCode::SERVICE_UNAVAILABLE
-            } else {
-                StatusCode::OK
-            };
+        let status_code = if has_critical_alerts {
+            StatusCode::SERVICE_UNAVAILABLE
+        } else {
+            StatusCode::OK
+        };
 
-            let response = Response::builder()
-                .status(status_code)
-                .header("content-type", "application/json")
-                .body(health_status.to_string())
-                .unwrap();
+        let response = Response::builder()
+            .status(status_code)
+            .header("content-type", "application/json")
+            .body(health_status.to_string())
+            .unwrap();
 
-            Ok(response)
-        }
-        _ => {
-            let response = Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body("Not Found".to_string())
-                .unwrap();
-            Ok(response)
-        }
+        Ok(response)
+    } else {
+        let response = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body("Not Found".to_string())
+            .unwrap();
+        Ok(response)
     }
 }
 
@@ -1383,7 +1392,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let device_metric = MetricDataPoint {
                     name: "device_temperature_celsius".to_string(),
                     metric_type: MetricType::Gauge,
-                    value: 20.0 + (i as f64 * 0.5) + (rand::random::<f64>() * 2.0),
+                    value: 20.0 + (f64::from(i) * 0.5) + (rand::random::<f64>() * 2.0),
                     timestamp: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -1409,7 +1418,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let error_metric = MetricDataPoint {
                         name: "mqtt_errors_total".to_string(),
                         metric_type: MetricType::Counter,
-                        value: (i / 5) as f64,
+                        value: f64::from(i / 5),
                         timestamp: SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .unwrap()

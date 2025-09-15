@@ -64,7 +64,7 @@ fn benchmark_connection_establishment(c: &mut Criterion) {
                         for i in 0..num_connections {
                             let client = MqttClient::new(format!("bench-client-{i}"));
                             match client.connect(&broker_addr.to_string()).await {
-                                Ok(_) => clients.push(client),
+                                Ok(()) => clients.push(client),
                                 Err(_) => break, // Stop if we hit connection limits
                             }
                         }
@@ -290,7 +290,7 @@ fn benchmark_broker_stats(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 let _stats = broker.stats();
-            })
+            });
         });
     });
 
@@ -298,7 +298,7 @@ fn benchmark_broker_stats(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 let _stats = resource_monitor.get_stats().await;
-            })
+            });
         });
     });
 

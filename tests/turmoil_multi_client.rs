@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 
 #[cfg(feature = "turmoil-testing")]
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_multi_client_message_routing() {
     let mut sim = turmoil::Builder::new()
         .simulation_duration(Duration::from_secs(15))
@@ -115,7 +116,7 @@ fn test_multi_client_message_routing() {
 
         for (topic, payload) in &messages {
             let publish =
-                PublishPacket::new(topic.to_string(), payload.as_bytes(), QoS::AtMostOnce);
+                PublishPacket::new((*topic).to_string(), payload.as_bytes(), QoS::AtMostOnce);
             router.route_message(&publish).await;
         }
 

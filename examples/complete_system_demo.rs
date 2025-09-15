@@ -5,7 +5,7 @@
 //!
 //! - Start a full-featured MQTT broker
 //! - Connect multiple clients
-//! - Demonstrate QoS levels
+//! - Demonstrate `QoS` levels
 //! - Show retained messages
 //! - Demonstrate last will
 //! - Show shared subscriptions

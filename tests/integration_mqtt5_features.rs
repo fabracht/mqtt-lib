@@ -420,13 +420,13 @@ async fn test_subscription_identifiers() {
 
     let ids = received_ids.lock().await;
     println!("Received subscription IDs: {:?}", *ids);
-    if !ids.is_empty() {
-        assert!(ids.contains(&1)); // From first subscription
-        assert!(ids.contains(&2)); // From second subscription
-    } else {
+    if ids.is_empty() {
         println!(
             "Warning: No subscription identifiers received - feature may not be fully implemented"
         );
+    } else {
+        assert!(ids.contains(&1)); // From first subscription
+        assert!(ids.contains(&2)); // From second subscription
     }
 
     client.disconnect().await.expect("Failed to disconnect");

@@ -32,7 +32,7 @@ fn benchmark_resource_stats(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 let _stats = resource_monitor.get_stats().await;
-            })
+            });
         });
     });
 }
