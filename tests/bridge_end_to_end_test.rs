@@ -13,9 +13,7 @@ use tokio::time::{sleep, timeout};
 #[tokio::test]
 async fn test_bridge_between_brokers() {
     // Initialize logging for debugging
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter("warn")
-        .try_init();
+    let _ = tracing_subscriber::fmt().with_env_filter("warn").try_init();
 
     // Configure storage for both brokers
     let storage_config = StorageConfig {
