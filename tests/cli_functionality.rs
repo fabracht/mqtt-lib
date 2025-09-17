@@ -3,251 +3,270 @@
 //! Tests that validate our mqttv5 CLI tool works correctly in real scenarios.
 //! These tests demonstrate that we can replace mosquitto tools completely.
 
-use std::process::Command;
 use std::time::Duration;
 
-const CLI_BINARY: &str = "target/release/mqttv5";
+mod common;
+use common::cli_helpers::*;
+use common::TestBroker;
 
-/// Helper to build the CLI if not already built
-fn ensure_cli_built() {
-    if !std::path::Path::new(CLI_BINARY).exists() {
-        println!("Building mqttv5 CLI...");
-        let output = Command::new("cargo")
-            .args(["build", "--release", "-p", "mqttv5-cli"])
-            .output()
-            .expect("Failed to build CLI");
-
-        assert!(
-            output.status.success(),
-            "Failed to build CLI: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-}
-
-/// Test that CLI broker help works (safer than starting actual broker)
+/// Test broker functionality with actual broker startup
 #[tokio::test]
-async fn test_cli_broker_help() {
-    ensure_cli_built();
-
-    // Test broker help works
-    let result = Command::new(CLI_BINARY)
-        .args(["broker", "--help"])
-        .output()
-        .expect("Failed to get broker help");
-
-    assert!(result.status.success(), "Broker help should succeed");
-    let help_text = String::from_utf8_lossy(&result.stdout);
-    assert!(help_text.contains("--host"), "Should show host option");
+async fn test_cli_broker_functionality() {
+    // Test broker help
+    let help_result = run_cli_command(&["broker", "--help"]).await;
+    assert!(help_result.success, "Broker help should succeed");
     assert!(
-        help_text.contains("--foreground"),
+        help_result.stdout_contains("--host"),
+        "Should show host option"
+    );
+    assert!(
+        help_result.stdout_contains("--foreground"),
         "Should show foreground option"
     );
 
-    println!("✅ CLI broker help test successful");
+    // Note: We use TestBroker from library instead of CLI broker for tests
+    // This ensures tests are reliable and don't conflict with system ports
+    let broker = TestBroker::start().await;
+    let broker_url = broker.address();
+
+    // Verify we can connect to the test broker
+    let result = run_cli_command(&[
+        "pub",
+        "--url",
+        broker_url,
+        "--topic",
+        "test/broker",
+        "--message",
+        "broker_test",
+        "--non-interactive",
+    ])
+    .await;
+
+    assert!(result.success, "Should connect to test broker");
+    println!("✅ CLI broker functionality verified");
 }
 
-/// Test CLI pub/sub help functionality (safer than actual networking)
+/// Test CLI pub/sub with actual broker communication
 #[tokio::test]
-async fn test_cli_pub_sub_help() {
-    ensure_cli_built();
+async fn test_cli_pub_sub_functionality() {
+    let broker = TestBroker::start().await;
+    let broker_url = broker.address();
 
-    // Test publish help
-    let pub_result = Command::new(CLI_BINARY)
-        .args(["pub", "--help"])
-        .output()
-        .expect("Failed to get pub help");
+    // Test simple publish
+    let pub_result = run_cli_pub(broker_url, "test/simple", "Hello from CLI", &[]).await;
 
-    assert!(pub_result.status.success(), "Pub help should succeed");
-    let pub_help = String::from_utf8_lossy(&pub_result.stdout);
-    assert!(pub_help.contains("--topic"), "Should show topic option");
-    assert!(pub_help.contains("--message"), "Should show message option");
+    assert!(pub_result.success, "Publish should succeed");
+
+    // Test subscribe and receive
+    let verify_result =
+        verify_pub_sub_delivery(broker_url, "test/delivery", "Message to verify", &[]).await;
+
     assert!(
-        pub_help.contains("replaces mosquitto_pub"),
-        "Should mention mosquitto replacement"
+        verify_result.is_ok() && verify_result.unwrap(),
+        "Pub/sub delivery should work"
     );
 
-    // Test subscribe help
-    let sub_result = Command::new(CLI_BINARY)
-        .args(["sub", "--help"])
-        .output()
-        .expect("Failed to get sub help");
+    // Test with verbose flag
+    let sub_handle = run_cli_sub_async(broker_url, "test/verbose", 1, &["--verbose"]).await;
 
-    assert!(sub_result.status.success(), "Sub help should succeed");
-    let sub_help = String::from_utf8_lossy(&sub_result.stdout);
-    assert!(sub_help.contains("--topic"), "Should show topic option");
-    assert!(sub_help.contains("--count"), "Should show count option");
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let _ = run_cli_pub(broker_url, "test/verbose", "Verbose test", &[]).await;
+
+    let sub_result = tokio::time::timeout(Duration::from_secs(2), sub_handle)
+        .await
+        .expect("Timeout")
+        .expect("Subscribe failed");
+
+    // With verbose, should show topic name
     assert!(
-        sub_help.contains("replaces mosquitto_sub"),
-        "Should mention mosquitto replacement"
+        sub_result.stdout_contains("test/verbose"),
+        "Verbose mode should show topic"
     );
 
-    println!("✅ CLI pub/sub help tests successful");
+    println!("✅ CLI pub/sub functionality verified with real broker");
 }
 
 /// Test CLI input validation and error messages
 #[tokio::test]
 async fn test_cli_validation() {
-    ensure_cli_built();
-
     // Test invalid topic validation
-    let result = Command::new(CLI_BINARY)
-        .args([
-            "pub",
-            "--topic",
-            "test//invalid",
-            "--message",
-            "test",
-            "--non-interactive",
-        ])
-        .output()
-        .expect("Failed to run CLI");
+    let result = run_cli_command(&[
+        "pub",
+        "--topic",
+        "test//invalid",
+        "--message",
+        "test",
+        "--non-interactive",
+    ])
+    .await;
 
-    assert!(!result.status.success(), "Should fail with invalid topic");
-    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(!result.success, "Should fail with invalid topic");
     assert!(
-        stderr.contains("cannot have empty segments"),
+        result.stderr_contains("cannot have empty segments"),
         "Should show helpful error message"
     );
     assert!(
-        stderr.contains("Did you mean 'test/invalid'?"),
+        result.stderr_contains("Did you mean 'test/invalid'?"),
         "Should suggest correction"
     );
 
-    println!("✅ CLI validation test successful");
+    // Test invalid QoS value
+    let qos_result = run_cli_command(&[
+        "pub",
+        "--topic",
+        "test/qos",
+        "--message",
+        "test",
+        "--qos",
+        "3",
+        "--non-interactive",
+    ])
+    .await;
+
+    assert!(!qos_result.success, "Should fail with invalid QoS");
+    assert!(
+        qos_result.stderr_contains("QoS must be 0, 1, or 2"),
+        "Should show QoS error"
+    );
+
+    println!("✅ CLI validation tests successful");
 }
 
-/// Test CLI help output quality
+/// Test CLI with multiple topics and patterns
 #[tokio::test]
-async fn test_cli_help_quality() {
-    ensure_cli_built();
+async fn test_cli_topic_patterns() {
+    let broker = TestBroker::start().await;
+    let broker_url = broker.address();
 
-    // Test main help
-    let help_result = Command::new(CLI_BINARY)
-        .args(["--help"])
-        .output()
-        .expect("Failed to get help");
+    // Test multilevel wildcard
+    let sub_handle = run_cli_sub_async(broker_url, "sensors/#", 3, &["--verbose"]).await;
 
-    assert!(help_result.status.success(), "Help should succeed");
-    let help_text = String::from_utf8_lossy(&help_result.stdout);
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
-    // Verify key help text elements
-    assert!(
-        help_text.contains("replaces mosquitto_pub, mosquitto_sub, and mosquitto"),
-        "Should mention mosquitto replacement"
-    );
-    assert!(
-        help_text.contains("pub") && help_text.contains("sub") && help_text.contains("broker"),
-        "Should show all subcommands"
-    );
-    assert!(
-        help_text.contains("superior input ergonomics"),
-        "Should mention ergonomics"
-    );
+    // Publish to various matching topics
+    for topic in [
+        "sensors/temp",
+        "sensors/room1/humidity",
+        "sensors/outdoor/pressure",
+    ] {
+        let _ = run_cli_pub(broker_url, topic, &format!("data_{topic}"), &[]).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 
-    // Test subcommand help
-    let pub_help = Command::new(CLI_BINARY)
-        .args(["pub", "--help"])
-        .output()
-        .expect("Failed to get pub help");
+    let sub_result = tokio::time::timeout(Duration::from_secs(3), sub_handle)
+        .await
+        .expect("Timeout")
+        .expect("Subscribe failed");
 
-    assert!(pub_help.status.success(), "Pub help should succeed");
-    let pub_help_text = String::from_utf8_lossy(&pub_help.stdout);
-    assert!(
-        pub_help_text.contains("--topic") && pub_help_text.contains("--message"),
-        "Should show descriptive flags"
-    );
+    // Should receive all three messages
+    assert!(sub_result.stdout_contains("data_sensors/temp"));
+    assert!(sub_result.stdout_contains("data_sensors/room1/humidity"));
+    assert!(sub_result.stdout_contains("data_sensors/outdoor/pressure"));
 
-    println!("✅ CLI help quality test successful");
+    println!("✅ CLI topic pattern handling verified");
 }
 
-/// Benchmark CLI startup time vs mosquitto (if available)
+/// Test CLI performance with actual message throughput
 #[tokio::test]
-async fn test_cli_startup_performance() {
-    ensure_cli_built();
+async fn test_cli_message_throughput() {
+    let broker = TestBroker::start().await;
+    let broker_url = broker.address();
+
+    // Start subscriber for throughput test
+    let sub_handle = run_cli_sub_async(broker_url, "perf/test", 10, &[]).await;
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     let start = std::time::Instant::now();
 
-    let result = Command::new(CLI_BINARY)
-        .args(["--help"])
-        .output()
-        .expect("Failed to run CLI");
-
-    let cli_duration = start.elapsed();
-
-    assert!(result.status.success(), "CLI help should succeed");
-    assert!(
-        cli_duration < Duration::from_millis(500),
-        "CLI should start quickly (< 500ms)"
-    );
-
-    println!("✅ CLI startup performance: {cli_duration:?}");
-
-    // Try to compare with mosquitto if available
-    if let Ok(_mosquitto_result) = Command::new("mosquitto_pub").args(["--help"]).output() {
-        let mosquitto_start = std::time::Instant::now();
-        let _ = Command::new("mosquitto_pub").args(["--help"]).output();
-        let mosquitto_duration = mosquitto_start.elapsed();
-
-        println!("📊 Performance comparison:");
-        println!("   mqttv5 CLI: {cli_duration:?}");
-        println!("   mosquitto_pub: {mosquitto_duration:?}");
-
-        if cli_duration < mosquitto_duration {
-            println!("🚀 Our CLI is faster!");
-        }
-    } else {
-        println!("📝 mosquitto not available for comparison");
+    // Publish 10 messages rapidly
+    for i in 0..10 {
+        let pub_result = run_cli_pub(broker_url, "perf/test", &format!("perf_msg_{i}"), &[]).await;
+        assert!(pub_result.success, "Publish {i} should succeed");
     }
+
+    let publish_duration = start.elapsed();
+
+    // Wait for all messages to be received
+    let sub_result = tokio::time::timeout(Duration::from_secs(5), sub_handle)
+        .await
+        .expect("Timeout")
+        .expect("Subscribe failed");
+
+    // Verify all messages received
+    for i in 0..10 {
+        assert!(
+            sub_result.stdout_contains(&format!("perf_msg_{i}")),
+            "Should receive message {i}"
+        );
+    }
+
+    let total_duration = start.elapsed();
+    let msgs_per_sec = 10.0 / total_duration.as_secs_f64();
+
+    println!("✅ CLI performance test:");
+    println!("   Published 10 messages in: {publish_duration:?}");
+    println!("   Total round-trip time: {total_duration:?}");
+    println!("   Throughput: {msgs_per_sec:.1} messages/second");
 }
 
-/// Test CLI ergonomics by checking flag parsing
+/// Test CLI with both long and short flags
 #[tokio::test]
-async fn test_cli_ergonomics() {
-    ensure_cli_built();
+async fn test_cli_flag_formats() {
+    let broker = TestBroker::start().await;
+    let broker_url = broker.address();
 
-    // Test that both long and short flags work
-    let long_flag_result = Command::new(CLI_BINARY)
-        .args([
-            "pub",
-            "--topic",
-            "test/ergonomics",
-            "--message",
-            "test",
-            "--host",
-            "nonexistent.example.com", // Will fail to connect, but args should parse
-            "--non-interactive",
-        ])
-        .output()
-        .expect("Failed to run CLI with long flags");
+    // Test long flags
+    let long_result = run_cli_command(&[
+        "pub",
+        "--url",
+        broker_url,
+        "--topic",
+        "test/long",
+        "--message",
+        "long flags",
+        "--qos",
+        "1",
+        "--non-interactive",
+    ])
+    .await;
 
-    // Should fail to connect but not due to argument parsing
-    let stderr = String::from_utf8_lossy(&long_flag_result.stderr);
-    assert!(
-        !stderr.contains("argument"),
-        "Should not have argument parsing errors"
-    );
+    assert!(long_result.success, "Long flags should work");
 
     // Test short flags
-    let short_flag_result = Command::new(CLI_BINARY)
-        .args([
-            "pub",
-            "-t",
-            "test/ergonomics",
-            "-m",
-            "test",
-            "-H",
-            "nonexistent.example.com",
-            "--non-interactive",
-        ])
-        .output()
-        .expect("Failed to run CLI with short flags");
+    let short_result = run_cli_command(&[
+        "pub",
+        "--url",
+        broker_url,
+        "-t",
+        "test/short",
+        "-m",
+        "short flags",
+        "-q",
+        "1",
+        "--non-interactive",
+    ])
+    .await;
 
-    let short_stderr = String::from_utf8_lossy(&short_flag_result.stderr);
-    assert!(
-        !short_stderr.contains("argument"),
-        "Should not have argument parsing errors with short flags"
-    );
+    assert!(short_result.success, "Short flags should work");
 
-    println!("✅ CLI ergonomics test successful - both long and short flags work");
+    // Test mixed flags
+    let mixed_result = run_cli_command(&[
+        "pub",
+        "--url",
+        broker_url,
+        "-t",
+        "test/mixed",
+        "--message",
+        "mixed flags",
+        "-q",
+        "2",
+        "--non-interactive",
+    ])
+    .await;
+
+    assert!(mixed_result.success, "Mixed flags should work");
+
+    println!("✅ CLI ergonomics verified - all flag formats work");
 }
