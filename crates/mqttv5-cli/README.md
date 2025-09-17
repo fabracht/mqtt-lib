@@ -12,6 +12,10 @@ A unified MQTT v5.0 CLI tool that replaces mosquitto_pub, mosquitto_sub, and mos
 - **Smart Prompting**: Interactive prompts for missing arguments
 - **Superior Error Messages**: Helpful validation with correction suggestions
 - **Full MQTT v5.0**: Complete protocol support including all v5.0 features
+- **Advanced Session Management**: Clean start, session expiry, and persistence
+- **Will Message Support**: Last will and testament with delay and QoS options
+- **Multi-Transport**: TCP, TLS, WebSocket, UDP, and DTLS support
+- **Comprehensive Testing**: Thoroughly tested CLI with real broker integration
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 
 ## Installation
@@ -46,6 +50,9 @@ mqttv5 sub -t "sensors/#" --verbose
 
 # Subscribe for specific message count
 mqttv5 sub -t "test/topic" --count 5
+
+# Session persistence and QoS
+mqttv5 sub -t "data/#" --qos 2 --no-clean-start --session-expiry 3600
 ```
 
 ### Running a Broker
@@ -84,6 +91,21 @@ mqttv5 sub -t "home/+/+" --verbose
 ### Testing with retained messages
 ```bash
 mqttv5 pub -t "config/device1" -m '{"enabled": true}' --retain
+```
+
+### Advanced MQTT v5.0 Features
+```bash
+# Will messages for device monitoring
+mqttv5 pub -t "sensors/data" -m "active" \
+  --will-topic "sensors/status" --will-message "offline" --will-delay 5
+
+# Authentication and session management
+mqttv5 sub -t "secure/data" --username user1 --password secret \
+  --no-clean-start --session-expiry 7200
+
+# Custom keep-alive and transport options
+mqttv5 pub -t "test/topic" -m "data" --keep-alive 120 \
+  --url "mqtts://secure-broker:8883"
 ```
 
 ## Environment Variables

@@ -187,6 +187,7 @@ mqttv5 pub
 ### Testing & Development
 - ✅ **Mockable Client Interface** - `MqttClientTrait` enables testing without real brokers
 - ✅ **Comprehensive property testing** - 29 property-based tests ensuring robustness
+- ✅ **CLI Integration Testing** - End-to-end tests with real broker verification
 - ✅ **Flow control** - Respects broker receive maximum limits
 - ✅ **Zero-copy message handling** - Efficient memory usage with BeBytes
 

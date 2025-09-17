@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Comprehensive CLI Testing Suite** - Full test coverage for CLI functionality
+  - End-to-end tests verifying actual MQTT message delivery
+  - Feature tests covering all MQTT v5.0 CLI parameters
+  - Transport tests for TCP, TLS, UDP, and DTLS support
+  - Performance and throughput testing with real broker integration
+- **Enhanced CLI MQTT v5.0 Support** - Complete feature parity with library
+  - Added session management options (--no-clean-start, --session-expiry)
+  - Will message support for both pub and sub commands
+  - Enhanced authentication options (--username, --password)
+  - Custom keep-alive intervals and connection options
+
+### Fixed
+- **Will Message Testing** - Fixed CLI will message tests that were timing out
+  - Added hidden --keep-alive-after-publish flag for proper will message testing
+  - Will messages now properly trigger when CLI process is terminated
+  - Test infrastructure validates actual will message delivery
+
 ## [0.4.1] - 2025-08-05
 
 ### Fixed
