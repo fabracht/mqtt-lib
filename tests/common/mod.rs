@@ -1,5 +1,7 @@
 //! Common test utilities and scenarios
 
+pub mod cli_helpers;
+
 use mqtt5::{
     ConnectOptions, MessageProperties, MqttClient, PublishOptions, PublishProperties, QoS,
 };
