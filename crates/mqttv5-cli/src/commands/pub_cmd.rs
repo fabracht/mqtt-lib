@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt5::{MqttClient, PublishOptions, QoS};
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, QoS, WillMessage};
 use std::fs;
 use std::io::{self, Read};
+use std::time::Duration;
 use tracing::{debug, info};
 
 #[derive(Args)]
@@ -59,6 +60,42 @@ pub struct PubCommand {
     /// Skip prompts and use defaults/fail if required args missing
     #[arg(long)]
     pub non_interactive: bool,
+
+    /// Don't clean start (resume existing session)
+    #[arg(long = "no-clean-start")]
+    pub no_clean_start: bool,
+
+    /// Session expiry interval in seconds (0 = expire on disconnect)
+    #[arg(long)]
+    pub session_expiry: Option<u32>,
+
+    /// Keep alive interval in seconds
+    #[arg(long, short = 'k', default_value = "60")]
+    pub keep_alive: u16,
+
+    /// Will topic (last will and testament)
+    #[arg(long)]
+    pub will_topic: Option<String>,
+
+    /// Will message payload
+    #[arg(long)]
+    pub will_message: Option<String>,
+
+    /// Will QoS level (0, 1, or 2)
+    #[arg(long, value_parser = parse_qos)]
+    pub will_qos: Option<QoS>,
+
+    /// Will retain flag
+    #[arg(long)]
+    pub will_retain: bool,
+
+    /// Will delay interval in seconds
+    #[arg(long)]
+    pub will_delay: Option<u32>,
+
+    /// Keep connection alive after publishing (for testing will messages)
+    #[arg(long, hide = true)]
+    pub keep_alive_after_publish: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -145,12 +182,49 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
         .unwrap_or_else(|| format!("mqttv5-pub-{}", rand::rng().random::<u32>()));
     let client = MqttClient::new(&client_id);
 
+    // Build connection options
+    let mut options = ConnectOptions::new(client_id.clone())
+        .with_clean_start(!cmd.no_clean_start)
+        .with_keep_alive(Duration::from_secs(cmd.keep_alive.into()));
+
+    // Add session expiry if specified
+    if let Some(expiry) = cmd.session_expiry {
+        options = options.with_session_expiry_interval(expiry);
+    }
+
+    // Add authentication if provided
+    if let (Some(username), Some(password)) = (cmd.username.clone(), cmd.password.clone()) {
+        options = options.with_credentials(username, password.into_bytes());
+    } else if let Some(username) = cmd.username.clone() {
+        options = options.with_credentials(username, Vec::new());
+    }
+
+    // Add will message if specified
+    if let Some(topic) = cmd.will_topic.clone() {
+        let payload = cmd.will_message.clone().unwrap_or_default();
+        let mut will = WillMessage::new(topic, payload.into_bytes()).with_retain(cmd.will_retain);
+
+        if let Some(qos) = cmd.will_qos {
+            will = will.with_qos(qos);
+        }
+
+        if let Some(delay) = cmd.will_delay {
+            will.properties.will_delay_interval = Some(delay);
+        }
+
+        options = options.with_will(will);
+    }
+
     // Connect
     info!("Connecting to {}...", broker_url);
-    client
-        .connect(&broker_url)
+    let result = client
+        .connect_with_options(&broker_url, options)
         .await
         .context("Failed to connect to MQTT broker")?;
+
+    if result.session_present {
+        info!("Resumed existing session");
+    }
 
     // Publish message
     info!("Publishing to topic '{}'...", topic);
@@ -183,6 +257,14 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     println!("✓ Published message to '{}' (QoS {})", topic, qos as u8);
     if cmd.retain {
         println!("  Message retained on broker");
+    }
+
+    // Keep connection alive if requested (for testing will messages)
+    if cmd.keep_alive_after_publish {
+        info!("Keeping connection alive (--keep-alive-after-publish)");
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
     }
 
     // Disconnect
