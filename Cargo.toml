@@ -23,8 +23,10 @@ exclude = [
 ]
 
 [features]
-default = []
+default = ["rustls-aws-lc-rs"]
 turmoil-testing = ["turmoil"]
+rustls-aws-lc-rs = ["rustls/aws-lc-rs", "tokio-rustls/aws-lc-rs"]
+rustls-ring = ["rustls/ring", "tokio-rustls/ring"]
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -102,14 +104,14 @@ futures-util = "0.3.31"
 hex = "0.4.3"
 humantime-serde = "1.1"
 rand = "0.9.2"
-rustls = "0.23.29"
+rustls = { version = "0.23.29", default-features = false, features = ["log", "std"] }
 rustls-pemfile = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
 sha2 = "0.10.8"
 thiserror = "2.0.12"
 tokio = { version = "1.47.1", features = ["full"] }
-tokio-rustls = "0.26.2"
+tokio-rustls = { version = "0.26.2", default-features = false, features = ["logging", "tls12"] }
 tokio-tungstenite = "0.27.0"
 toml = "0.9.4"
 tracing = "0.1.41"
