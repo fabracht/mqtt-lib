@@ -106,6 +106,13 @@ mqttv5 sub -t "secure/data" --username user1 --password secret \
 # Custom keep-alive and transport options
 mqttv5 pub -t "test/topic" -m "data" --keep-alive 120 \
   --url "mqtts://secure-broker:8883"
+
+# UDP transport with automatic reliability
+mqttv5 pub --url "mqtt-udp://broker:1884" -t "test/udp" -m "UDP message"
+mqttv5 sub --url "mqtt-udp://broker:1884" -t "test/+"
+
+# DTLS (secure UDP) transport
+mqttv5 pub --url "mqtts-dtls://secure-broker:8884" -t "secure/data" -m "DTLS secured"
 ```
 
 ## Environment Variables

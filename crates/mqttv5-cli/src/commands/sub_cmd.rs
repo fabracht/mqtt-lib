@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
+use hex;
 use mqtt5::{ConnectOptions, MqttClient, QoS, WillMessage};
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::signal;
 use tracing::{debug, info};
@@ -83,6 +85,26 @@ pub struct SubCommand {
     /// Will delay interval in seconds
     #[arg(long)]
     pub will_delay: Option<u32>,
+
+    /// DTLS/TLS certificate file (PEM format) for secure connections
+    #[arg(long)]
+    pub cert: Option<PathBuf>,
+
+    /// DTLS/TLS private key file (PEM format) for secure connections
+    #[arg(long)]
+    pub key: Option<PathBuf>,
+
+    /// DTLS/TLS CA certificate file (PEM format) for server verification
+    #[arg(long)]
+    pub ca_cert: Option<PathBuf>,
+
+    /// DTLS PSK identity (for pre-shared key authentication)
+    #[arg(long)]
+    pub psk_identity: Option<String>,
+
+    /// DTLS PSK key in hex format (for pre-shared key authentication)
+    #[arg(long)]
+    pub psk_key: Option<String>,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -98,8 +120,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     // Smart prompting for missing required arguments
     if cmd.topic.is_none() && !cmd.non_interactive {
         let topic = Input::<String>::new()
-            .with_prompt("MQTT topic to subscribe to")
-            .with_initial_text("sensors/+")
+            .with_prompt("MQTT topic to subscribe to (e.g., sensors/+, home/#)")
             .interact()
             .context("Failed to get topic input")?;
         cmd.topic = Some(topic);
@@ -175,6 +196,42 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         }
 
         options = options.with_will(will);
+    }
+
+    // Configure DTLS if using mqtts-dtls://
+    if broker_url.starts_with("mqtts-dtls://") {
+        // Configure with PSK if provided
+        if let (Some(identity), Some(key_hex)) = (&cmd.psk_identity, &cmd.psk_key) {
+            let psk_key =
+                hex::decode(key_hex).context("Invalid PSK key format - must be hex encoded")?;
+            client
+                .set_dtls_config(
+                    None,
+                    None,
+                    None,
+                    Some(identity.as_bytes().to_vec()),
+                    Some(psk_key),
+                )
+                .await;
+        }
+        // Or configure with certificates if provided
+        else if let (Some(cert_path), Some(key_path)) = (&cmd.cert, &cmd.key) {
+            let cert_pem = std::fs::read(cert_path)
+                .with_context(|| format!("Failed to read certificate file: {:?}", cert_path))?;
+            let key_pem = std::fs::read(key_path)
+                .with_context(|| format!("Failed to read key file: {:?}", key_path))?;
+            let ca_pem = if let Some(ca_path) = &cmd.ca_cert {
+                Some(std::fs::read(ca_path).with_context(|| {
+                    format!("Failed to read CA certificate file: {:?}", ca_path)
+                })?)
+            } else {
+                None
+            };
+
+            client
+                .set_dtls_config(Some(cert_pem), Some(key_pem), ca_pem, None, None)
+                .await;
+        }
     }
 
     // Connect
