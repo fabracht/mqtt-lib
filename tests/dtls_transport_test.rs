@@ -62,7 +62,7 @@ async fn test_dtls_config_builder() {
 
 #[tokio::test]
 async fn test_dtls_fragmentation_header() {
-    use mqtt5::transport::udp::FragmentHeader;
+    use mqtt5::transport::udp_fragmentation::FragmentHeader;
 
     // Test fragment header for DTLS (reuses UDP fragmentation)
     let header = FragmentHeader {

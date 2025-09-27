@@ -6,6 +6,8 @@ pub mod packet_io;
 pub mod tcp;
 pub mod tls;
 pub mod udp;
+pub mod udp_fragmentation;
+pub mod udp_reliability;
 pub mod websocket;
 
 use crate::error::Result;

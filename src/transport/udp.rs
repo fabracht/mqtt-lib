@@ -1,5 +1,8 @@
 use crate::error::{MqttError, Result};
 use crate::packet::{FixedHeader, Packet};
+use crate::packet_id::PacketIdGenerator;
+use crate::transport::udp_fragmentation::{fragment_packet, FragmentReassembler};
+use crate::transport::udp_reliability::UdpReliability;
 use crate::transport::{packet_io::encode_packet_to_buffer, PacketReader, PacketWriter, Transport};
 use bytes::BytesMut;
 use std::collections::HashMap;
@@ -8,11 +11,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
-use tokio::time::timeout;
+use tokio::task::JoinHandle;
+use tokio::time::{interval, timeout};
 use tracing::{debug, trace, warn};
 
+// UDP transport constants
 const MAX_UDP_PACKET_SIZE: usize = 65507;
-const DEFAULT_MTU: usize = 1472;
+const DEFAULT_MTU: usize = 1472; // Standard Ethernet MTU minus IP/UDP headers
 const MESSAGE_CACHE_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_RETRIES: u32 = 4;
 const INITIAL_RETRY_TIMEOUT: Duration = Duration::from_millis(2500);
@@ -23,7 +28,6 @@ pub struct UdpConfig {
     pub addr: SocketAddr,
     pub connect_timeout: Duration,
     pub mtu: usize,
-    pub enable_fragmentation: bool,
     pub max_retries: u32,
 }
 
@@ -34,7 +38,6 @@ impl UdpConfig {
             addr,
             connect_timeout: Duration::from_secs(30),
             mtu: DEFAULT_MTU,
-            enable_fragmentation: true,
             max_retries: MAX_RETRIES,
         }
     }
@@ -50,62 +53,29 @@ impl UdpConfig {
         self.mtu = mtu.min(MAX_UDP_PACKET_SIZE);
         self
     }
-
-    #[must_use]
-    pub fn with_fragmentation(mut self, enable: bool) -> Self {
-        self.enable_fragmentation = enable;
-        self
-    }
 }
 
-#[derive(Debug, Clone)]
-pub struct FragmentHeader {
-    pub packet_id: u16,
-    pub fragment_index: u16,
-    pub total_fragments: u16,
-}
-
-impl FragmentHeader {
-    pub const SIZE: usize = 6;
-
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut bytes = [0u8; Self::SIZE];
-        bytes[0..2].copy_from_slice(&self.packet_id.to_be_bytes());
-        bytes[2..4].copy_from_slice(&self.fragment_index.to_be_bytes());
-        bytes[4..6].copy_from_slice(&self.total_fragments.to_be_bytes());
-        bytes
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < Self::SIZE {
-            return None;
-        }
-        Some(Self {
-            packet_id: u16::from_be_bytes([bytes[0], bytes[1]]),
-            fragment_index: u16::from_be_bytes([bytes[2], bytes[3]]),
-            total_fragments: u16::from_be_bytes([bytes[4], bytes[5]]),
-        })
-    }
-}
-
-#[derive(Debug)]
-struct FragmentReassembly {
-    fragments: HashMap<u16, Vec<u8>>,
-    total_fragments: u16,
-    received_fragments: u16,
-    started_at: Instant,
-}
+// FragmentHeader and FragmentReassembly are now imported from udp_fragmentation module
 
 type MessageCache = Arc<Mutex<HashMap<(SocketAddr, u16), (Instant, Vec<u8>)>>>;
-type FragmentCache = Arc<Mutex<HashMap<u16, FragmentReassembly>>>;
 
-#[derive(Debug)]
+/// UDP transport implementation with reliability and intelligent fragmentation
+///
+/// This transport provides MQTT-over-UDP with two layers:
+/// 1. **Reliability layer** (always applied): Sequence numbers, ACKs, retransmission
+/// 2. **Fragmentation layer** (intelligent): Only adds headers for packets > MTU
+///
+/// See `udp_fragmentation` and `udp_reliability` modules for detailed documentation.
 pub struct UdpTransport {
     config: UdpConfig,
     socket: Option<Arc<UdpSocket>>,
     message_cache: MessageCache,
-    fragment_reassembly: FragmentCache,
-    next_packet_id: Arc<Mutex<u16>>,
+    fragment_reassembler: Arc<Mutex<FragmentReassembler>>,
+    packet_id_generator: PacketIdGenerator,
+    read_buffer: Arc<Mutex<Option<Vec<u8>>>>,
+    read_offset: Arc<Mutex<usize>>,
+    reliability: Arc<Mutex<UdpReliability>>,
+    reliability_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl UdpTransport {
@@ -115,8 +85,12 @@ impl UdpTransport {
             config,
             socket: None,
             message_cache: Arc::new(Mutex::new(HashMap::new())),
-            fragment_reassembly: Arc::new(Mutex::new(HashMap::new())),
-            next_packet_id: Arc::new(Mutex::new(0)),
+            fragment_reassembler: Arc::new(Mutex::new(FragmentReassembler::new())),
+            packet_id_generator: PacketIdGenerator::new(),
+            read_buffer: Arc::new(Mutex::new(None)),
+            read_offset: Arc::new(Mutex::new(0)),
+            reliability: Arc::new(Mutex::new(UdpReliability::new())),
+            reliability_task: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -150,7 +124,13 @@ impl UdpTransport {
         let socket = Arc::new(socket);
         self.socket = Some(socket.clone());
 
-        debug!("UDP transport connected to {}", self.config.addr);
+        let local_addr = socket
+            .local_addr()
+            .unwrap_or_else(|_| "unknown".parse().unwrap());
+        debug!(
+            "UDP transport connected from {} to {}",
+            local_addr, self.config.addr
+        );
         Ok(socket)
     }
 
@@ -165,126 +145,30 @@ impl UdpTransport {
         let socket = self.socket.as_ref().ok_or(MqttError::NotConnected)?;
 
         let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
+        debug!(
+            "UDP client waiting to receive from connected address {}",
+            self.config.addr
+        );
         let len = socket.recv(&mut buf).await?;
         buf.truncate(len);
+        debug!("UDP client received {} bytes", len);
 
         Ok(buf)
     }
 
-    async fn fragment_packet(&self, packet_bytes: &[u8]) -> Result<Vec<Vec<u8>>> {
-        if !self.config.enable_fragmentation {
-            if packet_bytes.len() > self.config.mtu {
-                return Err(MqttError::PacketTooLarge {
-                    size: packet_bytes.len(),
-                    max: self.config.mtu,
-                });
-            }
-            return Ok(vec![packet_bytes.to_vec()]);
-        }
+    fn fragment_packet(&self, packet_bytes: &[u8]) -> Vec<Vec<u8>> {
+        // Get next packet ID for fragmentation
+        let packet_id = self.packet_id_generator.next();
 
-        let max_payload_size = self.config.mtu - FragmentHeader::SIZE;
-        if packet_bytes.len() <= max_payload_size {
-            return Ok(vec![packet_bytes.to_vec()]);
-        }
-
-        let total_fragments =
-            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
-        let mut packet_id = self.next_packet_id.lock().await;
-        let current_packet_id = *packet_id;
-        *packet_id = packet_id.wrapping_add(1);
-        drop(packet_id);
-
-        let mut fragments = Vec::new();
-        for i in 0..total_fragments {
-            let start = (i as usize) * max_payload_size;
-            let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-
-            let header = FragmentHeader {
-                packet_id: current_packet_id,
-                fragment_index: i,
-                total_fragments,
-            };
-
-            let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
-            fragment.extend_from_slice(&header.to_bytes());
-            fragment.extend_from_slice(&packet_bytes[start..end]);
-
-            fragments.push(fragment);
-        }
-
-        trace!("Fragmented packet into {} fragments", fragments.len());
-        Ok(fragments)
+        // Use the shared fragmentation function which intelligently decides:
+        // - Small packets (≤ MTU-6): returned as-is without headers
+        // - Large packets (> MTU-6): fragmented with 6-byte headers
+        fragment_packet(packet_bytes, self.config.mtu, packet_id)
     }
 
     async fn reassemble_fragment(&self, data: &[u8]) -> Result<Option<Vec<u8>>> {
-        if data.len() < FragmentHeader::SIZE {
-            return Ok(Some(data.to_vec()));
-        }
-
-        let Some(header) = FragmentHeader::from_bytes(data) else {
-            return Ok(Some(data.to_vec()));
-        };
-
-        if header.total_fragments == 1 {
-            return Ok(Some(data[FragmentHeader::SIZE..].to_vec()));
-        }
-
-        let payload = &data[FragmentHeader::SIZE..];
-        let mut reassembly_map = self.fragment_reassembly.lock().await;
-
-        reassembly_map.retain(|_, v| v.started_at.elapsed() < Duration::from_secs(30));
-
-        let reassembly =
-            reassembly_map
-                .entry(header.packet_id)
-                .or_insert_with(|| FragmentReassembly {
-                    fragments: HashMap::new(),
-                    total_fragments: header.total_fragments,
-                    received_fragments: 0,
-                    started_at: Instant::now(),
-                });
-
-        if reassembly.fragments.contains_key(&header.fragment_index) {
-            trace!(
-                "Duplicate fragment {} for packet {}",
-                header.fragment_index,
-                header.packet_id
-            );
-            return Ok(None);
-        }
-
-        reassembly
-            .fragments
-            .insert(header.fragment_index, payload.to_vec());
-        reassembly.received_fragments += 1;
-
-        if reassembly.received_fragments == reassembly.total_fragments {
-            let mut complete_packet = Vec::new();
-            for i in 0..reassembly.total_fragments {
-                if let Some(fragment) = reassembly.fragments.get(&i) {
-                    complete_packet.extend_from_slice(fragment);
-                } else {
-                    warn!("Missing fragment {} for packet {}", i, header.packet_id);
-                    return Ok(None);
-                }
-            }
-
-            reassembly_map.remove(&header.packet_id);
-            trace!(
-                "Reassembled complete packet {} ({} bytes)",
-                header.packet_id,
-                complete_packet.len()
-            );
-            Ok(Some(complete_packet))
-        } else {
-            trace!(
-                "Received fragment {}/{} for packet {}",
-                reassembly.received_fragments,
-                reassembly.total_fragments,
-                header.packet_id
-            );
-            Ok(None)
-        }
+        let mut reassembler = self.fragment_reassembler.lock().await;
+        reassembler.reassemble_fragment(data)
     }
 
     async fn check_duplicate(
@@ -312,32 +196,116 @@ impl UdpTransport {
 impl Transport for UdpTransport {
     async fn connect(&mut self) -> Result<()> {
         self.ensure_connected().await?;
+
+        // Start background task for reliability (always enabled for UDP)
+        let socket = self.socket.as_ref().unwrap().clone();
+        let reliability = self.reliability.clone();
+
+        let handle = tokio::spawn(async move {
+            let mut ticker = interval(Duration::from_millis(100));
+            loop {
+                ticker.tick().await;
+
+                let mut rel = reliability.lock().await;
+
+                // Send pending ACKs
+                if let Some(ack_packet) = rel.generate_ack() {
+                    if let Err(e) = socket.send(&ack_packet).await {
+                        warn!("Failed to send ACK packet: {}", e);
+                    }
+                }
+
+                // Retry unacknowledged packets
+                for retry_packet in rel.get_packets_to_retry() {
+                    if let Err(e) = socket.send(&retry_packet).await {
+                        warn!("Failed to send retry packet: {}", e);
+                    }
+                }
+            }
+        });
+
+        // Store the task handle for cleanup
+        let mut task_lock = self.reliability_task.lock().await;
+        *task_lock = Some(handle);
+
         Ok(())
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // Check if we have buffered data from a previous datagram
+        let mut read_buffer = self.read_buffer.lock().await;
+        let mut read_offset = self.read_offset.lock().await;
+
+        if let Some(ref buffer) = *read_buffer {
+            let remaining = buffer.len() - *read_offset;
+            if remaining > 0 {
+                // Read from the existing buffer
+                let to_read = remaining.min(buf.len());
+                buf[..to_read].copy_from_slice(&buffer[*read_offset..*read_offset + to_read]);
+                *read_offset += to_read;
+
+                // Clear the buffer if we've read it all
+                if *read_offset >= buffer.len() {
+                    *read_buffer = None;
+                    *read_offset = 0;
+                }
+
+                return Ok(to_read);
+            }
+        }
+
+        // No buffered data, receive a new datagram
         loop {
             let data = self.receive_raw().await?;
 
-            if let Some(complete_packet) = self.reassemble_fragment(&data).await? {
-                let len = complete_packet.len().min(buf.len());
-                buf[..len].copy_from_slice(&complete_packet[..len]);
-                return Ok(len);
+            // Always process through reliability layer
+            let mut reliability = self.reliability.lock().await;
+            let Some(processed_data) = reliability.unwrap_packet(&data)? else {
+                // This was a reliability control packet (ACK, heartbeat, etc.), continue waiting
+                continue;
+            };
+
+            if let Some(complete_packet) = self.reassemble_fragment(&processed_data).await? {
+                // For UDP, we need to buffer the complete packet for byte-by-byte reading
+                let to_read = complete_packet.len().min(buf.len());
+                buf[..to_read].copy_from_slice(&complete_packet[..to_read]);
+
+                // Store the rest for future reads if needed
+                if complete_packet.len() > buf.len() {
+                    *read_buffer = Some(complete_packet);
+                    *read_offset = buf.len();
+                } else {
+                    *read_buffer = None;
+                    *read_offset = 0;
+                }
+
+                return Ok(to_read);
             }
         }
     }
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
-        let fragments = self.fragment_packet(buf).await?;
+        let fragments = self.fragment_packet(buf);
 
         for fragment in fragments {
-            self.send_raw(&fragment).await?;
+            // Always wrap with reliability layer
+            let mut reliability = self.reliability.lock().await;
+            let data_to_send = reliability.wrap_packet(&fragment)?;
+
+            self.send_raw(&data_to_send).await?;
         }
 
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
+        // Abort the reliability background task
+        let mut task_lock = self.reliability_task.lock().await;
+        if let Some(handle) = task_lock.take() {
+            handle.abort();
+            debug!("UDP reliability task aborted");
+        }
+
         self.socket = None;
         debug!("UDP transport closed");
         Ok(())
@@ -348,8 +316,16 @@ impl UdpTransport {
     pub fn into_split(self) -> Result<(UdpReadHalf, UdpWriteHalf)> {
         let socket = self.socket.ok_or(MqttError::NotConnected)?;
 
-        let reader = UdpReadHalf::new(socket.clone(), self.config.mtu);
-        let writer = UdpWriteHalf::new(socket, self.config.mtu);
+        // Note: The background reliability task is already running from connect()
+        // We don't need to start another one here as it would create duplicate tasks
+
+        let reader = UdpReadHalf::new(socket.clone(), self.config.mtu, self.reliability.clone());
+        let writer = UdpWriteHalf::new(
+            socket,
+            self.config.mtu,
+            self.reliability,
+            self.packet_id_generator,
+        );
 
         Ok((reader, writer))
     }
@@ -357,73 +333,50 @@ impl UdpTransport {
 
 pub struct UdpReadHalf {
     socket: Arc<UdpSocket>,
-    fragment_reassembly: Arc<Mutex<HashMap<u16, FragmentReassembly>>>,
+    fragment_reassembler: Arc<Mutex<FragmentReassembler>>,
     mtu: usize,
+    reliability: Arc<Mutex<UdpReliability>>,
 }
 
 impl UdpReadHalf {
-    pub fn new(socket: Arc<UdpSocket>, mtu: usize) -> Self {
+    pub fn new(
+        socket: Arc<UdpSocket>,
+        mtu: usize,
+        reliability: Arc<Mutex<UdpReliability>>,
+    ) -> Self {
         Self {
             socket,
-            fragment_reassembly: Arc::new(Mutex::new(HashMap::new())),
+            fragment_reassembler: Arc::new(Mutex::new(FragmentReassembler::new())),
             mtu,
+            reliability,
         }
     }
 
-    async fn reassemble_fragment(&self, data: &[u8]) -> Result<Option<Vec<u8>>> {
-        if data.len() < FragmentHeader::SIZE {
-            return Ok(Some(data.to_vec()));
-        }
-
-        let Some(header) = FragmentHeader::from_bytes(data) else {
-            return Ok(Some(data.to_vec()));
-        };
-
-        if header.total_fragments == 1 {
-            return Ok(Some(data[FragmentHeader::SIZE..].to_vec()));
-        }
-
-        let payload = &data[FragmentHeader::SIZE..];
-        let mut reassembly_map = self.fragment_reassembly.lock().await;
-
-        let reassembly =
-            reassembly_map
-                .entry(header.packet_id)
-                .or_insert_with(|| FragmentReassembly {
-                    fragments: HashMap::new(),
-                    total_fragments: header.total_fragments,
-                    received_fragments: 0,
-                    started_at: Instant::now(),
-                });
-
-        reassembly
-            .fragments
-            .insert(header.fragment_index, payload.to_vec());
-        reassembly.received_fragments += 1;
-
-        if reassembly.received_fragments == reassembly.total_fragments {
-            let mut complete_packet = Vec::new();
-            for i in 0..reassembly.total_fragments {
-                if let Some(fragment) = reassembly.fragments.get(&i) {
-                    complete_packet.extend_from_slice(fragment);
-                }
-            }
-            reassembly_map.remove(&header.packet_id);
-            Ok(Some(complete_packet))
-        } else {
-            Ok(None)
-        }
+    async fn reassemble_fragment(&self, unwrapped_data: &[u8]) -> Result<Option<Vec<u8>>> {
+        // Data has already been unwrapped from reliability layer
+        // Use the shared fragment reassembler
+        let mut reassembler = self.fragment_reassembler.lock().await;
+        reassembler.reassemble_fragment(unwrapped_data)
     }
 }
 
 impl PacketReader for UdpReadHalf {
     async fn read_packet(&mut self) -> Result<Packet> {
-        let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
         loop {
+            let mut buf = vec![0u8; MAX_UDP_PACKET_SIZE];
             let len = self.socket.recv(&mut buf).await?;
             buf.truncate(len);
 
-            if let Some(complete_packet) = self.reassemble_fragment(&buf).await? {
+            // First unwrap reliability layer
+            let mut reliability = self.reliability.lock().await;
+            let Some(unwrapped_data) = reliability.unwrap_packet(&buf)? else {
+                // This was a control packet (ACK, heartbeat, etc.), continue waiting
+                continue;
+            };
+            drop(reliability);
+
+            // Then handle fragmentation
+            if let Some(complete_packet) = self.reassemble_fragment(&unwrapped_data).await? {
                 // Parse packet from bytes
                 let mut bytes = BytesMut::from(&complete_packet[..]);
                 let fixed_header = FixedHeader::decode(&mut bytes)?;
@@ -437,51 +390,34 @@ impl PacketReader for UdpReadHalf {
 
 pub struct UdpWriteHalf {
     socket: Arc<UdpSocket>,
-    next_packet_id: Arc<Mutex<u16>>,
+    packet_id_generator: PacketIdGenerator,
     mtu: usize,
+    reliability: Arc<Mutex<UdpReliability>>,
 }
 
 impl UdpWriteHalf {
-    pub fn new(socket: Arc<UdpSocket>, mtu: usize) -> Self {
+    pub fn new(
+        socket: Arc<UdpSocket>,
+        mtu: usize,
+        reliability: Arc<Mutex<UdpReliability>>,
+        packet_id_generator: PacketIdGenerator,
+    ) -> Self {
         Self {
             socket,
-            next_packet_id: Arc::new(Mutex::new(0)),
+            packet_id_generator,
             mtu,
+            reliability,
         }
     }
 
-    async fn fragment_packet(&self, packet_bytes: &[u8]) -> Result<Vec<Vec<u8>>> {
-        let max_payload_size = self.mtu - FragmentHeader::SIZE;
-        if packet_bytes.len() <= max_payload_size {
-            return Ok(vec![packet_bytes.to_vec()]);
-        }
+    fn fragment_packet(&self, packet_bytes: &[u8]) -> Vec<Vec<u8>> {
+        // Get next packet ID for fragmentation
+        let packet_id = self.packet_id_generator.next();
 
-        let total_fragments =
-            u16::try_from(packet_bytes.len().div_ceil(max_payload_size)).unwrap_or(u16::MAX);
-        let mut packet_id = self.next_packet_id.lock().await;
-        let current_packet_id = *packet_id;
-        *packet_id = packet_id.wrapping_add(1);
-        drop(packet_id);
-
-        let mut fragments = Vec::new();
-        for i in 0..total_fragments {
-            let start = (i as usize) * max_payload_size;
-            let end = ((i as usize + 1) * max_payload_size).min(packet_bytes.len());
-
-            let header = FragmentHeader {
-                packet_id: current_packet_id,
-                fragment_index: i,
-                total_fragments,
-            };
-
-            let mut fragment = Vec::with_capacity(FragmentHeader::SIZE + (end - start));
-            fragment.extend_from_slice(&header.to_bytes());
-            fragment.extend_from_slice(&packet_bytes[start..end]);
-
-            fragments.push(fragment);
-        }
-
-        Ok(fragments)
+        // Use the shared fragmentation function which intelligently decides:
+        // - Small packets (≤ MTU-6): returned as-is without headers
+        // - Large packets (> MTU-6): fragmented with 6-byte headers
+        fragment_packet(packet_bytes, self.mtu, packet_id)
     }
 }
 
@@ -489,10 +425,15 @@ impl PacketWriter for UdpWriteHalf {
     async fn write_packet(&mut self, packet: Packet) -> Result<()> {
         let mut buf = BytesMut::with_capacity(1024);
         encode_packet_to_buffer(&packet, &mut buf)?;
-        let fragments = self.fragment_packet(&buf).await?;
+        let fragments = self.fragment_packet(&buf);
 
         for fragment in fragments {
-            self.socket.send(&fragment).await?;
+            // Wrap with reliability layer
+            let mut reliability = self.reliability.lock().await;
+            let wrapped = reliability.wrap_packet(&fragment)?;
+            drop(reliability);
+
+            self.socket.send(&wrapped).await?;
         }
 
         Ok(())
@@ -502,6 +443,7 @@ impl PacketWriter for UdpWriteHalf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transport::udp_fragmentation::FragmentHeader;
 
     #[test]
     fn test_fragment_header_roundtrip() {
@@ -524,12 +466,10 @@ mod tests {
         let addr = "127.0.0.1:1883".parse().unwrap();
         let config = UdpConfig::new(addr)
             .with_connect_timeout(Duration::from_secs(10))
-            .with_mtu(2048)
-            .with_fragmentation(false);
+            .with_mtu(2048);
 
         assert_eq!(config.addr, addr);
         assert_eq!(config.connect_timeout, Duration::from_secs(10));
         assert_eq!(config.mtu, 2048);
-        assert!(!config.enable_fragmentation);
     }
 }

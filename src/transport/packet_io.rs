@@ -26,19 +26,29 @@ pub trait PacketIo: Transport {
 
             // Read first byte (packet type and flags)
             let mut byte = [0u8; 1];
+            tracing::trace!("Attempting to read first byte of packet");
             let n = self.read(&mut byte).await?;
             if n == 0 {
+                tracing::debug!("Connection closed - received 0 bytes when reading packet header");
                 return Err(MqttError::ConnectionError("Connection closed".to_string()));
             }
+            tracing::trace!(
+                "Read first byte: 0x{:02x} (packet_type={}, flags={})",
+                byte[0],
+                (byte[0] >> 4) & 0x0f,
+                byte[0] & 0x0f
+            );
             header_buf.put_u8(byte[0]);
 
             // Read remaining length (variable length encoding)
             loop {
                 let n = self.read(&mut byte).await?;
                 if n == 0 {
+                    tracing::debug!("Connection closed while reading remaining length");
                     return Err(MqttError::ConnectionError("Connection closed".to_string()));
                 }
                 header_buf.put_u8(byte[0]);
+                tracing::trace!("Read remaining length byte: 0x{:02x}", byte[0]);
 
                 if (byte[0] & crate::constants::masks::CONTINUATION_BIT) == 0 {
                     break;
@@ -53,7 +63,14 @@ pub trait PacketIo: Transport {
 
             // Parse the complete fixed header
             let mut header_buf = header_buf.freeze();
+            tracing::trace!("Fixed header bytes: {:02x?}", header_buf.as_ref());
             let fixed_header = FixedHeader::decode(&mut header_buf)?;
+            tracing::debug!(
+                "Decoded fixed header: packet_type={:?}, flags=0x{:02x}, remaining_length={}",
+                fixed_header.packet_type,
+                fixed_header.flags,
+                fixed_header.remaining_length
+            );
 
             if fixed_header.remaining_length > 10000 {
                 tracing::debug!(
@@ -83,7 +100,16 @@ pub trait PacketIo: Transport {
                 tracing::trace!(payload_len = payload.len(), "Decoding PUBACK packet");
             }
 
-            Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
+            let packet = Packet::decode_from_body(
+                fixed_header.packet_type,
+                &fixed_header,
+                &mut payload_buf,
+            )?;
+            tracing::debug!(
+                "Successfully decoded packet: {:?}",
+                fixed_header.packet_type
+            );
+            Ok(packet)
         }
     }
 

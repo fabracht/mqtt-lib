@@ -42,7 +42,7 @@ async fn test_udp_transport_connect() {
 
 #[tokio::test]
 async fn test_udp_fragmentation() {
-    use mqtt5::transport::udp::FragmentHeader;
+    use mqtt5::transport::udp_fragmentation::FragmentHeader;
 
     // Test fragment header serialization
     let header = FragmentHeader {

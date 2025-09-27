@@ -651,12 +651,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_websocket_transport_connect() {
-        let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://localhost:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         assert!(!transport.is_connected());
 
-        // Connection will fail since there's no WebSocket server at localhost:8080,
+        // Connection will fail since there's no WebSocket server at localhost:59999,
         // but this tests that the connect method works as expected
         let result = transport.connect().await;
         assert!(result.is_err());
@@ -669,7 +669,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_websocket_transport_operations_when_not_connected() {
-        let config = WebSocketConfig::new("ws://localhost:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://localhost:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         let mut buf = [0u8; 10];

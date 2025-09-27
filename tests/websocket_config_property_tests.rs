@@ -366,7 +366,7 @@ mod edge_case_tests {
 
     #[tokio::test]
     async fn test_websocket_transport_connect_lifecycle() {
-        let config = WebSocketConfig::new("ws://127.0.0.1:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://127.0.0.1:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         // Initial state
@@ -389,7 +389,7 @@ mod edge_case_tests {
 
     #[tokio::test]
     async fn test_websocket_transport_operations_require_connection() {
-        let config = WebSocketConfig::new("ws://127.0.0.1:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://127.0.0.1:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         // Operations should fail when not connected
