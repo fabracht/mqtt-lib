@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - UDP and DTLS URL support (mqtt-udp://, mqtts-dtls://)
 
 ### Fixed
+- **Mosquitto Compatibility (Issue #14)** - Fixed MaximumQoS property handling
+  - Broker now correctly omits MaximumQoS property when QoS 2 is supported (per MQTT v5.0 spec 3.2.2.3.4)
+  - MaximumQoS property value MUST be 0 or 1, never 2
+  - Client now reads and enforces server's MaximumQoS limit
+  - Fixes mosquitto_pub connection failures with "Failed to decode PUBLISH properties"
 - **Will Message Testing** - Fixed CLI will message tests that were timing out
   - Added hidden --keep-alive-after-publish flag for proper will message testing
   - Will messages now properly trigger when CLI process is terminated
