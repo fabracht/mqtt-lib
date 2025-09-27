@@ -4,8 +4,10 @@
 //! - Plain TCP connections (port 1883)
 //! - TLS connections (port 8883)
 //! - WebSocket connections (port 8080)
+//! - UDP connections (port 1884)
+//! - DTLS connections (port 8884)
 
-use mqtt5::broker::config::{TlsConfig, WebSocketConfig};
+use mqtt5::broker::config::{DtlsConfig, TlsConfig, UdpConfig, WebSocketConfig};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::PathBuf;
 use tracing::info;
@@ -18,17 +20,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("Failed to install crypto provider");
 
     // Initialize logging
-    tracing_subscriber::fmt::init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into()),
+        )
+        .try_init();
 
     // Create broker configuration with all transport types
     let config = BrokerConfig::default()
         .with_bind_address(([0, 0, 0, 0], 1883))
         .with_tls(
             TlsConfig::new(
-                PathBuf::from("certs/server.crt"),
-                PathBuf::from("certs/server.key"),
+                PathBuf::from("test_certs/server.pem"),
+                PathBuf::from("test_certs/server.key"),
             )
-            .with_ca_file(PathBuf::from("certs/ca.crt"))
+            .with_ca_file(PathBuf::from("test_certs/ca.pem"))
             .with_bind_address(([0, 0, 0, 0], 8883)),
         )
         .with_websocket(
@@ -36,15 +43,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_bind_address(([0, 0, 0, 0], 8080))
                 .with_path("/mqtt")
                 .with_tls(false),
-        );
+        )
+        .with_udp(
+            UdpConfig::new()
+                .with_bind_address(([0, 0, 0, 0], 1884))
+                .with_mtu(1472),
+        )
+        .with_dtls(DtlsConfig::new().with_bind_address(([0, 0, 0, 0], 8884)));
 
     // Create and run the broker
     let mut broker = MqttBroker::with_config(config).await?;
 
     info!("MQTT broker started with all transport types");
-    info!("  Plain TCP: mqtt://localhost:1883");
-    info!("  TLS: mqtts://localhost:8883");
-    info!("  WebSocket: ws://localhost:8080/mqtt");
+    info!("  Plain TCP:  mqtt://localhost:1883");
+    info!("  TLS:        mqtts://localhost:8883");
+    info!("  WebSocket:  ws://localhost:8080/mqtt");
+    info!("  UDP:        mqtt-udp://localhost:1884");
+    info!("  DTLS:       mqtts-dtls://localhost:8884");
     info!("Press Ctrl+C to stop");
 
     // Run until shutdown signal

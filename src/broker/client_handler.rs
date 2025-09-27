@@ -103,9 +103,16 @@ impl ClientHandler {
     /// Panics if `client_id` is None after successful connection
     pub async fn run(mut self) -> Result<()> {
         // Wait for CONNECT packet
-        tracing::debug!("Client handler started for {} ({})", self.client_addr, self.transport.transport_type());
+        tracing::debug!(
+            "Client handler started for {} ({})",
+            self.client_addr,
+            self.transport.transport_type()
+        );
         let connect_timeout = Duration::from_secs(10);
-        tracing::trace!("Waiting for CONNECT packet with {}s timeout", connect_timeout.as_secs());
+        tracing::trace!(
+            "Waiting for CONNECT packet with {}s timeout",
+            connect_timeout.as_secs()
+        );
         match timeout(connect_timeout, self.wait_for_connect()).await {
             Ok(Ok(())) => {
                 // Successfully connected
@@ -370,7 +377,7 @@ impl ClientHandler {
                 static COUNTER: AtomicU32 = AtomicU32::new(0);
                 let generated_id = format!("auto-{}", COUNTER.fetch_add(1, Ordering::SeqCst));
                 debug!("Generated client ID '{}' for empty client ID", generated_id);
-                connect.client_id = generated_id.clone();
+                connect.client_id.clone_from(&generated_id);
                 assigned_client_id = Some(generated_id);
             } else {
                 // MQTT v3.1.1 doesn't allow empty client IDs with clean_start=false
@@ -380,7 +387,9 @@ impl ClientHandler {
                     self.transport
                         .write_packet(Packet::ConnAck(connack))
                         .await?;
-                    return Err(MqttError::ProtocolError("Empty client ID not allowed".to_string()));
+                    return Err(MqttError::ProtocolError(
+                        "Empty client ID not allowed".to_string(),
+                    ));
                 }
             }
         }
@@ -417,7 +426,9 @@ impl ClientHandler {
         // If we assigned a client ID, include it in the CONNACK properties
         if let Some(ref assigned_id) = assigned_client_id {
             debug!("Setting assigned client ID in CONNACK: {}", assigned_id);
-            connack.properties.set_assigned_client_identifier(assigned_id.clone());
+            connack
+                .properties
+                .set_assigned_client_identifier(assigned_id.clone());
         }
 
         // Set broker properties using setter methods

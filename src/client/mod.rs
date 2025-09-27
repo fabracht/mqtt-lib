@@ -121,6 +121,8 @@ pub struct MqttClient {
     error_recovery_config: Arc<RwLock<ErrorRecoveryConfig>>,
     /// Connection attempt synchronization - prevents multiple concurrent connection attempts
     connection_mutex: Arc<tokio::sync::Mutex<()>>,
+    /// Optional DTLS configuration
+    dtls_config: Arc<RwLock<Option<DtlsConfig>>>,
 }
 
 impl MqttClient {
@@ -166,6 +168,7 @@ impl MqttClient {
             error_callbacks: Arc::new(RwLock::new(Vec::new())),
             error_recovery_config: Arc::new(RwLock::new(ErrorRecoveryConfig::default())),
             connection_mutex: Arc::new(tokio::sync::Mutex::new(())),
+            dtls_config: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -249,6 +252,64 @@ impl MqttClient {
         let mut callbacks = self.error_callbacks.write().await;
         callbacks.push(Box::new(callback));
         Ok(())
+    }
+
+    /// Configures DTLS transport settings for secure UDP connections
+    ///
+    /// Must be called before connecting to a mqtts-dtls:// URL.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use mqtt5::MqttClient;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    ///
+    /// // Configure with PSK
+    /// client.set_dtls_config(
+    ///     None, None, None,
+    ///     Some(b"client1".to_vec()),
+    ///     Some(hex::decode("0123456789abcdef").unwrap())
+    /// ).await;
+    ///
+    /// // Or configure with certificates
+    /// let cert_pem = std::fs::read("client.pem")?;
+    /// let key_pem = std::fs::read("client.key")?;
+    /// let ca_pem = Some(std::fs::read("ca.pem")?);
+    ///
+    /// client.set_dtls_config(
+    ///     Some(cert_pem),
+    ///     Some(key_pem),
+    ///     ca_pem,
+    ///     None, None
+    /// ).await;
+    ///
+    /// client.connect("mqtts-dtls://broker:8884").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn set_dtls_config(
+        &self,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
+        ca_cert_pem: Option<Vec<u8>>,
+        psk_identity: Option<Vec<u8>>,
+        psk_key: Option<Vec<u8>>,
+    ) {
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        let mut config_lock = self.dtls_config.write().await;
+        let placeholder_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
+
+        if let (Some(identity), Some(key)) = (psk_identity, psk_key) {
+            let mut config = DtlsConfig::new(placeholder_addr);
+            config = config.with_psk(identity, key);
+            *config_lock = Some(config);
+        } else if let (Some(cert), Some(key)) = (cert_pem, key_pem) {
+            let mut config = DtlsConfig::new(placeholder_addr);
+            config = config.with_certificates(cert, key, ca_cert_pem);
+            *config_lock = Some(config);
+        }
     }
 
     /// Connects to the MQTT broker with default options
@@ -435,7 +496,15 @@ impl MqttClient {
                 Ok(TransportType::Udp(udp_transport))
             }
             ClientTransportType::Dtls => {
-                let config = DtlsConfig::new(addr);
+                let dtls_config_lock = self.dtls_config.read().await;
+                let config = if let Some(existing_config) = &*dtls_config_lock {
+                    let mut cfg = existing_config.clone();
+                    cfg.addr = addr;
+                    cfg
+                } else {
+                    DtlsConfig::new(addr)
+                };
+
                 let mut dtls_transport = DtlsTransport::new(config);
                 dtls_transport
                     .connect()

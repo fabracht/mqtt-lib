@@ -58,6 +58,12 @@ pub struct BrokerConfig {
     /// WebSocket configuration
     pub websocket_config: Option<WebSocketConfig>,
 
+    /// UDP configuration
+    pub udp_config: Option<UdpConfig>,
+
+    /// DTLS configuration
+    pub dtls_config: Option<DtlsConfig>,
+
     /// Storage configuration
     pub storage_config: StorageConfig,
 }
@@ -80,6 +86,8 @@ impl Default for BrokerConfig {
             auth_config: AuthConfig::default(),
             tls_config: None,
             websocket_config: None,
+            udp_config: None,
+            dtls_config: None,
             storage_config: StorageConfig::default(),
         }
     }
@@ -152,6 +160,20 @@ impl BrokerConfig {
     #[must_use]
     pub fn with_websocket(mut self, ws: WebSocketConfig) -> Self {
         self.websocket_config = Some(ws);
+        self
+    }
+
+    /// Sets the UDP configuration
+    #[must_use]
+    pub fn with_udp(mut self, udp: UdpConfig) -> Self {
+        self.udp_config = Some(udp);
+        self
+    }
+
+    /// Sets the DTLS configuration
+    #[must_use]
+    pub fn with_dtls(mut self, dtls: DtlsConfig) -> Self {
+        self.dtls_config = Some(dtls);
         self
     }
 
@@ -334,6 +356,142 @@ impl WebSocketConfig {
     #[must_use]
     pub fn with_tls(mut self, use_tls: bool) -> Self {
         self.use_tls = use_tls;
+        self
+    }
+}
+
+/// UDP configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UdpConfig {
+    /// UDP listener address
+    pub bind_address: SocketAddr,
+
+    /// Maximum transmission unit (MTU) for UDP packets
+    pub mtu: usize,
+
+    /// Timeout for fragment reassembly
+    pub fragment_timeout: Duration,
+}
+
+impl Default for UdpConfig {
+    fn default() -> Self {
+        Self {
+            bind_address: "0.0.0.0:1884".parse().unwrap(),
+            mtu: 1472,
+            fragment_timeout: Duration::from_secs(10),
+        }
+    }
+}
+
+impl UdpConfig {
+    /// Creates a new UDP configuration
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the bind address
+    #[must_use]
+    pub fn with_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
+        self.bind_address = addr.into();
+        self
+    }
+
+    /// Sets the MTU
+    #[must_use]
+    pub fn with_mtu(mut self, mtu: usize) -> Self {
+        self.mtu = mtu;
+        self
+    }
+
+    /// Sets the fragment timeout
+    #[must_use]
+    pub fn with_fragment_timeout(mut self, timeout: Duration) -> Self {
+        self.fragment_timeout = timeout;
+        self
+    }
+}
+
+/// DTLS configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DtlsConfig {
+    /// DTLS listener address
+    pub bind_address: SocketAddr,
+
+    /// Maximum transmission unit (MTU) for DTLS packets
+    pub mtu: usize,
+
+    /// PSK identity for Pre-Shared Key authentication
+    pub psk_identity: Option<Vec<u8>>,
+
+    /// PSK key for Pre-Shared Key authentication
+    pub psk_key: Option<Vec<u8>>,
+
+    /// Path to certificate file (for certificate-based authentication)
+    pub cert_file: Option<PathBuf>,
+
+    /// Path to private key file (for certificate-based authentication)
+    pub key_file: Option<PathBuf>,
+
+    /// Path to CA certificate file
+    pub ca_file: Option<PathBuf>,
+}
+
+impl Default for DtlsConfig {
+    fn default() -> Self {
+        Self {
+            bind_address: "0.0.0.0:8884".parse().unwrap(),
+            mtu: 1472,
+            psk_identity: None,
+            psk_key: None,
+            cert_file: None,
+            key_file: None,
+            ca_file: None,
+        }
+    }
+}
+
+impl DtlsConfig {
+    /// Creates a new DTLS configuration
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the bind address
+    #[must_use]
+    pub fn with_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
+        self.bind_address = addr.into();
+        self
+    }
+
+    /// Sets the MTU
+    #[must_use]
+    pub fn with_mtu(mut self, mtu: usize) -> Self {
+        self.mtu = mtu;
+        self
+    }
+
+    /// Sets PSK authentication
+    #[must_use]
+    pub fn with_psk(mut self, identity: Vec<u8>, key: Vec<u8>) -> Self {
+        self.psk_identity = Some(identity);
+        self.psk_key = Some(key);
+        self
+    }
+
+    /// Sets certificate-based authentication
+    #[must_use]
+    pub fn with_certificates(mut self, cert_file: PathBuf, key_file: PathBuf) -> Self {
+        self.cert_file = Some(cert_file);
+        self.key_file = Some(key_file);
+        self
+    }
+
+    /// Sets the CA certificate file
+    #[must_use]
+    pub fn with_ca_file(mut self, ca_file: PathBuf) -> Self {
+        self.ca_file = Some(ca_file);
         self
     }
 }

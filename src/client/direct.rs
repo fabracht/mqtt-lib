@@ -18,10 +18,10 @@ use crate::packet::suback::{SubAckPacket, SubAckReasonCode};
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsuback::UnsubAckPacket;
 use crate::packet::unsubscribe::UnsubscribePacket;
-use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::packet::{MqttPacket, Packet};
 use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
+use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
 use crate::transport::dtls::{DtlsReadHalf, DtlsWriteHalf};
@@ -204,7 +204,10 @@ impl DirectClientInner {
         tracing::debug!("UDP CLIENT: Received packet after CONNECT");
         match packet {
             Packet::ConnAck(connack) => {
-                tracing::debug!("UDP CLIENT: Got CONNACK with reason code: {:?}", connack.reason_code);
+                tracing::debug!(
+                    "UDP CLIENT: Got CONNACK with reason code: {:?}",
+                    connack.reason_code
+                );
                 // Check reason code
                 if connack.reason_code != ReasonCode::Success {
                     return Err(MqttError::ConnectionRefused(connack.reason_code));
@@ -450,7 +453,9 @@ impl DirectClientInner {
             if qos_value > max_qos {
                 tracing::warn!(
                     "Requested QoS {} exceeds server maximum {}, using QoS {}",
-                    qos_value, max_qos, max_qos
+                    qos_value,
+                    max_qos,
+                    max_qos
                 );
                 // Downgrade QoS to server's maximum
                 match max_qos {
@@ -970,7 +975,8 @@ async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: Packe
                     }
                     Packet::PubComp(pubcomp) => {
                         // Now we complete the QoS 2 publish
-                        if let Some(tx) = ctx.pubcomp_channels.lock().await.remove(&pubcomp.packet_id)
+                        if let Some(tx) =
+                            ctx.pubcomp_channels.lock().await.remove(&pubcomp.packet_id)
                         {
                             let _ = tx.send(());
                         }

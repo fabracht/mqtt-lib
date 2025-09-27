@@ -29,6 +29,8 @@ pub struct MqttBroker {
     tls_acceptor: Option<TlsAcceptor>,
     ws_listener: Option<TcpListener>,
     ws_config: Option<WebSocketServerConfig>,
+    udp_socket: Option<Arc<tokio::net::UdpSocket>>,
+    dtls_socket: Option<Arc<tokio::net::UdpSocket>>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
 }
 
@@ -117,6 +119,24 @@ impl MqttBroker {
             (None, None)
         };
 
+        // Set up UDP if configured
+        let udp_socket = if let Some(ref udp_config) = config.udp_config {
+            let socket = tokio::net::UdpSocket::bind(&udp_config.bind_address).await?;
+            info!("MQTT broker UDP listening on {}", udp_config.bind_address);
+            Some(Arc::new(socket))
+        } else {
+            None
+        };
+
+        // Set up DTLS if configured
+        let dtls_socket = if let Some(ref dtls_config) = config.dtls_config {
+            let socket = tokio::net::UdpSocket::bind(&dtls_config.bind_address).await?;
+            info!("MQTT broker DTLS listening on {}", dtls_config.bind_address);
+            Some(Arc::new(socket))
+        } else {
+            None
+        };
+
         // Create storage backend
         let storage = if config.storage_config.enable_persistence {
             Some(Self::create_storage_backend(&config.storage_config).await?)
@@ -159,6 +179,8 @@ impl MqttBroker {
             tls_acceptor,
             ws_listener,
             ws_config,
+            udp_socket,
+            dtls_socket,
             shutdown_tx: Some(shutdown_tx),
         })
     }
@@ -241,6 +263,8 @@ impl MqttBroker {
         let tls_acceptor = self.tls_acceptor.take();
         let ws_listener = self.ws_listener.take();
         let ws_config = self.ws_config.take();
+        let udp_socket = self.udp_socket.take();
+        let dtls_socket = self.dtls_socket.take();
 
         let Some(shutdown_tx) = self.shutdown_tx.take() else {
             return Err(MqttError::InvalidState(
@@ -431,6 +455,214 @@ impl MqttBroker {
             });
         }
 
+        // Spawn UDP accept task if enabled
+        if let Some(udp_socket) = udp_socket {
+            let config = Arc::clone(&self.config);
+            let router = Arc::clone(&self.router);
+            let auth_provider = Arc::clone(&self.auth_provider);
+            let storage = self.storage.clone();
+            let stats = Arc::clone(&self.stats);
+            let resource_monitor = Arc::clone(&self.resource_monitor);
+            let mut shutdown_rx_udp = shutdown_tx.subscribe();
+
+            tokio::spawn(async move {
+                use crate::broker::udp_handler::UdpPacketHandler;
+                use crate::broker::udp_session::UdpSessionManager;
+                use std::collections::HashMap;
+                use std::net::SocketAddr;
+
+                info!("UDP broker ready to accept connections");
+
+                let _session_manager = UdpSessionManager::new(Arc::clone(&router));
+                let packet_handler = UdpPacketHandler::new(
+                    Arc::clone(&config),
+                    Arc::clone(&router),
+                    Arc::clone(&auth_provider),
+                    storage,
+                    Arc::clone(&stats),
+                    Arc::clone(&resource_monitor),
+                );
+
+                let mut buffer = vec![0u8; 65507];
+                let mtu = config.udp_config.as_ref().map_or(1472, |c| c.mtu);
+
+                // Track sessions by address
+                let mut sessions: HashMap<SocketAddr, crate::broker::udp_session::UdpSession> =
+                    HashMap::new();
+
+                loop {
+                    tokio::select! {
+                        recv_result = udp_socket.recv_from(&mut buffer) => {
+                            match recv_result {
+                                Ok((size, peer_addr)) => {
+                                    debug!(addr = %peer_addr, size = size, "UDP packet received");
+
+                                    // Check connection limits
+                                    if !resource_monitor.can_accept_connection(peer_addr.ip()).await {
+                                        warn!("UDP connection rejected from {}: resource limits exceeded", peer_addr);
+                                        continue;
+                                    }
+
+                                    // Get or create session
+                                    let is_new = !sessions.contains_key(&peer_addr);
+                                    let session = sessions.entry(peer_addr)
+                                        .or_insert_with(|| {
+                                            debug!("Creating new UDP session for {}", peer_addr);
+                                            crate::broker::udp_session::UdpSession::new(peer_addr)
+                                        });
+
+                                    // Start publish handler for new sessions
+                                    if is_new {
+                                        if let Some(mut publish_rx) = session.take_publish_rx() {
+                                            let udp_socket_clone = Arc::clone(&udp_socket);
+                                            let peer_addr_copy = session.peer_addr; // Use session's address, not current sender's
+                                            let packet_handler_clone = packet_handler.clone();
+                                            let reliability_clone = Arc::clone(&session.reliability);
+                                            let mtu_copy = mtu;
+
+                                            tokio::spawn(async move {
+                                                while let Some(publish) = publish_rx.recv().await {
+                                                    // Encode publish packet
+                                                    if let Ok(packet_bytes) = packet_handler_clone.encode_packet(&crate::packet::Packet::Publish(publish)) {
+                                                        // Fragment if needed, then wrap each fragment with reliability
+                                                        let fragments = packet_handler_clone.fragment_packet(&packet_bytes, mtu_copy);
+                                                        for fragment in fragments {
+                                                            // Wrap with reliability layer
+                                                            let mut reliability = reliability_clone.lock().await;
+                                                            match reliability.wrap_packet(&fragment) {
+                                                                Ok(reliable_packet) => {
+                                                                    if let Err(e) = udp_socket_clone.send_to(&reliable_packet, peer_addr_copy).await {
+                                                                        error!("Failed to send publish to UDP client: {}", e);
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("Failed to wrap publish with reliability: {}", e);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+
+                                    // Update activity
+                                    session.update_activity();
+
+                                    // Process packet with reliability layer
+                                    let packet_data = match session.process_packet_with_reliability(&buffer[..size]).await {
+                                        Ok(Some(data)) => data,
+                                        Ok(None) => {
+                                            // ACK packets are control packets that don't need reliability wrapping
+                                            // They're sent raw because they are part of the reliability layer itself
+                                            if let Some(ack_packet) = session.get_pending_acks().await {
+                                                if let Err(e) = udp_socket.send_to(&ack_packet, peer_addr).await {
+                                                    warn!("Failed to send ACK packet to {}: {}", peer_addr, e);
+                                                }
+                                            }
+
+                                            // Check for packets to retry
+                                            for retry_packet in session.get_packets_to_retry().await {
+                                                if let Err(e) = udp_socket.send_to(&retry_packet, peer_addr).await {
+                                                    warn!("Failed to send retry packet to {}: {}", peer_addr, e);
+                                                }
+                                            }
+
+                                            continue; // Waiting for more fragments or control packet
+                                        }
+                                        Err(e) => {
+                                            error!("Fragment reassembly error: {}", e);
+                                            continue;
+                                        }
+                                    };
+
+                                    // Process MQTT packet
+                                    match packet_handler.handle_packet(&packet_data, peer_addr, session).await {
+                                        Ok(Some(response)) => {
+                                            let local_addr = udp_socket.local_addr().ok()
+                                                .map_or_else(|| "unknown".to_string(), |a| a.to_string());
+                                            debug!(from = %local_addr, to = %peer_addr, size = response.len(), "Sending UDP response");
+                                            // Fragment first, then wrap each fragment with reliability
+                                            let fragments = packet_handler.fragment_packet(&response, mtu);
+                                            for fragment in fragments {
+                                                let reliable_fragment = match session.wrap_packet_with_reliability(&fragment).await {
+                                                    Ok(r) => r,
+                                                    Err(e) => {
+                                                        error!("Failed to wrap fragment with reliability: {}", e);
+                                                        continue;
+                                                    }
+                                                };
+                                                if let Err(e) = udp_socket.send_to(&reliable_fragment, peer_addr).await {
+                                                    error!("UDP send error: {}", e);
+                                                } else {
+                                                    debug!(from = %local_addr, to = %peer_addr, frag_size = reliable_fragment.len(), "UDP packet sent");
+                                                }
+                                            }
+                                        }
+                                        Ok(None) => {} // No response needed
+                                        Err(e) => {
+                                            error!("Packet handling error: {}", e);
+                                        }
+                                    }
+
+                                    // Clean up expired sessions periodically
+                                    sessions.retain(|_, s| !s.is_expired());
+                                }
+                                Err(e) => {
+                                    error!("UDP receive error: {}", e);
+                                }
+                            }
+                        }
+
+                        _ = shutdown_rx_udp.recv() => {
+                            debug!("UDP accept task shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Spawn DTLS accept task if enabled
+        if let Some(dtls_socket) = dtls_socket {
+            let config = Arc::clone(&self.config);
+            let _router = Arc::clone(&self.router);
+            let _auth_provider = Arc::clone(&self.auth_provider);
+            let _storage = self.storage.clone();
+            let _stats = Arc::clone(&self.stats);
+            let _resource_monitor = Arc::clone(&self.resource_monitor);
+            let mut shutdown_rx_dtls = shutdown_tx.subscribe();
+
+            tokio::spawn(async move {
+                info!("DTLS broker ready to accept connections");
+
+                if let Some(ref dtls_config) = config.dtls_config {
+                    match crate::broker::dtls_handler::DtlsHandler::new(
+                        dtls_socket.clone(),
+                        dtls_config,
+                    ) {
+                        Ok(handler) => {
+                            tokio::select! {
+                                result = handler.run() => {
+                                    if let Err(e) = result {
+                                        error!("DTLS handler error: {}", e);
+                                    }
+                                }
+                                _ = shutdown_rx_dtls.recv() => {
+                                    debug!("DTLS accept task shutting down");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to create DTLS handler: {}", e);
+                        }
+                    }
+                } else {
+                    error!("DTLS socket exists but configuration is missing");
+                }
+            });
+        }
+
         info!("Broker ready - accepting connections");
         loop {
             tokio::select! {
@@ -524,6 +756,11 @@ impl MqttBroker {
     /// Gets the local address the broker is bound to
     pub fn local_addr(&self) -> Option<std::net::SocketAddr> {
         self.listener.as_ref()?.local_addr().ok()
+    }
+
+    /// Gets the UDP address if UDP is enabled
+    pub fn udp_address(&self) -> Option<std::net::SocketAddr> {
+        self.udp_socket.as_ref()?.local_addr().ok()
     }
 }
 

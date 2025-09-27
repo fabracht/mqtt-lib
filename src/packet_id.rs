@@ -1,11 +1,12 @@
 //! Packet ID generation for MQTT
 
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 
 /// Generates unique packet IDs for MQTT messages
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PacketIdGenerator {
-    next_id: AtomicU16,
+    next_id: Arc<AtomicU16>,
 }
 
 impl PacketIdGenerator {
@@ -13,7 +14,7 @@ impl PacketIdGenerator {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            next_id: AtomicU16::new(1),
+            next_id: Arc::new(AtomicU16::new(1)),
         }
     }
 

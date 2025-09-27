@@ -35,7 +35,10 @@ use tracing::{error, info};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for logging
     tracing_subscriber::fmt()
-        .with_env_filter("mqtt5=info")
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("mqtt5=info")),
+        )
         .init();
 
     println!("🚀 MQTT v5.0 Simple Broker Example");
