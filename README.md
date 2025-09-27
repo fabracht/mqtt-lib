@@ -11,7 +11,7 @@
 This project provides everything you need for MQTT v5.0 development:
 - **Production-ready MQTT v5.0 broker** (Mosquitto replacement)
 - **High-performance client library** with AWS IoT compatibility
-- **Multiple transport support** (TCP, TLS, WebSocket)
+- **Multiple transport support** (TCP, TLS, WebSocket, UDP, DTLS)
 - **Comprehensive testing** with network simulation and property-based testing
 
 ## 🏗️ Dual Architecture: Client + Broker
@@ -62,9 +62,11 @@ use mqtt5::{MqttClient, QoS};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = MqttClient::new("my-device-001");
-    
-    // Connect to your broker (or any MQTT broker)
-    client.connect("mqtt://localhost:1883").await?;
+
+    // Connect to your broker (supports multiple transports)
+    client.connect("mqtt://localhost:1883").await?;      // TCP
+    // client.connect("mqtt-udp://localhost:1884").await?;  // UDP with reliability
+    // client.connect("mqtts-dtls://localhost:8884").await?; // DTLS (secure UDP)
     
     // Subscribe with callback
     client.subscribe("sensors/+/data", |msg| {
@@ -104,8 +106,13 @@ mqttv5 broker --host 0.0.0.0:1883
 # Publish a message (replaces mosquitto_pub)
 mqttv5 pub --topic "sensors/temperature" --message "23.5"
 
-# Subscribe to topics (replaces mosquitto_sub)  
+# Subscribe to topics (replaces mosquitto_sub)
 mqttv5 sub --topic "sensors/+" --verbose
+
+# Use different transports with --url flag
+mqttv5 pub --url mqtt://localhost:1883 --topic test --message "TCP"
+mqttv5 pub --url mqtt-udp://localhost:1884 --topic test --message "UDP"
+mqttv5 pub --url mqtts-dtls://localhost:8884 --topic test --message "DTLS"
 
 # Smart prompting when arguments are missing
 mqttv5 pub
@@ -152,6 +159,8 @@ mqttv5 pub
 - ✅ **TCP transport** - Standard MQTT over TCP on port 1883
 - ✅ **TLS/SSL transport** - Secure MQTT over TLS on port 8883
 - ✅ **WebSocket transport** - MQTT over WebSocket for browsers/firewalls
+- ✅ **UDP transport** - MQTT over UDP with reliability and fragmentation layers
+- ✅ **DTLS transport** - Secure MQTT over DTLS for UDP-based deployments
 - ✅ **Certificate authentication** - Client certificate validation
 - ✅ **Username/password authentication** - File-based user management
 
@@ -182,6 +191,8 @@ mqttv5 pub
 - ✅ **Certificate loading from bytes** - Load TLS certificates from memory (PEM/DER formats)
 - ✅ **WebSocket transport** - MQTT over WebSocket for browsers and firewall-restricted environments
 - ✅ **TLS/SSL support** - Secure connections with certificate validation
+- ✅ **UDP transport** - MQTT over UDP with automatic reliability and intelligent fragmentation
+- ✅ **DTLS support** - Secure UDP connections with DTLS
 - ✅ **Session persistence** - Survives disconnections with clean_start=false
 
 ### Testing & Development
@@ -196,7 +207,7 @@ mqttv5 pub
 ### Multi-Transport Broker
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig, UdpConfig, DtlsConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -215,15 +226,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_bind_address("0.0.0.0:8080".parse()?)
                 .with_path("/mqtt")
         )
+        // UDP on port 1884
+        .with_udp(
+            UdpConfig::new("0.0.0.0:1884".parse()?)
+                .with_mtu(1472)
+        )
+        // DTLS on port 8884
+        .with_dtls(
+            DtlsConfig::new("certs/server.crt".into(), "certs/server.key".into())
+                .with_bind_address("0.0.0.0:8884".parse()?)
+        )
         .with_max_clients(10_000);
 
     let mut broker = MqttBroker::with_config(config).await?;
-    
+
     println!("🚀 Multi-transport MQTT broker running:");
     println!("  📡 TCP:       mqtt://localhost:1883");
     println!("  🔒 TLS:       mqtts://localhost:8883");
     println!("  🌐 WebSocket: ws://localhost:8080/mqtt");
-    
+    println!("  📡 UDP:       mqtt-udp://localhost:1884");
+    println!("  🔒 DTLS:      mqtts-dtls://localhost:8884");
+
     broker.run().await?;
     Ok(())
 }
@@ -381,7 +404,9 @@ cargo make pre-commit     # Run before committing (fmt + clippy + test)
 cargo run --example simple_broker           # Start basic broker
 cargo run --example broker_with_tls         # TLS-enabled broker
 cargo run --example broker_with_websocket   # WebSocket-enabled broker
+cargo run --example broker_all_transports   # Broker with all transports (TCP/TLS/WS/UDP/DTLS)
 cargo run --example broker_bridge_demo      # Broker bridging demo
+cargo run --example udp_verification        # UDP transport verification
 
 # Benchmarks (use raw cargo for specific targets)
 cargo bench --bench broker_performance      # Broker performance tests

@@ -116,5 +116,5 @@ tracing-subscriber = { version = "0.3", features = [
 turmoil = { version = "0.6", optional = true }
 url = "2.5"
 webpki-roots = "1.0"
-webrtc-dtls = "0.12"
+webrtc-dtls = { version = "0.12", features = ["pem"] }
 webrtc-util = "0.11"

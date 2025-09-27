@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UDP Transport Implementation** - Complete MQTT over UDP with intelligent optimization
+  - Two-layer architecture: Reliability layer (always enabled) + Fragmentation layer (intelligent)
+  - QUIC-inspired reliability with sequence numbers, ACKs, and retransmission
+  - Smart fragmentation: Small packets (≤MTU-6) pass through without headers, large packets get headers
+  - Automatic MQTT packet type detection for optimized reassembly
+  - Connection-oriented UDP with proper session management
+- **DTLS Transport Support** - Secure UDP transport with DTLS
+  - Full DTLS 1.2 support with certificate validation
+  - Integration with existing TLS certificate infrastructure
+  - Support for both client and broker implementations
 - **Comprehensive CLI Testing Suite** - Full test coverage for CLI functionality
   - End-to-end tests verifying actual MQTT message delivery
   - Feature tests covering all MQTT v5.0 CLI parameters
@@ -18,12 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Will message support for both pub and sub commands
   - Enhanced authentication options (--username, --password)
   - Custom keep-alive intervals and connection options
+  - UDP and DTLS URL support (mqtt-udp://, mqtts-dtls://)
 
 ### Fixed
 - **Will Message Testing** - Fixed CLI will message tests that were timing out
   - Added hidden --keep-alive-after-publish flag for proper will message testing
   - Will messages now properly trigger when CLI process is terminated
   - Test infrastructure validates actual will message delivery
+- **Test Storage Isolation** - Fixed parallel test failures in UDP tests
+  - Each test now uses isolated temporary directory for storage
+  - Prevents file system conflicts during parallel test execution
 
 ## [0.4.1] - 2025-08-05
 
