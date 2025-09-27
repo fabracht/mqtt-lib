@@ -47,7 +47,7 @@ Start with these examples to understand the fundamentals:
 - **simple_broker.rs** - Minimal broker setup
 - **broker_with_tls.rs** - Secure broker with TLS
 - **broker_with_websocket.rs** - WebSocket support
-- **broker_all_transports.rs** - TCP, TLS, and WebSocket together
+- **broker_all_transports.rs** - TCP, TLS, WebSocket, UDP, and DTLS together
 
 ### Advanced Broker Features
 
@@ -55,6 +55,7 @@ Start with these examples to understand the fundamentals:
 - **broker_bridge_demo.rs** - Broker-to-broker bridging
 - **resource_monitoring.rs** - Resource usage tracking
 - **observability_dashboard.rs** - Complete monitoring solution
+- **udp_verification.rs** - UDP transport testing and verification
 
 ## Running Examples
 
@@ -104,8 +105,15 @@ Test with MQTT tools:
 # Subscribe to all topics
 mqttv5 sub --host localhost --topic '#' --verbose
 
-# Publish a message  
+# Publish a message
 mqttv5 pub --host localhost --topic 'test/topic' --message 'Hello!'
+
+# UDP transport (with automatic reliability)
+mqttv5 pub --url 'mqtt-udp://localhost:1884' --topic 'test/udp' --message 'UDP message'
+mqttv5 sub --url 'mqtt-udp://localhost:1884' --topic '#'
+
+# DTLS (secure UDP) transport
+mqttv5 pub --url 'mqtts-dtls://localhost:8884' --topic 'secure/data' --message 'DTLS secured'
 
 # Or with traditional mosquitto tools
 mosquitto_sub -h localhost -t '#' -v
@@ -172,8 +180,9 @@ mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 
 #### broker_all_transports.rs
 - Multiple transports simultaneously
-- TCP, TLS, and WebSocket
-- Port configuration
+- TCP, TLS, WebSocket, UDP, and DTLS
+- Port configuration for all transport types
+- UDP with automatic reliability layer
 
 #### broker_with_monitoring.rs
 - $SYS topics
@@ -198,6 +207,12 @@ mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 - Grafana integration
 - Real-time dashboards
 - Alert configuration
+
+#### udp_verification.rs
+- UDP transport functionality testing
+- Reliability layer verification
+- Fragmentation and reassembly
+- QoS support over UDP
 
 ## Common Patterns
 
