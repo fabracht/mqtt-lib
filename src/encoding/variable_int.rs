@@ -216,6 +216,48 @@ impl BeBytes for VariableInt {
     }
 }
 
+/// Encodes a u32 value as a variable byte integer (compatibility function)
+///
+/// This function provides compatibility with the old variable_byte module API.
+/// Prefer using `VariableInt::new(value)?.encode(buf)` for new code.
+///
+/// # Errors
+///
+/// Returns `MqttError::ProtocolError` if the value exceeds the maximum
+pub fn encode_variable_int<B: BufMut>(buf: &mut B, value: u32) -> Result<()> {
+    VariableInt::new(value)?.encode(buf)
+}
+
+/// Decodes a variable byte integer from the buffer (compatibility function)
+///
+/// This function provides compatibility with the old variable_byte module API.
+/// Prefer using `VariableInt::decode(buf)?.value()` for new code.
+///
+/// # Errors
+///
+/// Returns an error if decoding fails
+pub fn decode_variable_int<B: Buf>(buf: &mut B) -> Result<u32> {
+    Ok(VariableInt::decode(buf)?.value())
+}
+
+/// Calculates the number of bytes needed to encode a value (compatibility function)
+///
+/// This function provides compatibility with the old variable_byte module API.
+/// Prefer using `VariableInt::new(value)?.encoded_size()` for new code.
+#[must_use]
+pub fn variable_int_len(value: u32) -> usize {
+    VariableInt::new_unchecked(value.min(VARIABLE_INT_MAX)).encoded_size() as usize
+}
+
+/// Alias for `variable_int_len` for consistency (compatibility function)
+#[must_use]
+pub fn encoded_variable_int_len(value: u32) -> usize {
+    variable_int_len(value)
+}
+
+/// Maximum value that can be encoded as a variable byte integer (compatibility constant)
+pub const VARIABLE_BYTE_INT_MAX: u32 = VARIABLE_INT_MAX;
+
 #[cfg(test)]
 mod tests {
     use super::*;
