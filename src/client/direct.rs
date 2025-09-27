@@ -18,6 +18,7 @@ use crate::packet::suback::{SubAckPacket, SubAckReasonCode};
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsuback::UnsubAckPacket;
 use crate::packet::unsubscribe::UnsubscribePacket;
+use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::packet::{MqttPacket, Packet};
 use crate::packet_id::PacketIdGenerator;
 use crate::protocol::v5::properties::Properties;
@@ -96,8 +97,8 @@ pub struct DirectClientInner {
     pub pending_unsubacks: Arc<Mutex<HashMap<u16, oneshot::Sender<UnsubAckPacket>>>>,
     /// Pending PUBACK responses (`packet_id` -> oneshot sender)
     pub pending_pubacks: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
-    /// Pending PUBREC responses (`packet_id` -> oneshot sender) - for `QoS` 2
-    pub pending_pubrecs: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
+    /// Pending PUBCOMP responses (`packet_id` -> oneshot sender) - for `QoS` 2
+    pub pending_pubcomps: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
     /// Reconnection state
     pub reconnect_attempt: u32,
     /// Last connection address (for reconnection)
@@ -108,6 +109,8 @@ pub struct DirectClientInner {
     pub stored_subscriptions: Arc<RwLock<Vec<(String, SubscriptionOptions, CallbackId)>>>,
     /// Whether to queue messages when disconnected
     pub queue_on_disconnect: bool,
+    /// Server's maximum QoS level (from CONNACK)
+    pub server_max_qos: Arc<RwLock<Option<u8>>>,
 }
 
 impl DirectClientInner {
@@ -133,12 +136,13 @@ impl DirectClientInner {
             pending_subacks: Arc::new(Mutex::new(HashMap::new())),
             pending_unsubacks: Arc::new(Mutex::new(HashMap::new())),
             pending_pubacks: Arc::new(Mutex::new(HashMap::new())),
-            pending_pubrecs: Arc::new(Mutex::new(HashMap::new())),
+            pending_pubcomps: Arc::new(Mutex::new(HashMap::new())),
             reconnect_attempt: 0,
             last_address: None,
             queued_messages: Arc::new(Mutex::new(Vec::new())),
             stored_subscriptions: Arc::new(RwLock::new(Vec::new())),
             queue_on_disconnect,
+            server_max_qos: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -195,13 +199,24 @@ impl DirectClientInner {
             .await?;
 
         // Read CONNACK directly
+        tracing::debug!("UDP CLIENT: Waiting for CONNACK");
         let packet = transport.read_packet().await?;
+        tracing::debug!("UDP CLIENT: Received packet after CONNECT");
         match packet {
             Packet::ConnAck(connack) => {
+                tracing::debug!("UDP CLIENT: Got CONNACK with reason code: {:?}", connack.reason_code);
                 // Check reason code
-                use crate::protocol::v5::reason_codes::ReasonCode;
                 if connack.reason_code != ReasonCode::Success {
                     return Err(MqttError::ConnectionRefused(connack.reason_code));
+                }
+
+                // Store server's maximum QoS if present
+                if let Some(max_qos) = connack.properties.get_maximum_qos() {
+                    *self.server_max_qos.write().await = Some(max_qos);
+                    tracing::debug!("Server maximum QoS: {}", max_qos);
+                } else {
+                    // If not present, server supports QoS 2
+                    *self.server_max_qos.write().await = None;
                 }
 
                 // Split the transport for concurrent access
@@ -352,7 +367,7 @@ impl DirectClientInner {
             QoS::ExactlyOnce => {
                 let (tx, rx) = oneshot::channel();
                 if let Some(pid) = packet_id {
-                    self.pending_pubrecs.lock().await.insert(pid, tx);
+                    self.pending_pubcomps.lock().await.insert(pid, tx);
                 }
                 Some(rx)
             }
@@ -387,7 +402,7 @@ impl DirectClientInner {
                             });
                         }
                         QoS::ExactlyOnce => {
-                            let pending = self.pending_pubrecs.clone();
+                            let pending = self.pending_pubcomps.clone();
                             tokio::spawn(async move {
                                 pending.lock().await.remove(&pid);
                             });
@@ -424,6 +439,37 @@ impl DirectClientInner {
         if !self.is_connected() && self.queue_on_disconnect && options.qos != QoS::AtMostOnce {
             return self.queue_publish_message(topic, payload, &options).await;
         }
+
+        // Enforce server's maximum QoS limit
+        let effective_qos = if let Some(max_qos) = *self.server_max_qos.read().await {
+            let qos_value = match options.qos {
+                QoS::AtMostOnce => 0,
+                QoS::AtLeastOnce => 1,
+                QoS::ExactlyOnce => 2,
+            };
+            if qos_value > max_qos {
+                tracing::warn!(
+                    "Requested QoS {} exceeds server maximum {}, using QoS {}",
+                    qos_value, max_qos, max_qos
+                );
+                // Downgrade QoS to server's maximum
+                match max_qos {
+                    0 => QoS::AtMostOnce,
+                    1 => QoS::AtLeastOnce,
+                    _ => QoS::ExactlyOnce,
+                }
+            } else {
+                options.qos
+            }
+        } else {
+            options.qos
+        };
+
+        // Create adjusted options with effective QoS
+        let options = PublishOptions {
+            qos: effective_qos,
+            ..options
+        };
 
         if !self.is_connected() {
             return Err(MqttError::NotConnected);
@@ -818,7 +864,7 @@ impl DirectClientInner {
         let suback_channels = self.pending_subacks.clone();
         let unsuback_channels = self.pending_unsubacks.clone();
         let puback_channels = self.pending_pubacks.clone();
-        let pubrec_channels = self.pending_pubrecs.clone();
+        let pubcomp_channels = self.pending_pubcomps.clone();
         let writer_for_keepalive = self.writer.as_ref().ok_or(MqttError::NotConnected)?.clone();
         let connected = self.connected.clone();
 
@@ -830,7 +876,7 @@ impl DirectClientInner {
             suback_channels,
             unsuback_channels,
             puback_channels,
-            pubrec_channels,
+            pubcomp_channels,
             writer: writer_for_reader,
             connected,
         };
@@ -875,7 +921,7 @@ struct PacketReaderContext {
     suback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<SubAckPacket>>>>,
     unsuback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<UnsubAckPacket>>>>,
     puback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
-    pubrec_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
+    pubcomp_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
     writer: Arc<tokio::sync::RwLock<UnifiedWriter>>,
     connected: Arc<AtomicBool>,
 }
@@ -917,14 +963,18 @@ async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: Packe
                             continue;
                         }
                     }
-                    Packet::PubRec(pubrec) => {
-                        if let Some(tx) = ctx.pubrec_channels.lock().await.remove(&pubrec.packet_id)
+                    Packet::PubRec(_pubrec) => {
+                        // For QoS 2, we don't complete the publish on PUBREC
+                        // Just handle it normally to send PUBREL
+                        // The publish will complete when we receive PUBCOMP
+                    }
+                    Packet::PubComp(pubcomp) => {
+                        // Now we complete the QoS 2 publish
+                        if let Some(tx) = ctx.pubcomp_channels.lock().await.remove(&pubcomp.packet_id)
                         {
                             let _ = tx.send(());
-                            // Note: The PUBREL handling is done in handle_incoming_packet
-                            // We just need to notify the publish() call that PUBREC was received
                         }
-                        // Still need to handle the packet normally for PUBREL flow
+                        // Still need to handle the packet normally for session cleanup
                     }
                     _ => {}
                 }

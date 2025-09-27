@@ -669,6 +669,20 @@ impl Properties {
             .push(PropertyValue::Byte(u8::from(available)));
     }
 
+    /// Gets the maximum QoS
+    pub fn get_maximum_qos(&self) -> Option<u8> {
+        self.properties
+            .get(&PropertyId::MaximumQoS)
+            .and_then(|values| values.first())
+            .and_then(|value| {
+                if let PropertyValue::Byte(v) = value {
+                    Some(*v)
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Sets the content type
     pub fn set_content_type(&mut self, content_type: String) {
         self.properties

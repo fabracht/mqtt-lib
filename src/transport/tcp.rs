@@ -133,17 +133,20 @@ impl Transport for TcpTransport {
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match &mut self.stream {
-            Some(stream) => {
-                let n = stream.read(buf).await?;
-                if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed by remote".to_string(),
-                    ));
-                }
-                Ok(n)
+        if let Some(stream) = &mut self.stream {
+            tracing::trace!("TCP read attempt, buffer size: {}", buf.len());
+            let n = stream.read(buf).await?;
+            if n == 0 {
+                tracing::debug!("TCP connection closed by remote (EOF)");
+                return Err(MqttError::ConnectionError(
+                    "Connection closed by remote".to_string(),
+                ));
             }
-            None => Err(MqttError::NotConnected),
+            tracing::trace!("TCP read {} bytes: {:02x?}", n, &buf[..n.min(32)]);
+            Ok(n)
+        } else {
+            tracing::error!("TCP read attempted on unconnected stream");
+            Err(MqttError::NotConnected)
         }
     }
 
