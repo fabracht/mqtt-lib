@@ -59,6 +59,7 @@
 //! fragmentation headers are present.
 
 use crate::error::Result;
+use bebytes::BeBytes;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tracing::{trace, warn};
@@ -66,33 +67,36 @@ use tracing::{trace, warn};
 const FRAGMENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Fragment header for UDP packets
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, BeBytes)]
 pub struct FragmentHeader {
+    #[bebytes(big_endian)]
     pub packet_id: u16,
+    #[bebytes(big_endian)]
     pub fragment_index: u16,
+    #[bebytes(big_endian)]
     pub total_fragments: u16,
 }
 
 impl FragmentHeader {
     pub const SIZE: usize = 6;
 
+    /// Convert to bytes using BeBytes
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        let mut bytes = [0u8; Self::SIZE];
-        bytes[0..2].copy_from_slice(&self.packet_id.to_be_bytes());
-        bytes[2..4].copy_from_slice(&self.fragment_index.to_be_bytes());
-        bytes[4..6].copy_from_slice(&self.total_fragments.to_be_bytes());
-        bytes
+        let bytes = self.to_be_bytes();
+        let mut result = [0u8; Self::SIZE];
+        result.copy_from_slice(&bytes[..Self::SIZE]);
+        result
     }
 
+    /// Create from bytes using BeBytes
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() < Self::SIZE {
             return None;
         }
-        Some(Self {
-            packet_id: u16::from_be_bytes([bytes[0], bytes[1]]),
-            fragment_index: u16::from_be_bytes([bytes[2], bytes[3]]),
-            total_fragments: u16::from_be_bytes([bytes[4], bytes[5]]),
-        })
+        match Self::try_from_be_bytes(bytes) {
+            Ok((header, _)) => Some(header),
+            Err(_) => None,
+        }
     }
 }
 
