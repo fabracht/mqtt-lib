@@ -46,7 +46,7 @@ async fn test_udp_connect_disconnect() {
 
     let client = MqttClient::new("udp_test_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     eprintln!("TEST: Calling client.connect()");
     client.connect(&udp_url).await.expect("Failed to connect");
     eprintln!("TEST: client.connect() returned successfully");
@@ -70,7 +70,7 @@ async fn test_udp_publish_qos0() {
 
     let publisher = MqttClient::new("udp_publisher");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     publisher
         .connect(&udp_url)
         .await
@@ -120,7 +120,7 @@ async fn test_udp_publish_qos1() {
 
     let client = MqttClient::new("udp_qos1_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     let result = client
@@ -145,7 +145,7 @@ async fn test_udp_publish_qos2() {
 
     let client = MqttClient::new("udp_qos2_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     let result = client
@@ -168,8 +168,8 @@ async fn test_udp_fragmentation() {
 
     let mut config = BrokerConfig::default();
     // Use unique temp directory for storage
-    let _temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-    config.storage_config.base_dir = _temp_dir.path().to_path_buf();
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    config.storage_config.base_dir = temp_dir.path().to_path_buf();
     // Disable TCP to avoid port conflicts
     config.bind_address = "127.0.0.1:0".parse().unwrap();
     config.udp_config = Some(mqtt5::broker::config::UdpConfig {
@@ -194,7 +194,7 @@ async fn test_udp_fragmentation() {
 
     let client = MqttClient::new("udp_fragment_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Large payload to force fragmentation
@@ -220,9 +220,9 @@ async fn test_udp_multiple_clients() {
     let mut clients = Vec::new();
 
     for i in 0..5 {
-        let client = MqttClient::new(format!("udp_client_{}", i));
+        let client = MqttClient::new(format!("udp_client_{i}"));
 
-        let udp_url = format!("mqtt-udp://{}", addr);
+        let udp_url = format!("mqtt-udp://{addr}");
         client.connect(&udp_url).await.expect("Failed to connect");
 
         clients.push(client);
@@ -250,7 +250,7 @@ async fn test_udp_ping_keepalive() {
 
     let client = MqttClient::new("udp_ping_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Wait for multiple keepalive intervals
@@ -273,13 +273,13 @@ async fn test_udp_subscribe_unsubscribe() {
 
     let client = MqttClient::new("udp_sub_unsub_client");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Subscribe to multiple topics
     let topics = ["topic/1", "topic/2", "topic/3"];
 
-    for topic in topics.iter() {
+    for topic in &topics {
         client
             .subscribe(*topic, |_msg| {})
             .await
@@ -287,7 +287,7 @@ async fn test_udp_subscribe_unsubscribe() {
     }
 
     // Unsubscribe from all
-    for topic in topics.iter() {
+    for topic in &topics {
         client
             .unsubscribe(*topic)
             .await
@@ -302,6 +302,8 @@ async fn test_udp_subscribe_unsubscribe() {
 
 #[tokio::test]
 async fn test_udp_qos2_delivery() {
+    use mqtt5::{RetainHandling, SubscribeOptions};
+
     let _ = tracing_subscriber::fmt::try_init();
 
     let (broker_handle, addr, _temp_dir) = start_udp_broker().await;
@@ -310,7 +312,7 @@ async fn test_udp_qos2_delivery() {
     let publisher = MqttClient::new("udp_qos2_pub");
     let subscriber = MqttClient::new("udp_qos2_sub");
 
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
 
     // Connect both clients
     publisher
@@ -326,7 +328,6 @@ async fn test_udp_qos2_delivery() {
     let (tx, mut rx) = mpsc::channel::<mqtt5::types::Message>(10);
 
     // Subscribe with QoS 2
-    use mqtt5::{RetainHandling, SubscribeOptions};
     let options = SubscribeOptions {
         qos: QoS::ExactlyOnce,
         no_local: false,
@@ -388,7 +389,7 @@ async fn test_udp_qos_levels_mixed() {
     let (broker_handle, addr, _temp_dir) = start_udp_broker().await;
 
     let client = MqttClient::new("udp_qos_mixed");
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Test all QoS levels in sequence

@@ -1,4 +1,4 @@
-//! Test to verify proper QoS 2 packet sequence for UDP transport
+//! Test to verify proper `QoS` 2 packet sequence for UDP transport
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use mqtt5::client::MqttClient;
@@ -47,6 +47,8 @@ async fn start_udp_broker_with_packet_capture() -> (
 
 #[tokio::test]
 async fn test_udp_qos2_packet_sequence() {
+    use mqtt5::{RetainHandling, SubscribeOptions};
+
     let _ = tracing_subscriber::fmt()
         .with_env_filter("mqtt5=trace")
         .try_init();
@@ -56,7 +58,7 @@ async fn test_udp_qos2_packet_sequence() {
 
     // Create publisher
     let publisher = MqttClient::new("udp_qos2_sequence_pub");
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
 
     // Connect publisher
     publisher
@@ -74,7 +76,6 @@ async fn test_udp_qos2_packet_sequence() {
     let (msg_tx, mut msg_rx) = mpsc::channel::<mqtt5::types::Message>(10);
 
     // Subscribe with QoS 2
-    use mqtt5::{RetainHandling, SubscribeOptions};
     let options = SubscribeOptions {
         qos: QoS::ExactlyOnce,
         no_local: false,
@@ -107,8 +108,7 @@ async fn test_udp_qos2_packet_sequence() {
 
     assert!(
         publish_result.is_ok(),
-        "QoS 2 publish should succeed: {:?}",
-        publish_result
+        "QoS 2 publish should succeed: {publish_result:?}"
     );
     assert!(
         publish_result.unwrap().packet_id().is_some(),
@@ -144,7 +144,7 @@ async fn test_udp_qos2_completes_after_pubcomp() {
     let (broker_handle, addr, _temp_dir, _) = start_udp_broker_with_packet_capture().await;
 
     let client = MqttClient::new("udp_qos2_verify");
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Publish with QoS 2 and verify it completes successfully
@@ -160,16 +160,16 @@ async fn test_udp_qos2_completes_after_pubcomp() {
 
     // Verify we can publish multiple QoS 2 messages successfully
     for i in 0..3 {
-        let msg = format!("Message {}", i);
+        let msg = format!("Message {i}");
         let result = client
             .publish_qos(
-                &format!("test/verify/{}", i),
+                &format!("test/verify/{i}"),
                 msg.as_bytes(),
                 QoS::ExactlyOnce,
             )
             .await;
 
-        assert!(result.is_ok(), "QoS 2 publish {} should succeed", i);
+        assert!(result.is_ok(), "QoS 2 publish {i} should succeed");
         assert!(
             result.unwrap().packet_id().is_some(),
             "Should have packet ID"
@@ -186,22 +186,22 @@ async fn test_udp_qos2_multiple_concurrent_publishes() {
     let (broker_handle, addr, _temp_dir, _) = start_udp_broker_with_packet_capture().await;
 
     let client = MqttClient::new("udp_qos2_concurrent");
-    let udp_url = format!("mqtt-udp://{}", addr);
+    let udp_url = format!("mqtt-udp://{addr}");
     client.connect(&udp_url).await.expect("Failed to connect");
 
     // Spawn multiple QoS 2 publishes concurrently
     let mut handles = Vec::new();
     for i in 0..5 {
-        let client = MqttClient::new(format!("udp_qos2_concurrent_{}", i));
+        let client = MqttClient::new(format!("udp_qos2_concurrent_{i}"));
         let url = udp_url.clone();
 
         let handle = tokio::spawn(async move {
             client.connect(&url).await.expect("Failed to connect");
 
-            let message = format!("Message {}", i);
+            let message = format!("Message {i}");
             let result = client
                 .publish_qos(
-                    &format!("test/concurrent/{}", i),
+                    &format!("test/concurrent/{i}"),
                     message.as_bytes(),
                     QoS::ExactlyOnce,
                 )
@@ -218,14 +218,13 @@ async fn test_udp_qos2_multiple_concurrent_publishes() {
     for (i, handle) in handles.into_iter().enumerate() {
         let result = timeout(Duration::from_secs(10), handle)
             .await
-            .unwrap_or_else(|_| panic!("Publish {} timeout", i))
-            .unwrap_or_else(|_| panic!("Publish {} panicked", i));
+            .unwrap_or_else(|_| panic!("Publish {i} timeout"))
+            .unwrap_or_else(|_| panic!("Publish {i} panicked"));
 
-        assert!(result.is_ok(), "Publish {} should succeed: {:?}", i, result);
+        assert!(result.is_ok(), "Publish {i} should succeed: {result:?}");
         assert!(
             result.unwrap().packet_id().is_some(),
-            "Publish {} should have packet ID",
-            i
+            "Publish {i} should have packet ID"
         );
     }
 

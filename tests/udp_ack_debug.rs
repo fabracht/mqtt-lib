@@ -18,14 +18,14 @@ async fn test_udp_ack_packet_flow() {
         loop {
             match server_socket.recv_from(&mut buf).await {
                 Ok((len, peer_addr)) => {
-                    println!("Server received {} bytes from {}", len, peer_addr);
+                    println!("Server received {len} bytes from {peer_addr}");
                     println!("First 20 bytes: {:02x?}", &buf[..len.min(20)]);
 
                     // Echo back
                     server_socket.send_to(&buf[..len], peer_addr).await.ok();
                 }
                 Err(e) => {
-                    println!("Server error: {}", e);
+                    println!("Server error: {e}");
                     break;
                 }
             }
@@ -52,11 +52,11 @@ async fn test_udp_ack_packet_flow() {
 
     match result {
         Ok(Ok(len)) => {
-            println!("Client read {} bytes", len);
+            println!("Client read {len} bytes");
             println!("Data: {:?}", &read_buf[..len]);
         }
         Ok(Err(e)) => {
-            println!("Client read error: {}", e);
+            println!("Client read error: {e}");
         }
         Err(_) => {
             println!("Client read timeout");
@@ -80,12 +80,12 @@ async fn test_udp_split_ack_flow() {
         loop {
             match server_socket.recv_from(&mut buf).await {
                 Ok((len, peer_addr)) => {
-                    println!("Server received {} bytes", len);
+                    println!("Server received {len} bytes");
 
                     // Check packet type
                     if len > 0 {
                         let packet_type = buf[0];
-                        println!("Packet type: 0x{:02x}", packet_type);
+                        println!("Packet type: 0x{packet_type:02x}");
 
                         if packet_type == 0x01 {
                             // Data packet - send back an ACK
@@ -94,13 +94,13 @@ async fn test_udp_split_ack_flow() {
                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // sequence 1
                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // delay 0
                             ];
-                            println!("Sending ACK: {:02x?}", ack);
+                            println!("Sending ACK: {ack:02x?}");
                             server_socket.send_to(&ack, peer_addr).await.ok();
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Server error: {}", e);
+                    println!("Server error: {e}");
                     break;
                 }
             }
@@ -129,10 +129,10 @@ async fn test_udp_split_ack_flow() {
 
     match result {
         Ok(Ok(packet)) => {
-            println!("Client received packet: {:?}", packet);
+            println!("Client received packet: {packet:?}");
         }
         Ok(Err(e)) => {
-            println!("Client read error: {}", e);
+            println!("Client read error: {e}");
         }
         Err(_) => {
             println!("Client read timeout");

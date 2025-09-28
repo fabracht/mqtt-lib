@@ -49,8 +49,7 @@ async fn test_cli_broker_tls_starts() {
             panic!("Broker crashed with CryptoProvider error - rustls not initialized properly");
         } else {
             panic!(
-                "Broker exited unexpectedly. Exit status: {:?}\nStderr: {}\nStdout: {}",
-                exit_status, stderr, stdout
+                "Broker exited unexpectedly. Exit status: {exit_status:?}\nStderr: {stderr}\nStdout: {stdout}"
             );
         }
     }
@@ -62,7 +61,7 @@ async fn test_cli_broker_tls_starts() {
 }
 
 #[tokio::test]
-#[ignore] // This test can be flaky in CI due to port binding
+#[ignore = "This test can be flaky in CI due to port binding"]
 async fn test_cli_broker_tls_listens() {
     // Clean up any existing brokers
     Command::new("pkill")

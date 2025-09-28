@@ -15,7 +15,7 @@ pub struct CliResult {
 }
 
 impl CliResult {
-    pub fn from_output(output: Output) -> Self {
+    pub fn from_output(output: &Output) -> Self {
         Self {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
@@ -43,12 +43,10 @@ pub fn ensure_cli_built() {
             .output()
             .expect("Failed to build CLI");
 
-        if !output.status.success() {
-            panic!(
+        assert!(output.status.success(),
                 "Failed to build CLI: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
-        }
     }
 }
 
@@ -56,7 +54,7 @@ pub async fn run_cli_command(args: &[&str]) -> CliResult {
     ensure_cli_built();
 
     let output = tokio::task::spawn_blocking({
-        let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let args = args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
         move || {
             Command::new(CLI_BINARY)
                 .args(&args)
@@ -67,7 +65,7 @@ pub async fn run_cli_command(args: &[&str]) -> CliResult {
     .await
     .expect("Failed to join task");
 
-    CliResult::from_output(output)
+    CliResult::from_output(&output)
 }
 
 pub async fn run_cli_pub(
@@ -90,6 +88,7 @@ pub async fn run_cli_pub(
     run_cli_command(&args).await
 }
 
+#[allow(clippy::unused_async)]
 pub async fn run_cli_sub_async(
     broker_url: &str,
     topic: &str,
@@ -100,7 +99,7 @@ pub async fn run_cli_sub_async(
 
     let broker_url = broker_url.to_string();
     let topic = topic.to_string();
-    let extra_args = extra_args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let extra_args = extra_args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
 
     tokio::task::spawn_blocking(move || {
         let mut args = vec![
@@ -122,7 +121,7 @@ pub async fn run_cli_sub_async(
             .output()
             .expect("Failed to run CLI");
 
-        CliResult::from_output(output)
+        CliResult::from_output(&output)
     })
 }
 
@@ -345,7 +344,7 @@ pub async fn run_cli_with_stdin(args: &[&str], stdin_data: &str) -> CliResult {
     ensure_cli_built();
 
     let stdin_data = stdin_data.to_string();
-    let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let args = args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
 
     let result = tokio::task::spawn_blocking(move || {
         let mut child = Command::new(CLI_BINARY)
@@ -367,7 +366,7 @@ pub async fn run_cli_with_stdin(args: &[&str], stdin_data: &str) -> CliResult {
     .await
     .expect("Failed to join task");
 
-    CliResult::from_output(result)
+    CliResult::from_output(&result)
 }
 
 pub async fn verify_authentication(

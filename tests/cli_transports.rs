@@ -16,12 +16,10 @@ fn ensure_cli_built() {
             .output()
             .expect("Failed to build CLI");
 
-        if !output.status.success() {
-            panic!(
+        assert!(output.status.success(),
                 "Failed to build CLI: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
-        }
     }
 }
 

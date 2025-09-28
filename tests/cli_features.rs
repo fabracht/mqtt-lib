@@ -1,10 +1,10 @@
 //! Comprehensive tests for CLI MQTT v5.0 features
 //!
 //! Tests all new features added to the CLI including:
-//! - Connection options (clean_start, session_expiry, keep_alive)
+//! - Connection options (`clean_start`, `session_expiry`, `keep_alive`)
 //! - Will messages with all properties
 //! - Authentication
-//! - All QoS levels
+//! - All `QoS` levels
 
 use std::time::Duration;
 

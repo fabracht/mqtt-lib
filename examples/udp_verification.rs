@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info};
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
@@ -23,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Connecting publisher to {}", udp_url);
     match publisher.connect(udp_url).await {
-        Ok(_) => info!("✓ Publisher connected successfully"),
+        Ok(()) => info!("✓ Publisher connected successfully"),
         Err(e) => {
             error!("✗ Publisher connection failed: {}", e);
             return Err(e.into());
@@ -32,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Connecting subscriber to {}", udp_url);
     match subscriber.connect(udp_url).await {
-        Ok(_) => info!("✓ Subscriber connected successfully"),
+        Ok(()) => info!("✓ Subscriber connected successfully"),
         Err(e) => {
             error!("✗ Subscriber connection failed: {}", e);
             publisher.disconnect().await?;
@@ -67,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("🚀 MQTT over UDP", "test/udp/verification"),
     ];
 
-    for (payload, topic) in test_messages.iter() {
+    for (payload, topic) in &test_messages {
         info!("Publishing '{}' to '{}'", payload, topic);
         match publisher.publish(*topic, payload.as_bytes()).await {
             Ok(_) => info!("✓ Published successfully"),
