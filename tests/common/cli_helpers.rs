@@ -43,10 +43,11 @@ pub fn ensure_cli_built() {
             .output()
             .expect("Failed to build CLI");
 
-        assert!(output.status.success(),
-                "Failed to build CLI: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+        assert!(
+            output.status.success(),
+            "Failed to build CLI: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 }
 
@@ -99,7 +100,10 @@ pub async fn run_cli_sub_async(
 
     let broker_url = broker_url.to_string();
     let topic = topic.to_string();
-    let extra_args = extra_args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
+    let extra_args = extra_args
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect::<Vec<_>>();
 
     tokio::task::spawn_blocking(move || {
         let mut args = vec![
