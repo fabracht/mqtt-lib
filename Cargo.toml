@@ -110,7 +110,7 @@ sha2 = "0.10.8"
 thiserror = "2.0.12"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-rustls = "0.26.2"
-tokio-tungstenite = "0.27.0"
+tokio-tungstenite = "0.28.0"
 toml = "0.9.4"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [
