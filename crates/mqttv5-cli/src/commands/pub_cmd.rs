@@ -102,6 +102,10 @@ pub struct PubCommand {
     #[arg(long)]
     pub ca_cert: Option<PathBuf>,
 
+    /// Skip certificate verification for TLS connections (insecure, for testing only)
+    #[arg(long)]
+    pub insecure: bool,
+
     /// DTLS PSK identity (for pre-shared key authentication)
     #[arg(long)]
     pub psk_identity: Option<String>,
@@ -233,6 +237,12 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
         }
 
         options = options.with_will(will);
+    }
+
+    // Configure insecure TLS mode if requested
+    if cmd.insecure {
+        client.set_insecure_tls(true).await;
+        info!("Insecure TLS mode enabled (certificate verification disabled)");
     }
 
     // Configure DTLS if using mqtts-dtls://

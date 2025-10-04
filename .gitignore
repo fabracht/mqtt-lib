@@ -177,3 +177,4 @@ test_certs/*.key
 test_certs/*.pem
 test_certs/*.csr
 test_certs/*.srl
+test_certs/mosquitto.conf

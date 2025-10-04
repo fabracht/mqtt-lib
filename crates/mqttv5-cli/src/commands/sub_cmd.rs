@@ -98,6 +98,10 @@ pub struct SubCommand {
     #[arg(long)]
     pub ca_cert: Option<PathBuf>,
 
+    /// Skip certificate verification for TLS connections (insecure, for testing only)
+    #[arg(long)]
+    pub insecure: bool,
+
     /// DTLS PSK identity (for pre-shared key authentication)
     #[arg(long)]
     pub psk_identity: Option<String>,
@@ -198,6 +202,12 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         options = options.with_will(will);
     }
 
+    // Configure insecure TLS mode if requested
+    if cmd.insecure {
+        client.set_insecure_tls(true).await;
+        info!("Insecure TLS mode enabled (certificate verification disabled)");
+    }
+
     // Configure DTLS if using mqtts-dtls://
     if broker_url.starts_with("mqtts-dtls://") {
         // Configure with PSK if provided
@@ -254,9 +264,12 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use tokio::sync::Notify;
 
     let message_count = Arc::new(AtomicU32::new(0));
     let message_count_clone = message_count.clone();
+    let done_notify = Arc::new(Notify::new());
+    let done_notify_clone = done_notify.clone();
 
     let (packet_id, granted_qos) = client
         .subscribe(&topic, move |message| {
@@ -275,7 +288,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
             // Check if we've reached the target count
             if target_count > 0 && count >= target_count {
                 println!("✓ Received {target_count} messages, exiting");
-                std::process::exit(0);
+                done_notify_clone.notify_one();
             }
         })
         .await?;
@@ -285,13 +298,27 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         packet_id, granted_qos
     );
 
-    // Wait for Ctrl+C
-    match signal::ctrl_c().await {
-        Ok(()) => {
-            println!("\n✓ Received Ctrl+C, disconnecting...");
+    // Wait for either Ctrl+C or target count reached
+    if target_count > 0 || cmd.non_interactive {
+        // If we have a target count or are in non-interactive mode,
+        // wait for either the count to be reached or Ctrl+C
+        tokio::select! {
+            _ = done_notify.notified() => {
+                // Target count reached
+            }
+            _ = signal::ctrl_c() => {
+                println!("\n✓ Received Ctrl+C, disconnecting...");
+            }
         }
-        Err(err) => {
-            anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+    } else {
+        // Interactive mode with no target count - just wait for Ctrl+C
+        match signal::ctrl_c().await {
+            Ok(()) => {
+                println!("\n✓ Received Ctrl+C, disconnecting...");
+            }
+            Err(err) => {
+                anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+            }
         }
     }
 

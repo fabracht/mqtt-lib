@@ -44,12 +44,15 @@ use crate::packet::Packet;
 use crate::transport::packet_io::{PacketReader, PacketWriter};
 use crate::transport::tls::TlsConfig;
 use crate::transport::Transport;
-use futures_util::{stream::SplitSink, stream::SplitStream, SinkExt, StreamExt};
+use futures_util::{stream::SplitSink, stream::SplitStream, StreamExt};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{
+    tungstenite::{self, http::Request, protocol::Message},
+    MaybeTlsStream, WebSocketStream,
+};
 use url::Url;
 
 /// WebSocket transport configuration
@@ -350,6 +353,7 @@ pub struct WebSocketTransport {
     config: WebSocketConfig,
     connected: bool,
     connection: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    read_buffer: Vec<u8>,
 }
 
 impl WebSocketTransport {
@@ -360,6 +364,7 @@ impl WebSocketTransport {
             config,
             connected: false,
             connection: None,
+            read_buffer: Vec::new(),
         }
     }
 
@@ -415,15 +420,17 @@ pub struct WebSocketWriteHandle {
 impl WebSocketReadHandle {
     /// Reads data from the WebSocket
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self.reader.next().await {
-            Some(Ok(Message::Binary(data))) => {
-                let len = data.len().min(buf.len());
-                buf[..len].copy_from_slice(&data[..len]);
-                Ok(len)
+        loop {
+            match self.reader.next().await {
+                Some(Ok(Message::Binary(data))) => {
+                    let len = data.len().min(buf.len());
+                    buf[..len].copy_from_slice(&data[..len]);
+                    return Ok(len);
+                }
+                Some(Ok(Message::Close(_))) | None => return Err(MqttError::ClientClosed),
+                Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_))) => {}
+                Some(Err(e)) => return Err(MqttError::Io(e.to_string())),
             }
-            Some(Ok(Message::Close(_))) | None => Err(MqttError::ClientClosed),
-            Some(Ok(_)) => Ok(0), // Ignore other message types
-            Some(Err(e)) => Err(MqttError::Io(e.to_string())),
         }
     }
 }
@@ -468,13 +475,14 @@ impl PacketReader for WebSocketReadHandle {
 impl PacketWriter for WebSocketWriteHandle {
     async fn write_packet(&mut self, packet: Packet) -> Result<()> {
         use futures_util::SinkExt;
+        use bytes::BytesMut;
 
-        // Encode the packet to bytes using the public encode function
-        let buf = crate::test_utils::encode_packet(&packet)?;
+        let mut buf = BytesMut::with_capacity(1024);
+        crate::transport::packet_io::encode_packet_to_buffer(&packet, &mut buf)?;
 
         // Send as WebSocket binary frame
         self.writer
-            .send(Message::Binary(buf.into()))
+            .send(Message::Binary(buf.to_vec().into()))
             .await
             .map_err(|e| MqttError::Io(e.to_string()))
     }
@@ -492,13 +500,50 @@ impl Transport for WebSocketTransport {
             "Connecting to WebSocket broker"
         );
 
-        // Set up timeout and connect
-        let connect_future = tokio::time::timeout(
-            self.config.timeout,
-            tokio_tungstenite::connect_async(self.config.url.as_str()),
-        );
+        // Build WebSocket request with subprotocol header
+        let request = Request::builder()
+            .uri(self.config.url.as_str())
+            .header("Host", self.config.url.host_str().unwrap_or("localhost"))
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .header("Sec-WebSocket-Version", "13")
+            .header("Sec-WebSocket-Key", tungstenite::handshake::client::generate_key())
+            .header("Sec-WebSocket-Protocol", "mqtt")
+            .body(())
+            .map_err(|e| MqttError::ConnectionError(format!("Failed to build WebSocket request: {e}")))?;
 
-        match connect_future.await {
+        // Handle connection based on whether it's secure and if we need custom TLS config
+        let ws_result = if self.config.is_secure() &&
+            self.config.tls_config.as_ref().map_or(false, |cfg| !cfg.verify_server_cert) {
+            // Need to use custom TLS connector for insecure mode
+            use tokio_tungstenite::Connector;
+
+            // Create rustls config with dangerous no-verification
+            let tls = rustls::ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(std::sync::Arc::new(NoVerifier))
+                .with_no_client_auth();
+
+            let connector = Connector::Rustls(std::sync::Arc::new(tls));
+
+            tokio::time::timeout(
+                self.config.timeout,
+                tokio_tungstenite::connect_async_tls_with_config(
+                    request,
+                    None,
+                    false,
+                    Some(connector),
+                ),
+            ).await
+        } else {
+            // Use default connection (works for both ws:// and wss:// with normal verification)
+            tokio::time::timeout(
+                self.config.timeout,
+                tokio_tungstenite::connect_async(request),
+            ).await
+        };
+
+        match ws_result {
             Ok(Ok((ws_stream, response))) => {
                 // Check if subprotocol was negotiated
                 if let Some(protocol) = response.headers().get("Sec-WebSocket-Protocol") {
@@ -529,31 +574,43 @@ impl Transport for WebSocketTransport {
             return Err(MqttError::NotConnected);
         }
 
+        if !self.read_buffer.is_empty() {
+            let len = self.read_buffer.len().min(buf.len());
+            buf[..len].copy_from_slice(&self.read_buffer[..len]);
+            self.read_buffer.drain(..len);
+            return Ok(len);
+        }
+
         let connection = self.connection.as_mut().ok_or(MqttError::NotConnected)?;
 
-        match connection.next().await {
-            Some(Ok(Message::Binary(data))) => {
-                let len = data.len().min(buf.len());
-                buf[..len].copy_from_slice(&data[..len]);
-                Ok(len)
-            }
-            Some(Ok(Message::Close(_))) | None => {
-                self.connected = false;
-                Err(MqttError::ClientClosed)
-            }
-            Some(Ok(Message::Ping(_))) => {
-                // Auto-pong is handled by tokio-tungstenite
-                Ok(0)
-            }
-            Some(Ok(_)) => Ok(0), // Ignore pong and text frames
-            Some(Err(e)) => {
-                self.connected = false;
-                Err(MqttError::Io(e.to_string()))
+        loop {
+            match connection.next().await {
+                Some(Ok(Message::Binary(data))) => {
+                    let len = data.len().min(buf.len());
+                    buf[..len].copy_from_slice(&data[..len]);
+
+                    if data.len() > buf.len() {
+                        self.read_buffer.extend_from_slice(&data[buf.len()..]);
+                    }
+
+                    return Ok(len);
+                }
+                Some(Ok(Message::Close(_))) | None => {
+                    self.connected = false;
+                    return Err(MqttError::ClientClosed);
+                }
+                Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_))) => {}
+                Some(Err(e)) => {
+                    self.connected = false;
+                    return Err(MqttError::Io(e.to_string()));
+                }
             }
         }
     }
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
+        use futures_util::SinkExt;
+
         if !self.connected {
             return Err(MqttError::NotConnected);
         }
@@ -564,6 +621,14 @@ impl Transport for WebSocketTransport {
 
         connection
             .send(Message::Binary(buf.to_vec().into()))
+            .await
+            .map_err(|e| {
+                self.connected = false;
+                MqttError::Io(e.to_string())
+            })?;
+
+        connection
+            .flush()
             .await
             .map_err(|e| {
                 self.connected = false;
@@ -585,6 +650,54 @@ impl Transport for WebSocketTransport {
 
         self.connected = false;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct NoVerifier;
+
+impl rustls::client::danger::ServerCertVerifier for NoVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> std::result::Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        vec![
+            rustls::SignatureScheme::RSA_PKCS1_SHA256,
+            rustls::SignatureScheme::RSA_PKCS1_SHA384,
+            rustls::SignatureScheme::RSA_PKCS1_SHA512,
+            rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+            rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+            rustls::SignatureScheme::RSA_PSS_SHA256,
+            rustls::SignatureScheme::RSA_PSS_SHA384,
+            rustls::SignatureScheme::RSA_PSS_SHA512,
+            rustls::SignatureScheme::ED25519,
+        ]
     }
 }
 

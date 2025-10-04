@@ -199,13 +199,13 @@ impl DirectClientInner {
             .await?;
 
         // Read CONNACK directly
-        tracing::debug!("UDP CLIENT: Waiting for CONNACK");
+        tracing::debug!("CLIENT: Waiting for CONNACK");
         let packet = transport.read_packet().await?;
-        tracing::debug!("UDP CLIENT: Received packet after CONNECT");
+        tracing::debug!("CLIENT: Received packet after CONNECT");
         match packet {
             Packet::ConnAck(connack) => {
                 tracing::debug!(
-                    "UDP CLIENT: Got CONNACK with reason code: {:?}",
+                    "CLIENT: Got CONNACK with reason code: {:?}",
                     connack.reason_code
                 );
                 // Check reason code

@@ -50,12 +50,12 @@ impl BridgeManager {
         let bridge = Arc::new(BridgeConnection::new(config, self.router.clone())?);
 
         // Start the bridge
-        bridge.start().await?;
+        Box::pin(bridge.start()).await?;
 
         // Spawn bridge task
         let bridge_clone = bridge.clone();
         let task = tokio::spawn(async move {
-            if let Err(e) = bridge_clone.run().await {
+            if let Err(e) = Box::pin(bridge_clone.run()).await {
                 error!("Bridge task error: {}", e);
             }
         });
@@ -174,7 +174,7 @@ impl BridgeManager {
         }
 
         // Add new bridge with updated config
-        self.add_bridge(config).await
+        Box::pin(self.add_bridge(config)).await
     }
 }
 
@@ -223,7 +223,7 @@ mod tests {
         );
 
         // Add bridge
-        assert!(manager.add_bridge(config.clone()).await.is_ok());
+        assert!(Box::pin(manager.add_bridge(config.clone())).await.is_ok());
 
         // Check bridge exists
         let bridges = manager.list_bridges().await;
@@ -231,7 +231,7 @@ mod tests {
         assert!(bridges.contains(&"test-bridge".to_string()));
 
         // Try to add duplicate
-        assert!(manager.add_bridge(config).await.is_err());
+        assert!(Box::pin(manager.add_bridge(config)).await.is_err());
 
         // Clean up
         broker_handle.abort();

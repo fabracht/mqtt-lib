@@ -12,6 +12,7 @@ use crate::transport::dtls::DtlsConfig;
 use crate::transport::tcp::TcpConfig;
 use crate::transport::tls::TlsConfig;
 use crate::transport::udp::UdpConfig;
+use crate::transport::websocket::{WebSocketConfig, WebSocketTransport};
 use crate::transport::{
     DtlsTransport, TcpTransport, TlsTransport, Transport, TransportType, UdpTransport,
 };
@@ -123,6 +124,8 @@ pub struct MqttClient {
     connection_mutex: Arc<tokio::sync::Mutex<()>>,
     /// Optional DTLS configuration
     dtls_config: Arc<RwLock<Option<DtlsConfig>>>,
+    /// Skip TLS certificate verification (insecure, for testing only)
+    insecure_tls: Arc<RwLock<bool>>,
 }
 
 impl MqttClient {
@@ -169,6 +172,7 @@ impl MqttClient {
             error_recovery_config: Arc::new(RwLock::new(ErrorRecoveryConfig::default())),
             connection_mutex: Arc::new(tokio::sync::Mutex::new(())),
             dtls_config: Arc::new(RwLock::new(None)),
+            insecure_tls: Arc::new(RwLock::new(false)),
         }
     }
 
@@ -252,6 +256,32 @@ impl MqttClient {
         let mut callbacks = self.error_callbacks.write().await;
         callbacks.push(Box::new(callback));
         Ok(())
+    }
+
+    /// Set whether to skip TLS certificate verification
+    ///
+    /// # Safety
+    ///
+    /// This disables certificate verification and should only be used for testing
+    /// with self-signed certificates. Never use in production.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use mqtt5::MqttClient;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = MqttClient::new("my-client");
+    ///
+    /// // Enable insecure mode for testing
+    /// client.set_insecure_tls(true).await;
+    ///
+    /// // Connect will now skip certificate verification
+    /// client.connect("mqtts://test-broker:8883").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn set_insecure_tls(&self, insecure: bool) {
+        *self.insecure_tls.write().await = insecure;
     }
 
     /// Configures DTLS transport settings for secure UDP connections
@@ -478,7 +508,8 @@ impl MqttClient {
                 Ok(TransportType::Tcp(tcp_transport))
             }
             ClientTransportType::Tls => {
-                let config = TlsConfig::new(addr, host);
+                let insecure = *self.insecure_tls.read().await;
+                let config = TlsConfig::new(addr, host).with_verify_server_cert(!insecure);
                 let mut tls_transport = TlsTransport::new(config);
                 tls_transport
                     .connect()
@@ -511,6 +542,35 @@ impl MqttClient {
                     .await
                     .map_err(|e| MqttError::ConnectionError(format!("DTLS connect failed: {e}")))?;
                 Ok(TransportType::Dtls(Box::new(dtls_transport)))
+            }
+            ClientTransportType::WebSocket => {
+                let url = format!("ws://{}:{}", host, addr.port());
+                let config = WebSocketConfig::new(&url)
+                    .map_err(|e| MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}")))?;
+                let mut ws_transport = WebSocketTransport::new(config);
+                ws_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("WebSocket connect failed: {e}")))?;
+                Ok(TransportType::WebSocket(Box::new(ws_transport)))
+            }
+            ClientTransportType::WebSocketSecure => {
+                let url = format!("wss://{}:{}", host, addr.port());
+                let insecure = *self.insecure_tls.read().await;
+                let mut config = WebSocketConfig::new(&url)
+                    .map_err(|e| MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}")))?;
+
+                if insecure {
+                    let tls_config = TlsConfig::new(addr, host).with_verify_server_cert(false);
+                    config = config.with_tls_config(tls_config);
+                }
+
+                let mut ws_transport = WebSocketTransport::new(config);
+                ws_transport
+                    .connect()
+                    .await
+                    .map_err(|e| MqttError::ConnectionError(format!("WebSocket connect failed: {e}")))?;
+                Ok(TransportType::WebSocket(Box::new(ws_transport)))
             }
         }
     }
@@ -1578,6 +1638,12 @@ impl MqttClient {
         } else if let Some(rest) = address.strip_prefix("mqtts-dtls://") {
             let (host, port) = Self::split_host_port(rest, 8883)?;
             Ok((ClientTransportType::Dtls, host, port))
+        } else if let Some(rest) = address.strip_prefix("ws://") {
+            let (host, port) = Self::split_host_port(rest, 80)?;
+            Ok((ClientTransportType::WebSocket, host, port))
+        } else if let Some(rest) = address.strip_prefix("wss://") {
+            let (host, port) = Self::split_host_port(rest, 443)?;
+            Ok((ClientTransportType::WebSocketSecure, host, port))
         } else if let Some(rest) = address.strip_prefix("tcp://") {
             let (host, port) = Self::split_host_port(rest, 1883)?;
             Ok((ClientTransportType::Tcp, host, port))
@@ -1842,6 +1908,8 @@ enum ClientTransportType {
     Tls,
     Udp,
     Dtls,
+    WebSocket,
+    WebSocketSecure,
 }
 
 #[cfg(test)]
@@ -1922,6 +1990,30 @@ mod tests {
         assert!(matches!(transport, ClientTransportType::Tcp));
         assert_eq!(host, "broker.local");
         assert_eq!(port, 9999);
+
+        // Test WebSocket scheme with default port
+        let (transport, host, port) = MqttClient::parse_address("ws://localhost").unwrap();
+        assert!(matches!(transport, ClientTransportType::WebSocket));
+        assert_eq!(host, "localhost");
+        assert_eq!(port, 80);
+
+        // Test WebSocket scheme with custom port
+        let (transport, host, port) = MqttClient::parse_address("ws://localhost:8080").unwrap();
+        assert!(matches!(transport, ClientTransportType::WebSocket));
+        assert_eq!(host, "localhost");
+        assert_eq!(port, 8080);
+
+        // Test WebSocket Secure scheme with default port
+        let (transport, host, port) = MqttClient::parse_address("wss://secure.broker").unwrap();
+        assert!(matches!(transport, ClientTransportType::WebSocketSecure));
+        assert_eq!(host, "secure.broker");
+        assert_eq!(port, 443);
+
+        // Test WebSocket Secure scheme with custom port
+        let (transport, host, port) = MqttClient::parse_address("wss://secure.broker:8443").unwrap();
+        assert!(matches!(transport, ClientTransportType::WebSocketSecure));
+        assert_eq!(host, "secure.broker");
+        assert_eq!(port, 8443);
 
         // Test IPv6 addresses
         let (transport, host, port) = MqttClient::parse_address("[::1]:1883").unwrap();

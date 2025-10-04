@@ -202,6 +202,11 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
 
     // Configure authentication
     if let Some(password_file) = &cmd.auth_password_file {
+        // Check if password file exists
+        if !password_file.exists() {
+            anyhow::bail!("Authentication password file not found: {}", password_file.display());
+        }
+
         let auth_config = AuthConfig {
             allow_anonymous: cmd.allow_anonymous,
             password_file: Some(password_file.clone()),
@@ -219,6 +224,14 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
 
     // Configure TLS
     if let (Some(cert), Some(key)) = (&cmd.tls_cert, &cmd.tls_key) {
+        // Check if certificate files exist
+        if !cert.exists() {
+            anyhow::bail!("TLS certificate file not found: {}", cert.display());
+        }
+        if !key.exists() {
+            anyhow::bail!("TLS key file not found: {}", key.display());
+        }
+
         let tls_addr: std::net::SocketAddr = cmd
             .tls_host
             .parse()
@@ -259,6 +272,14 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     // Configure DTLS
     if let Some(dtls_host) = &cmd.dtls_host {
         if let (Some(cert), Some(key)) = (&cmd.dtls_cert, &cmd.dtls_key) {
+            // Check if certificate files exist
+            if !cert.exists() {
+                anyhow::bail!("DTLS certificate file not found: {}", cert.display());
+            }
+            if !key.exists() {
+                anyhow::bail!("DTLS key file not found: {}", key.display());
+            }
+
             let dtls_addr: std::net::SocketAddr = dtls_host
                 .parse()
                 .with_context(|| format!("Invalid DTLS bind address: {}", dtls_host))?;
