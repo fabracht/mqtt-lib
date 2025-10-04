@@ -545,20 +545,21 @@ impl MqttClient {
             }
             ClientTransportType::WebSocket => {
                 let url = format!("ws://{}:{}", host, addr.port());
-                let config = WebSocketConfig::new(&url)
-                    .map_err(|e| MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}")))?;
+                let config = WebSocketConfig::new(&url).map_err(|e| {
+                    MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}"))
+                })?;
                 let mut ws_transport = WebSocketTransport::new(config);
-                ws_transport
-                    .connect()
-                    .await
-                    .map_err(|e| MqttError::ConnectionError(format!("WebSocket connect failed: {e}")))?;
+                ws_transport.connect().await.map_err(|e| {
+                    MqttError::ConnectionError(format!("WebSocket connect failed: {e}"))
+                })?;
                 Ok(TransportType::WebSocket(Box::new(ws_transport)))
             }
             ClientTransportType::WebSocketSecure => {
                 let url = format!("wss://{}:{}", host, addr.port());
                 let insecure = *self.insecure_tls.read().await;
-                let mut config = WebSocketConfig::new(&url)
-                    .map_err(|e| MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}")))?;
+                let mut config = WebSocketConfig::new(&url).map_err(|e| {
+                    MqttError::ConnectionError(format!("Invalid WebSocket URL: {e}"))
+                })?;
 
                 if insecure {
                     let tls_config = TlsConfig::new(addr, host).with_verify_server_cert(false);
@@ -566,10 +567,9 @@ impl MqttClient {
                 }
 
                 let mut ws_transport = WebSocketTransport::new(config);
-                ws_transport
-                    .connect()
-                    .await
-                    .map_err(|e| MqttError::ConnectionError(format!("WebSocket connect failed: {e}")))?;
+                ws_transport.connect().await.map_err(|e| {
+                    MqttError::ConnectionError(format!("WebSocket connect failed: {e}"))
+                })?;
                 Ok(TransportType::WebSocket(Box::new(ws_transport)))
             }
         }
@@ -2010,7 +2010,8 @@ mod tests {
         assert_eq!(port, 443);
 
         // Test WebSocket Secure scheme with custom port
-        let (transport, host, port) = MqttClient::parse_address("wss://secure.broker:8443").unwrap();
+        let (transport, host, port) =
+            MqttClient::parse_address("wss://secure.broker:8443").unwrap();
         assert!(matches!(transport, ClientTransportType::WebSocketSecure));
         assert_eq!(host, "secure.broker");
         assert_eq!(port, 8443);

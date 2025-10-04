@@ -428,7 +428,9 @@ impl WebSocketReadHandle {
                     return Ok(len);
                 }
                 Some(Ok(Message::Close(_))) | None => return Err(MqttError::ClientClosed),
-                Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_))) => {}
+                Some(Ok(
+                    Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_),
+                )) => {}
                 Some(Err(e)) => return Err(MqttError::Io(e.to_string())),
             }
         }
@@ -474,8 +476,8 @@ impl PacketReader for WebSocketReadHandle {
 
 impl PacketWriter for WebSocketWriteHandle {
     async fn write_packet(&mut self, packet: Packet) -> Result<()> {
-        use futures_util::SinkExt;
         use bytes::BytesMut;
+        use futures_util::SinkExt;
 
         let mut buf = BytesMut::with_capacity(1024);
         crate::transport::packet_io::encode_packet_to_buffer(&packet, &mut buf)?;
@@ -507,14 +509,24 @@ impl Transport for WebSocketTransport {
             .header("Connection", "Upgrade")
             .header("Upgrade", "websocket")
             .header("Sec-WebSocket-Version", "13")
-            .header("Sec-WebSocket-Key", tungstenite::handshake::client::generate_key())
+            .header(
+                "Sec-WebSocket-Key",
+                tungstenite::handshake::client::generate_key(),
+            )
             .header("Sec-WebSocket-Protocol", "mqtt")
             .body(())
-            .map_err(|e| MqttError::ConnectionError(format!("Failed to build WebSocket request: {e}")))?;
+            .map_err(|e| {
+                MqttError::ConnectionError(format!("Failed to build WebSocket request: {e}"))
+            })?;
 
         // Handle connection based on whether it's secure and if we need custom TLS config
-        let ws_result = if self.config.is_secure() &&
-            self.config.tls_config.as_ref().map_or(false, |cfg| !cfg.verify_server_cert) {
+        let ws_result = if self.config.is_secure()
+            && self
+                .config
+                .tls_config
+                .as_ref()
+                .map_or(false, |cfg| !cfg.verify_server_cert)
+        {
             // Need to use custom TLS connector for insecure mode
             use tokio_tungstenite::Connector;
 
@@ -534,13 +546,15 @@ impl Transport for WebSocketTransport {
                     false,
                     Some(connector),
                 ),
-            ).await
+            )
+            .await
         } else {
             // Use default connection (works for both ws:// and wss:// with normal verification)
             tokio::time::timeout(
                 self.config.timeout,
                 tokio_tungstenite::connect_async(request),
-            ).await
+            )
+            .await
         };
 
         match ws_result {
@@ -599,7 +613,9 @@ impl Transport for WebSocketTransport {
                     self.connected = false;
                     return Err(MqttError::ClientClosed);
                 }
-                Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_))) => {}
+                Some(Ok(
+                    Message::Ping(_) | Message::Pong(_) | Message::Text(_) | Message::Frame(_),
+                )) => {}
                 Some(Err(e)) => {
                     self.connected = false;
                     return Err(MqttError::Io(e.to_string()));
@@ -627,13 +643,10 @@ impl Transport for WebSocketTransport {
                 MqttError::Io(e.to_string())
             })?;
 
-        connection
-            .flush()
-            .await
-            .map_err(|e| {
-                self.connected = false;
-                MqttError::Io(e.to_string())
-            })
+        connection.flush().await.map_err(|e| {
+            self.connected = false;
+            MqttError::Io(e.to_string())
+        })
     }
 
     async fn close(&mut self) -> Result<()> {

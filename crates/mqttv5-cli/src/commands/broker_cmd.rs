@@ -204,7 +204,10 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     if let Some(password_file) = &cmd.auth_password_file {
         // Check if password file exists
         if !password_file.exists() {
-            anyhow::bail!("Authentication password file not found: {}", password_file.display());
+            anyhow::bail!(
+                "Authentication password file not found: {}",
+                password_file.display()
+            );
         }
 
         let auth_config = AuthConfig {
