@@ -230,13 +230,14 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
                 .with_context(|| format!("Failed to read certificate file: {cert_path:?}"))?;
             let key_pem = std::fs::read(key_path)
                 .with_context(|| format!("Failed to read key file: {key_path:?}"))?;
-            let ca_pem = if let Some(ca_path) = &cmd.ca_cert {
-                Some(std::fs::read(ca_path).with_context(|| {
-                    format!("Failed to read CA certificate file: {ca_path:?}")
-                })?)
-            } else {
-                None
-            };
+            let ca_pem =
+                if let Some(ca_path) = &cmd.ca_cert {
+                    Some(std::fs::read(ca_path).with_context(|| {
+                        format!("Failed to read CA certificate file: {ca_path:?}")
+                    })?)
+                } else {
+                    None
+                };
 
             client
                 .set_dtls_config(Some(cert_pem), Some(key_pem), ca_pem, None, None)
