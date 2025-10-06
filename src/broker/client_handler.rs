@@ -388,7 +388,8 @@ impl ClientHandler {
             "Processing CONNECT packet"
         );
 
-        self.validate_protocol_version(connect.protocol_version).await?;
+        self.validate_protocol_version(connect.protocol_version)
+            .await?;
 
         // Handle empty client ID for MQTT v5
         let mut assigned_client_id = None;
