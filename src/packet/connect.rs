@@ -329,9 +329,6 @@ impl ConnectPacket {
             ));
         }
         let protocol_version = buf.get_u8();
-        if protocol_version != PROTOCOL_VERSION_V311 && protocol_version != PROTOCOL_VERSION_V5 {
-            return Err(MqttError::UnsupportedProtocolVersion);
-        }
 
         Ok(protocol_version)
     }

@@ -357,6 +357,26 @@ impl ClientHandler {
         }
     }
 
+    async fn validate_protocol_version(&mut self, protocol_version: u8) -> Result<()> {
+        if protocol_version != 5 {
+            info!(
+                protocol_version,
+                addr = %self.client_addr,
+                "Rejecting connection: unsupported protocol version (only MQTT v5.0 supported)"
+            );
+            let connack = if protocol_version == 4 {
+                ConnAckPacket::new_v311(false, ReasonCode::UnsupportedProtocolVersion)
+            } else {
+                ConnAckPacket::new(false, ReasonCode::UnsupportedProtocolVersion)
+            };
+            self.transport
+                .write_packet(Packet::ConnAck(connack))
+                .await?;
+            return Err(MqttError::UnsupportedProtocolVersion);
+        }
+        Ok(())
+    }
+
     /// Handles CONNECT packet
     async fn handle_connect(&mut self, mut connect: ConnectPacket) -> Result<()> {
         debug!(
@@ -368,30 +388,17 @@ impl ClientHandler {
             "Processing CONNECT packet"
         );
 
+        self.validate_protocol_version(connect.protocol_version).await?;
+
         // Handle empty client ID for MQTT v5
         let mut assigned_client_id = None;
         if connect.client_id.is_empty() {
-            if connect.protocol_version == 5 {
-                // Generate a unique client ID
-                use std::sync::atomic::{AtomicU32, Ordering};
-                static COUNTER: AtomicU32 = AtomicU32::new(0);
-                let generated_id = format!("auto-{}", COUNTER.fetch_add(1, Ordering::SeqCst));
-                debug!("Generated client ID '{}' for empty client ID", generated_id);
-                connect.client_id.clone_from(&generated_id);
-                assigned_client_id = Some(generated_id);
-            } else {
-                // MQTT v3.1.1 doesn't allow empty client IDs with clean_start=false
-                if !connect.clean_start {
-                    warn!("Empty client ID not allowed for MQTT v3.1.1 with clean_start=false");
-                    let connack = ConnAckPacket::new(false, ReasonCode::ClientIdentifierNotValid);
-                    self.transport
-                        .write_packet(Packet::ConnAck(connack))
-                        .await?;
-                    return Err(MqttError::ProtocolError(
-                        "Empty client ID not allowed".to_string(),
-                    ));
-                }
-            }
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static COUNTER: AtomicU32 = AtomicU32::new(0);
+            let generated_id = format!("auto-{}", COUNTER.fetch_add(1, Ordering::SeqCst));
+            debug!("Generated client ID '{}' for empty client ID", generated_id);
+            connect.client_id.clone_from(&generated_id);
+            assigned_client_id = Some(generated_id);
         }
 
         // Authenticate
