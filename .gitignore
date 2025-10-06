@@ -178,3 +178,4 @@ test_certs/*.pem
 test_certs/*.csr
 test_certs/*.srl
 test_certs/mosquitto.conf
+test_certs/mosquitto_passwd.txt
