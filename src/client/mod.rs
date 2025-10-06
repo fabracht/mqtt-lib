@@ -409,7 +409,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
-    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start))]
+    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start), level = "debug")]
     pub async fn connect_with_options(
         &self,
         address: &str,
@@ -429,7 +429,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
-    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start))]
+    #[instrument(skip(self, options), fields(client_id = %options.client_id, clean_start = %options.clean_start), level = "debug")]
     async fn connect_with_options_internal(
         &self,
         address: &str,
@@ -1142,7 +1142,7 @@ impl MqttClient {
     /// # Errors
     ///
     /// Returns an error if the operation fails
-    #[instrument(skip(self, topic_filter, options, callback), fields(qos = ?options.qos))]
+    #[instrument(skip(self, topic_filter, options, callback), fields(qos = ?options.qos), level = "debug")]
     pub async fn subscribe_with_options<F>(
         &self,
         topic_filter: impl Into<String>,
@@ -1155,7 +1155,7 @@ impl MqttClient {
         let topic_filter_str = topic_filter.into();
         let client_id = self.client_id().await;
 
-        tracing::info!(
+        tracing::debug!(
             client_id = %client_id,
             topic_filter = %topic_filter_str,
             qos = ?options.qos,
@@ -1173,7 +1173,7 @@ impl MqttClient {
             .await
         {
             Ok((packet_id, granted_qos)) => {
-                tracing::info!(
+                tracing::debug!(
                     client_id = %client_id,
                     topic_filter = %topic_filter_str,
                     packet_id = %packet_id,

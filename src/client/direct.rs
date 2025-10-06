@@ -274,9 +274,9 @@ impl DirectClientInner {
                 }
 
                 // Start background tasks with reader half
-                tracing::info!("Starting background tasks (packet reader and keepalive)");
+                tracing::debug!("Starting background tasks (packet reader and keepalive)");
                 self.start_background_tasks(reader)?;
-                tracing::info!("Background tasks started successfully");
+                tracing::debug!("Background tasks started successfully");
 
                 Ok(ConnectResult {
                     session_present: connack.session_present,
@@ -945,7 +945,7 @@ struct PacketReaderContext {
 
 /// Packet reader task that handles response channels
 async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: PacketReaderContext) {
-    tracing::info!("Packet reader task started and ready to process incoming packets");
+    tracing::debug!("Packet reader task started and ready to process incoming packets");
     loop {
         // Read packet directly from reader - no mutex needed!
         let packet = reader.read_packet().await;
