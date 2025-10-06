@@ -271,8 +271,13 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     let done_notify = Arc::new(Notify::new());
     let done_notify_clone = done_notify.clone();
 
+    let subscribe_options = mqtt5::SubscribeOptions {
+        qos,
+        ..Default::default()
+    };
+
     let (packet_id, granted_qos) = client
-        .subscribe(&topic, move |message| {
+        .subscribe_with_options(&topic, subscribe_options, move |message| {
             let count = message_count_clone.fetch_add(1, Ordering::Relaxed) + 1;
 
             if verbose {
