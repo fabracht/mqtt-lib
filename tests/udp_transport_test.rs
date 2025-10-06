@@ -1,3 +1,5 @@
+#![cfg(feature = "udp")]
+
 use mqtt5::transport::{Transport, UdpConfig, UdpTransport};
 use std::net::SocketAddr;
 use std::time::Duration;

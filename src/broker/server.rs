@@ -56,115 +56,33 @@ impl MqttBroker {
     ///
     /// Returns an error if configuration is invalid or binding fails
     pub async fn with_config(config: BrokerConfig) -> Result<Self> {
-        // Validate configuration
         config.validate()?;
 
-        // Bind to TCP port
         let listener = TcpListener::bind(&config.bind_address).await?;
         info!("MQTT broker listening on {}", config.bind_address);
 
-        // Set up WebSocket if configured
-        let (ws_listener, ws_config) = if let Some(ref ws_config) = config.websocket_config {
-            let ws_listener = TcpListener::bind(&ws_config.bind_address).await?;
-            info!(
-                "MQTT broker WebSocket listening on {}",
-                ws_config.bind_address
-            );
+        let (ws_listener, ws_config) = Self::setup_websocket(&config).await?;
+        let (tls_listener, tls_acceptor) = Self::setup_tls(&config).await?;
+        let udp_socket = Self::setup_udp(&config).await?;
+        let dtls_socket = Self::setup_dtls(&config).await?;
 
-            let server_config = WebSocketServerConfig::new()
-                .with_path(ws_config.path.clone())
-                .with_subprotocol(ws_config.subprotocol.clone());
-
-            (Some(ws_listener), Some(server_config))
-        } else {
-            (None, None)
-        };
-
-        // Set up TLS if configured
-        let (tls_listener, tls_acceptor) = if let Some(ref tls_config) = config.tls_config {
-            // Load certificates and key
-            let cert_chain =
-                TlsAcceptorConfig::load_cert_chain_from_file(&tls_config.cert_file).await?;
-            let private_key =
-                TlsAcceptorConfig::load_private_key_from_file(&tls_config.key_file).await?;
-
-            // Create TLS acceptor config
-            let mut acceptor_config = TlsAcceptorConfig::new(cert_chain, private_key);
-
-            // Load client CA certificates if specified
-            if let Some(ref ca_file) = tls_config.ca_file {
-                let ca_certs = TlsAcceptorConfig::load_cert_chain_from_file(ca_file).await?;
-                acceptor_config = acceptor_config.with_client_ca_certs(ca_certs);
-            }
-
-            // Set client cert requirement
-            acceptor_config =
-                acceptor_config.with_require_client_cert(tls_config.require_client_cert);
-
-            // Build the acceptor
-            let acceptor = acceptor_config.build_acceptor()?;
-
-            // Bind TLS listener
-            let tls_addr = tls_config.bind_address.unwrap_or_else(|| {
-                // Default to port 8883 on same interface as main listener
-                let mut addr = config.bind_address;
-                addr.set_port(8883);
-                addr
-            });
-            let tls_listener = TcpListener::bind(&tls_addr).await?;
-            info!("MQTT broker TLS listening on {}", tls_addr);
-
-            (Some(tls_listener), Some(acceptor))
-        } else {
-            (None, None)
-        };
-
-        // Set up UDP if configured
-        let udp_socket = if let Some(ref udp_config) = config.udp_config {
-            let socket = tokio::net::UdpSocket::bind(&udp_config.bind_address).await?;
-            info!("MQTT broker UDP listening on {}", udp_config.bind_address);
-            Some(Arc::new(socket))
-        } else {
-            None
-        };
-
-        // Set up DTLS if configured
-        let dtls_socket = if let Some(ref dtls_config) = config.dtls_config {
-            let socket = tokio::net::UdpSocket::bind(&dtls_config.bind_address).await?;
-            info!("MQTT broker DTLS listening on {}", dtls_config.bind_address);
-            Some(Arc::new(socket))
-        } else {
-            None
-        };
-
-        // Create storage backend
         let storage = if config.storage_config.enable_persistence {
             Some(Self::create_storage_backend(&config.storage_config).await?)
         } else {
             None
         };
 
-        // Create shared components
         let router = if let Some(ref storage) = storage {
             Arc::new(MessageRouter::with_storage(Arc::clone(storage)))
         } else {
             Arc::new(MessageRouter::new())
         };
+
         let auth_provider: Arc<dyn AuthProvider> = Arc::new(AllowAllAuthProvider);
         let stats = Arc::new(BrokerStats::new());
-
-        // Create resource monitor with limits from config
-        let resource_limits = ResourceLimits {
-            max_connections: config.max_clients,
-            max_connections_per_ip: 100,          // Default per-IP limit
-            max_memory_bytes: 1024 * 1024 * 1024, // 1GB default
-            max_message_rate_per_client: 1000,
-            max_bandwidth_per_client: 10 * 1024 * 1024, // 10MB/sec
-            max_connection_rate: 100,
-            rate_limit_window: std::time::Duration::from_secs(60),
-        };
-        let resource_monitor = Arc::new(ResourceMonitor::new(resource_limits));
-
+        let resource_monitor = Arc::new(ResourceMonitor::new(Self::default_resource_limits(
+            config.max_clients,
+        )));
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
 
         Ok(Self {
@@ -183,6 +101,102 @@ impl MqttBroker {
             dtls_socket,
             shutdown_tx: Some(shutdown_tx),
         })
+    }
+
+    async fn setup_websocket(
+        config: &BrokerConfig,
+    ) -> Result<(Option<TcpListener>, Option<WebSocketServerConfig>)> {
+        if let Some(ref ws_config) = config.websocket_config {
+            let ws_listener = TcpListener::bind(&ws_config.bind_address).await?;
+            info!(
+                "MQTT broker WebSocket listening on {}",
+                ws_config.bind_address
+            );
+            let server_config = WebSocketServerConfig::new()
+                .with_path(ws_config.path.clone())
+                .with_subprotocol(ws_config.subprotocol.clone());
+            Ok((Some(ws_listener), Some(server_config)))
+        } else {
+            Ok((None, None))
+        }
+    }
+
+    async fn setup_tls(
+        config: &BrokerConfig,
+    ) -> Result<(Option<TcpListener>, Option<TlsAcceptor>)> {
+        if let Some(ref tls_config) = config.tls_config {
+            let cert_chain =
+                TlsAcceptorConfig::load_cert_chain_from_file(&tls_config.cert_file).await?;
+            let private_key =
+                TlsAcceptorConfig::load_private_key_from_file(&tls_config.key_file).await?;
+
+            let mut acceptor_config = TlsAcceptorConfig::new(cert_chain, private_key);
+
+            if let Some(ref ca_file) = tls_config.ca_file {
+                let ca_certs = TlsAcceptorConfig::load_cert_chain_from_file(ca_file).await?;
+                acceptor_config = acceptor_config.with_client_ca_certs(ca_certs);
+            }
+
+            acceptor_config =
+                acceptor_config.with_require_client_cert(tls_config.require_client_cert);
+            let acceptor = acceptor_config.build_acceptor()?;
+
+            let tls_addr = tls_config.bind_address.unwrap_or_else(|| {
+                let mut addr = config.bind_address;
+                addr.set_port(8883);
+                addr
+            });
+            let tls_listener = TcpListener::bind(&tls_addr).await?;
+            info!("MQTT broker TLS listening on {}", tls_addr);
+
+            Ok((Some(tls_listener), Some(acceptor)))
+        } else {
+            Ok((None, None))
+        }
+    }
+
+    #[cfg(feature = "udp")]
+    async fn setup_udp(config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
+        if let Some(ref udp_config) = config.udp_config {
+            let socket = tokio::net::UdpSocket::bind(&udp_config.bind_address).await?;
+            info!("MQTT broker UDP listening on {}", udp_config.bind_address);
+            Ok(Some(Arc::new(socket)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[cfg(not(feature = "udp"))]
+    async fn setup_udp(_config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
+        Ok(None)
+    }
+
+    #[cfg(feature = "udp")]
+    async fn setup_dtls(config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
+        if let Some(ref dtls_config) = config.dtls_config {
+            let socket = tokio::net::UdpSocket::bind(&dtls_config.bind_address).await?;
+            info!("MQTT broker DTLS listening on {}", dtls_config.bind_address);
+            Ok(Some(Arc::new(socket)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[cfg(not(feature = "udp"))]
+    async fn setup_dtls(_config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
+        Ok(None)
+    }
+
+    fn default_resource_limits(max_clients: usize) -> ResourceLimits {
+        ResourceLimits {
+            max_connections: max_clients,
+            max_connections_per_ip: 100,
+            max_memory_bytes: 1024 * 1024 * 1024,
+            max_message_rate_per_client: 1000,
+            max_bandwidth_per_client: 10 * 1024 * 1024,
+            max_connection_rate: 100,
+            rate_limit_window: std::time::Duration::from_secs(60),
+        }
     }
 
     /// Create storage backend based on configuration
@@ -263,7 +277,9 @@ impl MqttBroker {
         let tls_acceptor = self.tls_acceptor.take();
         let ws_listener = self.ws_listener.take();
         let ws_config = self.ws_config.take();
+        #[cfg(feature = "udp")]
         let udp_socket = self.udp_socket.take();
+        #[cfg(feature = "udp")]
         let dtls_socket = self.dtls_socket.take();
 
         let Some(shutdown_tx) = self.shutdown_tx.take() else {
@@ -456,6 +472,7 @@ impl MqttBroker {
         }
 
         // Spawn UDP accept task if enabled
+        #[cfg(feature = "udp")]
         if let Some(udp_socket) = udp_socket {
             let config = Arc::clone(&self.config);
             let router = Arc::clone(&self.router);
@@ -486,7 +503,6 @@ impl MqttBroker {
                 let mut buffer = vec![0u8; 65507];
                 let mtu = config.udp_config.as_ref().map_or(1472, |c| c.mtu);
 
-                // Track sessions by address
                 let mut sessions: HashMap<SocketAddr, crate::broker::udp_session::UdpSession> =
                     HashMap::new();
 
@@ -497,13 +513,11 @@ impl MqttBroker {
                                 Ok((size, peer_addr)) => {
                                     debug!(addr = %peer_addr, size = size, "UDP packet received");
 
-                                    // Check connection limits
                                     if !resource_monitor.can_accept_connection(peer_addr.ip()).await {
                                         warn!("UDP connection rejected from {}: resource limits exceeded", peer_addr);
                                         continue;
                                     }
 
-                                    // Get or create session
                                     let is_new = !sessions.contains_key(&peer_addr);
                                     let session = sessions.entry(peer_addr)
                                         .or_insert_with(|| {
@@ -511,23 +525,19 @@ impl MqttBroker {
                                             crate::broker::udp_session::UdpSession::new(peer_addr)
                                         });
 
-                                    // Start publish handler for new sessions
                                     if is_new {
                                         if let Some(mut publish_rx) = session.take_publish_rx() {
                                             let udp_socket_clone = Arc::clone(&udp_socket);
-                                            let peer_addr_copy = session.peer_addr; // Use session's address, not current sender's
+                                            let peer_addr_copy = session.peer_addr;
                                             let packet_handler_clone = packet_handler.clone();
                                             let reliability_clone = Arc::clone(&session.reliability);
                                             let mtu_copy = mtu;
 
                                             tokio::spawn(async move {
                                                 while let Some(publish) = publish_rx.recv().await {
-                                                    // Encode publish packet
                                                     if let Ok(packet_bytes) = packet_handler_clone.encode_packet(&crate::packet::Packet::Publish(publish)) {
-                                                        // Fragment if needed, then wrap each fragment with reliability
                                                         let fragments = packet_handler_clone.fragment_packet(&packet_bytes, mtu_copy);
                                                         for fragment in fragments {
-                                                            // Wrap with reliability layer
                                                             let mut reliability = reliability_clone.lock().await;
                                                             match reliability.wrap_packet(&fragment) {
                                                                 Ok(reliable_packet) => {
@@ -546,29 +556,24 @@ impl MqttBroker {
                                         }
                                     }
 
-                                    // Update activity
                                     session.update_activity();
 
-                                    // Process packet with reliability layer
                                     let packet_data = match session.process_packet_with_reliability(&buffer[..size]).await {
                                         Ok(Some(data)) => data,
                                         Ok(None) => {
-                                            // ACK packets are control packets that don't need reliability wrapping
-                                            // They're sent raw because they are part of the reliability layer itself
                                             if let Some(ack_packet) = session.get_pending_acks().await {
                                                 if let Err(e) = udp_socket.send_to(&ack_packet, peer_addr).await {
                                                     warn!("Failed to send ACK packet to {}: {}", peer_addr, e);
                                                 }
                                             }
 
-                                            // Check for packets to retry
                                             for retry_packet in session.get_packets_to_retry().await {
                                                 if let Err(e) = udp_socket.send_to(&retry_packet, peer_addr).await {
                                                     warn!("Failed to send retry packet to {}: {}", peer_addr, e);
                                                 }
                                             }
 
-                                            continue; // Waiting for more fragments or control packet
+                                            continue;
                                         }
                                         Err(e) => {
                                             error!("Fragment reassembly error: {}", e);
@@ -576,13 +581,11 @@ impl MqttBroker {
                                         }
                                     };
 
-                                    // Process MQTT packet
                                     match packet_handler.handle_packet(&packet_data, peer_addr, session).await {
                                         Ok(Some(response)) => {
                                             let local_addr = udp_socket.local_addr().ok()
                                                 .map_or_else(|| "unknown".to_string(), |a| a.to_string());
                                             debug!(from = %local_addr, to = %peer_addr, size = response.len(), "Sending UDP response");
-                                            // Fragment first, then wrap each fragment with reliability
                                             let fragments = packet_handler.fragment_packet(&response, mtu);
                                             for fragment in fragments {
                                                 let reliable_fragment = match session.wrap_packet_with_reliability(&fragment).await {
@@ -599,13 +602,12 @@ impl MqttBroker {
                                                 }
                                             }
                                         }
-                                        Ok(None) => {} // No response needed
+                                        Ok(None) => {}
                                         Err(e) => {
                                             error!("Packet handling error: {}", e);
                                         }
                                     }
 
-                                    // Clean up expired sessions periodically
                                     sessions.retain(|_, s| !s.is_expired());
                                 }
                                 Err(e) => {
@@ -624,6 +626,7 @@ impl MqttBroker {
         }
 
         // Spawn DTLS accept task if enabled
+        #[cfg(feature = "udp")]
         if let Some(dtls_socket) = dtls_socket {
             let config = Arc::clone(&self.config);
             let _router = Arc::clone(&self.router);

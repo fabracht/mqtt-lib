@@ -1,5 +1,5 @@
-//! Comprehensive UDP CLI tests
-//!
+#![cfg(feature = "udp")]
+
 //! Tests the mqttv5 CLI tool with UDP transport to verify:
 //! - Basic publish/subscribe
 //! - `QoS` levels

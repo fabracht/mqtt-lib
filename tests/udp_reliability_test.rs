@@ -1,4 +1,4 @@
-//! Tests for UDP reliability layer
+#![cfg(feature = "udp")]
 
 use mqtt5::transport::udp_reliability::UdpReliability;
 use std::time::Duration;

@@ -8,14 +8,16 @@ use crate::packet::publish::PublishPacket;
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
 use crate::packet::unsubscribe::UnsubscribePacket;
 use crate::protocol::v5::properties::Properties;
+#[cfg(feature = "udp")]
 use crate::transport::dtls::DtlsConfig;
 use crate::transport::tcp::TcpConfig;
 use crate::transport::tls::TlsConfig;
+#[cfg(feature = "udp")]
 use crate::transport::udp::UdpConfig;
 use crate::transport::websocket::{WebSocketConfig, WebSocketTransport};
-use crate::transport::{
-    DtlsTransport, TcpTransport, TlsTransport, Transport, TransportType, UdpTransport,
-};
+#[cfg(feature = "udp")]
+use crate::transport::{DtlsTransport, UdpTransport};
+use crate::transport::{TcpTransport, TlsTransport, Transport, TransportType};
 use crate::types::{
     ConnectOptions, ConnectResult, PublishOptions, PublishResult, SubscribeOptions,
 };
@@ -123,6 +125,7 @@ pub struct MqttClient {
     /// Connection attempt synchronization - prevents multiple concurrent connection attempts
     connection_mutex: Arc<tokio::sync::Mutex<()>>,
     /// Optional DTLS configuration
+    #[cfg(feature = "udp")]
     dtls_config: Arc<RwLock<Option<DtlsConfig>>>,
     /// Skip TLS certificate verification (insecure, for testing only)
     insecure_tls: Arc<RwLock<bool>>,
@@ -171,6 +174,7 @@ impl MqttClient {
             error_callbacks: Arc::new(RwLock::new(Vec::new())),
             error_recovery_config: Arc::new(RwLock::new(ErrorRecoveryConfig::default())),
             connection_mutex: Arc::new(tokio::sync::Mutex::new(())),
+            #[cfg(feature = "udp")]
             dtls_config: Arc::new(RwLock::new(None)),
             insecure_tls: Arc::new(RwLock::new(false)),
         }
@@ -318,6 +322,7 @@ impl MqttClient {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "udp")]
     pub async fn set_dtls_config(
         &self,
         cert_pem: Option<Vec<u8>>,
@@ -517,6 +522,7 @@ impl MqttClient {
                     .map_err(|e| MqttError::ConnectionError(format!("TLS connect failed: {e}")))?;
                 Ok(TransportType::Tls(Box::new(tls_transport)))
             }
+            #[cfg(feature = "udp")]
             ClientTransportType::Udp => {
                 let config = UdpConfig::new(addr);
                 let mut udp_transport = UdpTransport::new(config);
@@ -526,6 +532,7 @@ impl MqttClient {
                     .map_err(|e| MqttError::ConnectionError(format!("UDP connect failed: {e}")))?;
                 Ok(TransportType::Udp(udp_transport))
             }
+            #[cfg(feature = "udp")]
             ClientTransportType::Dtls => {
                 let dtls_config_lock = self.dtls_config.read().await;
                 let config = if let Some(existing_config) = &*dtls_config_lock {
@@ -1626,18 +1633,24 @@ impl MqttClient {
     ///
     /// Returns an error if the operation fails
     fn parse_address(address: &str) -> Result<(ClientTransportType, &str, u16)> {
+        #[cfg(feature = "udp")]
+        {
+            if let Some(rest) = address.strip_prefix("mqtt-udp://") {
+                let (host, port) = Self::split_host_port(rest, 1883)?;
+                return Ok((ClientTransportType::Udp, host, port));
+            }
+            if let Some(rest) = address.strip_prefix("mqtts-dtls://") {
+                let (host, port) = Self::split_host_port(rest, 8883)?;
+                return Ok((ClientTransportType::Dtls, host, port));
+            }
+        }
+
         if let Some(rest) = address.strip_prefix("mqtt://") {
             let (host, port) = Self::split_host_port(rest, 1883)?;
             Ok((ClientTransportType::Tcp, host, port))
         } else if let Some(rest) = address.strip_prefix("mqtts://") {
             let (host, port) = Self::split_host_port(rest, 8883)?;
             Ok((ClientTransportType::Tls, host, port))
-        } else if let Some(rest) = address.strip_prefix("mqtt-udp://") {
-            let (host, port) = Self::split_host_port(rest, 1883)?;
-            Ok((ClientTransportType::Udp, host, port))
-        } else if let Some(rest) = address.strip_prefix("mqtts-dtls://") {
-            let (host, port) = Self::split_host_port(rest, 8883)?;
-            Ok((ClientTransportType::Dtls, host, port))
         } else if let Some(rest) = address.strip_prefix("ws://") {
             let (host, port) = Self::split_host_port(rest, 80)?;
             Ok((ClientTransportType::WebSocket, host, port))
@@ -1651,7 +1664,6 @@ impl MqttClient {
             let (host, port) = Self::split_host_port(rest, 8883)?;
             Ok((ClientTransportType::Tls, host, port))
         } else {
-            // Default to TCP if no scheme
             let (host, port) = Self::split_host_port(address, 1883)?;
             Ok((ClientTransportType::Tcp, host, port))
         }
@@ -1906,7 +1918,9 @@ impl MqttClient {
 enum ClientTransportType {
     Tcp,
     Tls,
+    #[cfg(feature = "udp")]
     Udp,
+    #[cfg(feature = "udp")]
     Dtls,
     WebSocket,
     WebSocketSecure,
@@ -1965,19 +1979,20 @@ mod tests {
         assert_eq!(host, "secure.broker.com");
         assert_eq!(port, 8883);
 
-        // Test UDP scheme
-        let (transport, host, port) =
-            MqttClient::parse_address("mqtt-udp://udp.broker:1883").unwrap();
-        assert!(matches!(transport, ClientTransportType::Udp));
-        assert_eq!(host, "udp.broker");
-        assert_eq!(port, 1883);
+        #[cfg(feature = "udp")]
+        {
+            let (transport, host, port) =
+                MqttClient::parse_address("mqtt-udp://udp.broker:1883").unwrap();
+            assert!(matches!(transport, ClientTransportType::Udp));
+            assert_eq!(host, "udp.broker");
+            assert_eq!(port, 1883);
 
-        // Test DTLS scheme
-        let (transport, host, port) =
-            MqttClient::parse_address("mqtts-dtls://dtls.broker:8883").unwrap();
-        assert!(matches!(transport, ClientTransportType::Dtls));
-        assert_eq!(host, "dtls.broker");
-        assert_eq!(port, 8883);
+            let (transport, host, port) =
+                MqttClient::parse_address("mqtts-dtls://dtls.broker:8883").unwrap();
+            assert!(matches!(transport, ClientTransportType::Dtls));
+            assert_eq!(host, "dtls.broker");
+            assert_eq!(port, 8883);
+        }
 
         // Test no scheme with host only (defaults to TCP)
         let (transport, host, port) = MqttClient::parse_address("localhost").unwrap();

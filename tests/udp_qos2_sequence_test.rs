@@ -1,4 +1,4 @@
-//! Test to verify proper `QoS` 2 packet sequence for UDP transport
+#![cfg(feature = "udp")]
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use mqtt5::client::MqttClient;

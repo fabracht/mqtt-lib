@@ -26,6 +26,7 @@ pub mod bridge;
 pub mod client_handler;
 pub mod config;
 pub mod connection_pool;
+#[cfg(feature = "udp")]
 pub mod dtls_handler;
 pub mod hot_reload;
 pub mod optimized_router;
@@ -37,7 +38,9 @@ pub mod sys_topics;
 mod tcp_stream_wrapper;
 pub mod tls_acceptor;
 pub mod transport;
+#[cfg(feature = "udp")]
 pub mod udp_handler;
+#[cfg(feature = "udp")]
 pub mod udp_session;
 pub mod websocket_server;
 

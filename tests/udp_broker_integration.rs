@@ -1,4 +1,4 @@
-//! UDP broker integration tests
+#![cfg(feature = "udp")]
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use mqtt5::client::MqttClient;

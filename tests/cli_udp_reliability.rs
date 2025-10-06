@@ -1,4 +1,4 @@
-//! Tests for CLI with UDP reliability layer
+#![cfg(feature = "udp")]
 
 use mqtt5::client::MqttClient;
 use mqtt5::ConnectOptions;

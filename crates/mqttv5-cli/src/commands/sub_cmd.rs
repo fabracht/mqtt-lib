@@ -227,12 +227,12 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         // Or configure with certificates if provided
         else if let (Some(cert_path), Some(key_path)) = (&cmd.cert, &cmd.key) {
             let cert_pem = std::fs::read(cert_path)
-                .with_context(|| format!("Failed to read certificate file: {:?}", cert_path))?;
+                .with_context(|| format!("Failed to read certificate file: {cert_path:?}"))?;
             let key_pem = std::fs::read(key_path)
-                .with_context(|| format!("Failed to read key file: {:?}", key_path))?;
+                .with_context(|| format!("Failed to read key file: {key_path:?}"))?;
             let ca_pem = if let Some(ca_path) = &cmd.ca_cert {
                 Some(std::fs::read(ca_path).with_context(|| {
-                    format!("Failed to read CA certificate file: {:?}", ca_path)
+                    format!("Failed to read CA certificate file: {ca_path:?}")
                 })?)
             } else {
                 None

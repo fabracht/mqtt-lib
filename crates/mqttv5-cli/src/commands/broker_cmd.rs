@@ -134,10 +134,10 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
         println!("  🌐 WebSocket: {} (path: {})", ws_host, cmd.ws_path);
     }
     if let Some(ref udp_host) = cmd.udp_host {
-        println!("  📦 UDP: {}", udp_host);
+        println!("  📦 UDP: {udp_host}");
     }
     if let Some(ref dtls_host) = cmd.dtls_host {
-        println!("  🔐 DTLS: {}", dtls_host);
+        println!("  🔐 DTLS: {dtls_host}");
     }
     println!("  👥 Max clients: {}", cmd.max_clients);
     println!("  📝 Press Ctrl+C to stop");
@@ -251,7 +251,7 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     if let Some(ws_host) = &cmd.ws_host {
         let ws_addr: std::net::SocketAddr = ws_host
             .parse()
-            .with_context(|| format!("Invalid WebSocket bind address: {}", ws_host))?;
+            .with_context(|| format!("Invalid WebSocket bind address: {ws_host}"))?;
 
         let ws_config = WebSocketConfig::default()
             .with_bind_address(ws_addr)
@@ -264,7 +264,7 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     if let Some(udp_host) = &cmd.udp_host {
         let udp_addr: std::net::SocketAddr = udp_host
             .parse()
-            .with_context(|| format!("Invalid UDP bind address: {}", udp_host))?;
+            .with_context(|| format!("Invalid UDP bind address: {udp_host}"))?;
 
         let mut udp_config = UdpConfig::new();
         udp_config.bind_address = udp_addr;
@@ -285,7 +285,7 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
 
             let dtls_addr: std::net::SocketAddr = dtls_host
                 .parse()
-                .with_context(|| format!("Invalid DTLS bind address: {}", dtls_host))?;
+                .with_context(|| format!("Invalid DTLS bind address: {dtls_host}"))?;
 
             let dtls_config = mqtt5::broker::config::DtlsConfig {
                 bind_address: dtls_addr,

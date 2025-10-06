@@ -4,7 +4,9 @@
 //! (TCP, TLS, WebSocket) used by the broker's client handler.
 
 use crate::error::Result;
-use crate::transport::{DtlsTransport, Transport, UdpTransport};
+use crate::transport::Transport;
+#[cfg(feature = "udp")]
+use crate::transport::{DtlsTransport, UdpTransport};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -24,8 +26,10 @@ pub enum BrokerTransport {
     /// WebSocket connection
     WebSocket(Box<WebSocketStreamWrapper>),
     /// UDP connection
+    #[cfg(feature = "udp")]
     Udp(Box<UdpTransport>),
     /// DTLS-encrypted connection
+    #[cfg(feature = "udp")]
     Dtls(Box<DtlsTransport>),
 }
 
@@ -46,11 +50,13 @@ impl BrokerTransport {
     }
 
     /// Creates a new UDP transport
+    #[cfg(feature = "udp")]
     pub fn udp(transport: UdpTransport) -> Self {
         Self::Udp(Box::new(transport))
     }
 
     /// Creates a new DTLS transport
+    #[cfg(feature = "udp")]
     pub fn dtls(transport: DtlsTransport) -> Self {
         Self::Dtls(Box::new(transport))
     }
@@ -61,7 +67,9 @@ impl BrokerTransport {
             Self::Tcp(stream) => Ok(stream.peer_addr()?),
             Self::Tls(stream) => stream.peer_addr(),
             Self::WebSocket(stream) => stream.peer_addr(),
+            #[cfg(feature = "udp")]
             Self::Udp(transport) => Ok(transport.remote_addr()),
+            #[cfg(feature = "udp")]
             Self::Dtls(transport) => Ok(transport.remote_addr()),
         }
     }
@@ -72,14 +80,23 @@ impl BrokerTransport {
             Self::Tcp(_) => "TCP",
             Self::Tls(_) => "TLS",
             Self::WebSocket(_) => "WebSocket",
+            #[cfg(feature = "udp")]
             Self::Udp(_) => "UDP",
+            #[cfg(feature = "udp")]
             Self::Dtls(_) => "DTLS",
         }
     }
 
     /// Checks if this is a secure connection
     pub fn is_secure(&self) -> bool {
-        matches!(self, Self::Tls(_) | Self::Dtls(_))
+        #[cfg(feature = "udp")]
+        {
+            matches!(self, Self::Tls(_) | Self::Dtls(_))
+        }
+        #[cfg(not(feature = "udp"))]
+        {
+            matches!(self, Self::Tls(_))
+        }
     }
 
     /// Gets client certificate info if available (for TLS connections)
@@ -92,7 +109,10 @@ impl BrokerTransport {
                     None
                 }
             }
+            #[cfg(feature = "udp")]
             Self::Tcp(_) | Self::WebSocket(_) | Self::Udp(_) | Self::Dtls(_) => None,
+            #[cfg(not(feature = "udp"))]
+            Self::Tcp(_) | Self::WebSocket(_) => None,
         }
     }
 }
@@ -103,7 +123,9 @@ impl Debug for BrokerTransport {
             Self::Tcp(_) => write!(f, "BrokerTransport::Tcp"),
             Self::Tls(_) => write!(f, "BrokerTransport::Tls"),
             Self::WebSocket(_) => write!(f, "BrokerTransport::WebSocket"),
+            #[cfg(feature = "udp")]
             Self::Udp(_) => write!(f, "BrokerTransport::Udp"),
+            #[cfg(feature = "udp")]
             Self::Dtls(_) => write!(f, "BrokerTransport::Dtls"),
         }
     }
@@ -119,6 +141,7 @@ impl AsyncRead for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_read(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_read(cx, buf),
+            #[cfg(feature = "udp")]
             Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 "AsyncRead not supported for UDP/DTLS transports",
@@ -137,6 +160,7 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
             Self::WebSocket(stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(feature = "udp")]
             Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 "AsyncWrite not supported for UDP/DTLS transports",
@@ -149,6 +173,7 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_flush(cx),
             Self::Tls(stream) => Pin::new(stream).poll_flush(cx),
             Self::WebSocket(stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(feature = "udp")]
             Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Ok(())),
         }
     }
@@ -158,6 +183,7 @@ impl AsyncWrite for BrokerTransport {
             Self::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::Tls(stream) => Pin::new(stream).poll_shutdown(cx),
             Self::WebSocket(stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(feature = "udp")]
             Self::Udp(_) | Self::Dtls(_) => Poll::Ready(Ok(())),
         }
     }
@@ -175,7 +201,9 @@ impl Transport for BrokerTransport {
             Self::Tcp(_) | Self::Tls(_) | Self::WebSocket(_) => {
                 Ok(AsyncReadExt::read(self, buf).await?)
             }
+            #[cfg(feature = "udp")]
             Self::Udp(transport) => transport.read(buf).await,
+            #[cfg(feature = "udp")]
             Self::Dtls(transport) => transport.read(buf).await,
         }
     }
@@ -187,7 +215,9 @@ impl Transport for BrokerTransport {
                 AsyncWriteExt::flush(self).await?;
                 Ok(())
             }
+            #[cfg(feature = "udp")]
             Self::Udp(transport) => transport.write(buf).await,
+            #[cfg(feature = "udp")]
             Self::Dtls(transport) => transport.write(buf).await,
         }
     }
@@ -198,7 +228,9 @@ impl Transport for BrokerTransport {
                 AsyncWriteExt::shutdown(self).await?;
                 Ok(())
             }
+            #[cfg(feature = "udp")]
             Self::Udp(transport) => transport.close().await,
+            #[cfg(feature = "udp")]
             Self::Dtls(transport) => transport.close().await,
         }
     }

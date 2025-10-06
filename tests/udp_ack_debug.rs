@@ -1,4 +1,4 @@
-//! Debug test for UDP ACK packet issue
+#![cfg(feature = "udp")]
 
 use mqtt5::test_utils::TestPacketBuilder;
 use mqtt5::transport::udp::{UdpConfig, UdpTransport};
