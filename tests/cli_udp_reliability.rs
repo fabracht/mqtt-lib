@@ -28,9 +28,9 @@ async fn start_udp_broker() -> (tokio::task::JoinHandle<()>, u16) {
     use mqtt5::broker::{BrokerConfig, MqttBroker};
 
     let config = BrokerConfig {
-        bind_address: "127.0.0.1:0".parse().unwrap(),
+        bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
         udp_config: Some(UdpConfig {
-            bind_address: "127.0.0.1:0".parse().unwrap(),
+            bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
             mtu: 1500,
             fragment_timeout: Duration::from_secs(30),
         }),

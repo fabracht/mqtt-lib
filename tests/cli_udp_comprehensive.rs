@@ -33,9 +33,9 @@ async fn start_udp_broker() -> (tokio::task::JoinHandle<()>, u16, tempfile::Temp
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
     let mut config = BrokerConfig {
-        bind_address: "127.0.0.1:0".parse().unwrap(),
+        bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
         udp_config: Some(UdpConfig {
-            bind_address: "127.0.0.1:0".parse().unwrap(),
+            bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
             mtu: 1500,
             fragment_timeout: Duration::from_secs(30),
         }),

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::Args;
+use clap::{ArgAction, Args};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::{Path, PathBuf};
 use tokio::signal;
@@ -11,9 +11,9 @@ pub struct BrokerCommand {
     #[arg(long, short)]
     pub config: Option<PathBuf>,
 
-    /// TCP bind address (e.g., 0.0.0.0:1883)
-    #[arg(long, short = 'H', default_value = "0.0.0.0:1883")]
-    pub host: String,
+    /// TCP bind address (e.g., 0.0.0.0:1883 [::]:1883) - can be specified multiple times
+    #[arg(long, short = 'H', action = ArgAction::Append)]
+    pub host: Vec<String>,
 
     /// Maximum number of concurrent clients
     #[arg(long, default_value = "10000")]
@@ -35,13 +35,17 @@ pub struct BrokerCommand {
     #[arg(long)]
     pub tls_key: Option<PathBuf>,
 
-    /// TLS bind address (e.g., 0.0.0.0:8883)
-    #[arg(long, default_value = "0.0.0.0:8883")]
-    pub tls_host: String,
+    /// TLS bind address - can be specified multiple times
+    #[arg(long, action = ArgAction::Append)]
+    pub tls_host: Vec<String>,
 
-    /// WebSocket bind address (e.g., 0.0.0.0:8080)
-    #[arg(long)]
-    pub ws_host: Option<String>,
+    /// WebSocket bind address - can be specified multiple times
+    #[arg(long, action = ArgAction::Append)]
+    pub ws_host: Vec<String>,
+
+    /// WebSocket TLS bind address - can be specified multiple times
+    #[arg(long, action = ArgAction::Append)]
+    pub ws_tls_host: Vec<String>,
 
     /// WebSocket path (e.g., /mqtt)
     #[arg(long, default_value = "/mqtt")]
@@ -120,24 +124,78 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
         .context("Configuration validation failed")?;
 
     // Create and start broker
-    info!("Creating broker with bind address: {}", config.bind_address);
-    let mut broker = MqttBroker::with_config(config)
+    info!(
+        "Creating broker with bind addresses: {:?}",
+        config.bind_addresses
+    );
+    let mut broker = MqttBroker::with_config(config.clone())
         .await
         .context("Failed to create MQTT broker")?;
 
     println!("🚀 MQTT v5.0 broker starting...");
-    println!("  📡 TCP: {}", cmd.host);
-    if cmd.tls_cert.is_some() {
-        println!("  🔒 TLS: {}", cmd.tls_host);
+    println!(
+        "  📡 TCP: {}",
+        config
+            .bind_addresses
+            .iter()
+            .map(|a| a.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    if let Some(ref tls_cfg) = config.tls_config {
+        println!(
+            "  🔒 TLS: {}",
+            tls_cfg
+                .bind_addresses
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     }
-    if let Some(ref ws_host) = cmd.ws_host {
-        println!("  🌐 WebSocket: {} (path: {})", ws_host, cmd.ws_path);
+    if let Some(ref ws_cfg) = config.websocket_config {
+        println!(
+            "  🌐 WebSocket: {} (path: {})",
+            ws_cfg
+                .bind_addresses
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            ws_cfg.path
+        );
     }
-    if let Some(ref udp_host) = cmd.udp_host {
-        println!("  📦 UDP: {udp_host}");
+    if let Some(ref ws_tls_cfg) = config.websocket_tls_config {
+        println!(
+            "  🔐 WebSocket TLS: {} (path: {})",
+            ws_tls_cfg
+                .bind_addresses
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            ws_tls_cfg.path
+        );
     }
-    if let Some(ref dtls_host) = cmd.dtls_host {
-        println!("  🔐 DTLS: {dtls_host}");
+    if let Some(ref udp_cfg) = config.udp_config {
+        println!(
+            "  📦 UDP: {}",
+            udp_cfg
+                .bind_addresses
+                .first()
+                .map(|a| a.to_string())
+                .unwrap_or_default()
+        );
+    }
+    if let Some(ref dtls_cfg) = config.dtls_config {
+        println!(
+            "  🔐 DTLS: {}",
+            dtls_cfg
+                .bind_addresses
+                .first()
+                .map(|a| a.to_string())
+                .unwrap_or_default()
+        );
     }
     println!("  👥 Max clients: {}", cmd.max_clients);
     println!("  📝 Press Ctrl+C to stop");
@@ -182,12 +240,22 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
 
     let mut config = BrokerConfig::new();
 
-    // Parse bind address
-    let bind_addr: std::net::SocketAddr = cmd
-        .host
-        .parse()
-        .with_context(|| format!("Invalid bind address: {}", cmd.host))?;
-    config = config.with_bind_address(bind_addr);
+    // Parse bind addresses
+    let bind_addrs: Result<Vec<std::net::SocketAddr>> = if cmd.host.is_empty() {
+        Ok(vec![
+            "0.0.0.0:1883".parse().unwrap(),
+            "[::]:1883".parse().unwrap(),
+        ])
+    } else {
+        cmd.host
+            .iter()
+            .map(|h| {
+                h.parse()
+                    .with_context(|| format!("Invalid bind address: {h}"))
+            })
+            .collect()
+    };
+    config = config.with_bind_addresses(bind_addrs?);
 
     // Set basic broker parameters
     config = config.with_max_clients(cmd.max_clients);
@@ -235,29 +303,76 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
             anyhow::bail!("TLS key file not found: {}", key.display());
         }
 
-        let tls_addr: std::net::SocketAddr = cmd
-            .tls_host
-            .parse()
-            .with_context(|| format!("Invalid TLS bind address: {}", cmd.tls_host))?;
+        let tls_addrs: Result<Vec<std::net::SocketAddr>> = if cmd.tls_host.is_empty() {
+            Ok(vec![
+                "0.0.0.0:8883".parse().unwrap(),
+                "[::]:8883".parse().unwrap(),
+            ])
+        } else {
+            cmd.tls_host
+                .iter()
+                .map(|h| {
+                    h.parse()
+                        .with_context(|| format!("Invalid TLS bind address: {h}"))
+                })
+                .collect()
+        };
 
-        let tls_config = TlsConfig::new(cert.clone(), key.clone()).with_bind_address(tls_addr);
+        let tls_config = TlsConfig::new(cert.clone(), key.clone()).with_bind_addresses(tls_addrs?);
         config = config.with_tls(tls_config);
-        info!("TLS enabled on {}", cmd.tls_host);
+        info!("TLS enabled");
     } else if cmd.tls_cert.is_some() || cmd.tls_key.is_some() {
         anyhow::bail!("Both --tls-cert and --tls-key must be provided together");
     }
 
     // Configure WebSocket
-    if let Some(ws_host) = &cmd.ws_host {
-        let ws_addr: std::net::SocketAddr = ws_host
-            .parse()
-            .with_context(|| format!("Invalid WebSocket bind address: {ws_host}"))?;
+    if !cmd.ws_host.is_empty() {
+        let ws_addrs: Result<Vec<std::net::SocketAddr>> = cmd
+            .ws_host
+            .iter()
+            .map(|h| {
+                h.parse()
+                    .with_context(|| format!("Invalid WebSocket bind address: {h}"))
+            })
+            .collect();
 
         let ws_config = WebSocketConfig::default()
-            .with_bind_address(ws_addr)
+            .with_bind_addresses(ws_addrs?)
             .with_path(cmd.ws_path.clone());
         config = config.with_websocket(ws_config);
-        info!("WebSocket enabled on {} path {}", ws_host, cmd.ws_path);
+        info!("WebSocket enabled");
+    }
+
+    // Configure WebSocket TLS
+    if !cmd.ws_tls_host.is_empty() {
+        if let (Some(cert), Some(key)) = (&cmd.tls_cert, &cmd.tls_key) {
+            if !cert.exists() {
+                anyhow::bail!("TLS certificate file not found: {}", cert.display());
+            }
+            if !key.exists() {
+                anyhow::bail!("TLS key file not found: {}", key.display());
+            }
+
+            let ws_tls_addrs: Result<Vec<std::net::SocketAddr>> = cmd
+                .ws_tls_host
+                .iter()
+                .map(|h| {
+                    h.parse()
+                        .with_context(|| format!("Invalid WebSocket TLS bind address: {h}"))
+                })
+                .collect();
+
+            let ws_tls_config = WebSocketConfig::default()
+                .with_bind_addresses(ws_tls_addrs?)
+                .with_path(cmd.ws_path.clone())
+                .with_tls(true);
+            config = config.with_websocket_tls(ws_tls_config);
+            info!("WebSocket TLS enabled");
+        } else {
+            anyhow::bail!(
+                "Both --tls-cert and --tls-key must be provided when using --ws-tls-host"
+            );
+        }
     }
 
     // Configure UDP
@@ -267,7 +382,7 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
             .with_context(|| format!("Invalid UDP bind address: {udp_host}"))?;
 
         let mut udp_config = UdpConfig::new();
-        udp_config.bind_address = udp_addr;
+        udp_config.bind_addresses = vec![udp_addr];
         config = config.with_udp(udp_config);
         info!("UDP enabled on {}", udp_host);
     }
@@ -288,13 +403,13 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
                 .with_context(|| format!("Invalid DTLS bind address: {dtls_host}"))?;
 
             let dtls_config = mqtt5::broker::config::DtlsConfig {
-                bind_address: dtls_addr,
+                bind_addresses: vec![dtls_addr],
                 mtu: 1500,
                 psk_identity: None,
                 psk_key: None,
                 cert_file: Some(cert.clone()),
                 key_file: Some(key.clone()),
-                ca_file: None, // Optional CA certificate for client verification
+                ca_file: None,
             };
             config = config.with_dtls(dtls_config);
             info!("DTLS enabled on {}", dtls_host);

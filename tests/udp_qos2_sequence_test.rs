@@ -19,9 +19,9 @@ async fn start_udp_broker_with_packet_capture() -> (
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     config.storage_config.base_dir = temp_dir.path().to_path_buf();
     config.storage_config.enable_persistence = true;
-    config.bind_address = "127.0.0.1:0".parse().unwrap();
+    config.bind_addresses = vec!["127.0.0.1:0".parse().unwrap()];
     config.udp_config = Some(mqtt5::broker::config::UdpConfig {
-        bind_address: "127.0.0.1:0".parse().unwrap(),
+        bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
         mtu: 1500,
         fragment_timeout: Duration::from_secs(30),
     });

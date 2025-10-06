@@ -14,9 +14,9 @@ async fn start_udp_broker() -> (tokio::task::JoinHandle<()>, SocketAddr, tempfil
     config.storage_config.base_dir = temp_dir.path().to_path_buf();
     config.storage_config.enable_persistence = true; // Keep storage enabled for proper testing
                                                      // Disable TCP to avoid port conflicts in parallel tests
-    config.bind_address = "127.0.0.1:0".parse().unwrap();
+    config.bind_addresses = vec!["127.0.0.1:0".parse().unwrap()];
     config.udp_config = Some(mqtt5::broker::config::UdpConfig {
-        bind_address: "127.0.0.1:0".parse().unwrap(),
+        bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
         mtu: 1500,
         fragment_timeout: Duration::from_secs(30),
     });
@@ -171,9 +171,9 @@ async fn test_udp_fragmentation() {
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     config.storage_config.base_dir = temp_dir.path().to_path_buf();
     // Disable TCP to avoid port conflicts
-    config.bind_address = "127.0.0.1:0".parse().unwrap();
+    config.bind_addresses = vec!["127.0.0.1:0".parse().unwrap()];
     config.udp_config = Some(mqtt5::broker::config::UdpConfig {
-        bind_address: "127.0.0.1:0".parse().unwrap(),
+        bind_addresses: vec!["127.0.0.1:0".parse().unwrap()],
         mtu: 256, // Small MTU to force fragmentation
         fragment_timeout: Duration::from_secs(30),
     });

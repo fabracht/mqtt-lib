@@ -233,7 +233,9 @@ impl HotReloadManager {
         let mut hasher = DefaultHasher::new();
 
         // Hash key configuration fields
-        config.bind_address.hash(&mut hasher);
+        for addr in &config.bind_addresses {
+            addr.hash(&mut hasher);
+        }
         config.max_clients.hash(&mut hasher);
         config.max_packet_size.hash(&mut hasher);
         config.session_expiry_interval.as_secs().hash(&mut hasher);
@@ -244,7 +246,9 @@ impl HotReloadManager {
         }
 
         if let Some(ref ws_config) = config.websocket_config {
-            ws_config.bind_address.hash(&mut hasher);
+            for addr in &ws_config.bind_addresses {
+                addr.hash(&mut hasher);
+            }
             ws_config.path.hash(&mut hasher);
         }
 

@@ -88,5 +88,9 @@ async fn test_broker_default_tls_port() {
     // So we just test the configuration is valid
     assert!(config.tls_config.is_some());
     let tls_config = config.tls_config.as_ref().unwrap();
-    assert!(tls_config.bind_address.is_none()); // Should be None, defaulting to 8883
+    assert!(!tls_config.bind_addresses.is_empty()); // Should have default addresses for 8883
+    assert!(tls_config
+        .bind_addresses
+        .iter()
+        .all(|addr| addr.port() == 8883));
 }

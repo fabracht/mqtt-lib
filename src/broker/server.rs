@@ -24,14 +24,36 @@ pub struct MqttBroker {
     storage: Option<Arc<DynamicStorage>>,
     stats: Arc<BrokerStats>,
     resource_monitor: Arc<ResourceMonitor>,
-    listener: Option<TcpListener>,
-    tls_listener: Option<TcpListener>,
+    listeners: Vec<TcpListener>,
+    tls_listeners: Vec<TcpListener>,
     tls_acceptor: Option<TlsAcceptor>,
-    ws_listener: Option<TcpListener>,
+    ws_listeners: Vec<TcpListener>,
     ws_config: Option<WebSocketServerConfig>,
+    ws_tls_listeners: Vec<TcpListener>,
+    ws_tls_config: Option<WebSocketServerConfig>,
+    ws_tls_acceptor: Option<TlsAcceptor>,
     udp_socket: Option<Arc<tokio::net::UdpSocket>>,
     dtls_socket: Option<Arc<tokio::net::UdpSocket>>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
+}
+
+async fn bind_all(addrs: &[std::net::SocketAddr], transport_name: &str) -> Vec<TcpListener> {
+    let mut listeners = Vec::new();
+    for addr in addrs {
+        match TcpListener::bind(addr).await {
+            Ok(listener) => {
+                info!("MQTT broker {} listening on {}", transport_name, addr);
+                listeners.push(listener);
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to bind {} on {} ({}), continuing with other addresses",
+                    transport_name, addr, e
+                );
+            }
+        }
+    }
+    listeners
 }
 
 impl MqttBroker {
@@ -58,11 +80,17 @@ impl MqttBroker {
     pub async fn with_config(config: BrokerConfig) -> Result<Self> {
         config.validate()?;
 
-        let listener = TcpListener::bind(&config.bind_address).await?;
-        info!("MQTT broker listening on {}", config.bind_address);
+        let listeners = bind_all(&config.bind_addresses, "TCP").await;
+        if listeners.is_empty() {
+            return Err(MqttError::Configuration(
+                "Failed to bind to any TCP address".to_string(),
+            ));
+        }
 
-        let (ws_listener, ws_config) = Self::setup_websocket(&config).await?;
-        let (tls_listener, tls_acceptor) = Self::setup_tls(&config).await?;
+        let (ws_listeners, ws_config) = Self::setup_websocket(&config).await?;
+        let (ws_tls_listeners, ws_tls_config, ws_tls_acceptor) =
+            Self::setup_websocket_tls(&config).await?;
+        let (tls_listeners, tls_acceptor) = Self::setup_tls(&config).await?;
         let udp_socket = Self::setup_udp(&config).await?;
         let dtls_socket = Self::setup_dtls(&config).await?;
 
@@ -92,11 +120,14 @@ impl MqttBroker {
             storage,
             stats,
             resource_monitor,
-            listener: Some(listener),
-            tls_listener,
+            listeners,
+            tls_listeners,
             tls_acceptor,
-            ws_listener,
+            ws_listeners,
             ws_config,
+            ws_tls_listeners,
+            ws_tls_config,
+            ws_tls_acceptor,
             udp_socket,
             dtls_socket,
             shutdown_tx: Some(shutdown_tx),
@@ -105,25 +136,70 @@ impl MqttBroker {
 
     async fn setup_websocket(
         config: &BrokerConfig,
-    ) -> Result<(Option<TcpListener>, Option<WebSocketServerConfig>)> {
+    ) -> Result<(Vec<TcpListener>, Option<WebSocketServerConfig>)> {
         if let Some(ref ws_config) = config.websocket_config {
-            let ws_listener = TcpListener::bind(&ws_config.bind_address).await?;
-            info!(
-                "MQTT broker WebSocket listening on {}",
-                ws_config.bind_address
-            );
+            let ws_listeners = bind_all(&ws_config.bind_addresses, "WebSocket").await;
+            if ws_listeners.is_empty() {
+                warn!("Failed to bind WebSocket to any address, WebSocket disabled");
+                return Ok((Vec::new(), None));
+            }
             let server_config = WebSocketServerConfig::new()
                 .with_path(ws_config.path.clone())
                 .with_subprotocol(ws_config.subprotocol.clone());
-            Ok((Some(ws_listener), Some(server_config)))
+            Ok((ws_listeners, Some(server_config)))
         } else {
-            Ok((None, None))
+            Ok((Vec::new(), None))
         }
     }
 
-    async fn setup_tls(
+    async fn setup_websocket_tls(
         config: &BrokerConfig,
-    ) -> Result<(Option<TcpListener>, Option<TlsAcceptor>)> {
+    ) -> Result<(
+        Vec<TcpListener>,
+        Option<WebSocketServerConfig>,
+        Option<TlsAcceptor>,
+    )> {
+        if let Some(ref ws_tls_config) = config.websocket_tls_config {
+            if let Some(ref tls_config) = config.tls_config {
+                let cert_chain =
+                    TlsAcceptorConfig::load_cert_chain_from_file(&tls_config.cert_file).await?;
+                let private_key =
+                    TlsAcceptorConfig::load_private_key_from_file(&tls_config.key_file).await?;
+
+                let mut acceptor_config = TlsAcceptorConfig::new(cert_chain, private_key);
+
+                if let Some(ref ca_file) = tls_config.ca_file {
+                    let ca_certs = TlsAcceptorConfig::load_cert_chain_from_file(ca_file).await?;
+                    acceptor_config = acceptor_config.with_client_ca_certs(ca_certs);
+                }
+
+                acceptor_config =
+                    acceptor_config.with_require_client_cert(tls_config.require_client_cert);
+                let acceptor = acceptor_config.build_acceptor()?;
+
+                let ws_tls_listeners =
+                    bind_all(&ws_tls_config.bind_addresses, "WebSocket TLS").await;
+                if ws_tls_listeners.is_empty() {
+                    warn!("Failed to bind WebSocket TLS to any address, WebSocket TLS disabled");
+                    return Ok((Vec::new(), None, None));
+                }
+
+                let server_config = WebSocketServerConfig::new()
+                    .with_path(ws_tls_config.path.clone())
+                    .with_subprotocol(ws_tls_config.subprotocol.clone());
+
+                Ok((ws_tls_listeners, Some(server_config), Some(acceptor)))
+            } else {
+                Err(MqttError::Configuration(
+                    "WebSocket TLS requires TLS configuration (cert/key)".to_string(),
+                ))
+            }
+        } else {
+            Ok((Vec::new(), None, None))
+        }
+    }
+
+    async fn setup_tls(config: &BrokerConfig) -> Result<(Vec<TcpListener>, Option<TlsAcceptor>)> {
         if let Some(ref tls_config) = config.tls_config {
             let cert_chain =
                 TlsAcceptorConfig::load_cert_chain_from_file(&tls_config.cert_file).await?;
@@ -141,25 +217,26 @@ impl MqttBroker {
                 acceptor_config.with_require_client_cert(tls_config.require_client_cert);
             let acceptor = acceptor_config.build_acceptor()?;
 
-            let tls_addr = tls_config.bind_address.unwrap_or_else(|| {
-                let mut addr = config.bind_address;
-                addr.set_port(8883);
-                addr
-            });
-            let tls_listener = TcpListener::bind(&tls_addr).await?;
-            info!("MQTT broker TLS listening on {}", tls_addr);
+            let tls_listeners = bind_all(&tls_config.bind_addresses, "TLS").await;
+            if tls_listeners.is_empty() {
+                warn!("Failed to bind TLS to any address, TLS disabled");
+                return Ok((Vec::new(), None));
+            }
 
-            Ok((Some(tls_listener), Some(acceptor)))
+            Ok((tls_listeners, Some(acceptor)))
         } else {
-            Ok((None, None))
+            Ok((Vec::new(), None))
         }
     }
 
     #[cfg(feature = "udp")]
     async fn setup_udp(config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
         if let Some(ref udp_config) = config.udp_config {
-            let socket = tokio::net::UdpSocket::bind(&udp_config.bind_address).await?;
-            info!("MQTT broker UDP listening on {}", udp_config.bind_address);
+            let bind_addr = udp_config.bind_addresses.first().ok_or_else(|| {
+                MqttError::Configuration("UDP config has no bind addresses".to_string())
+            })?;
+            let socket = tokio::net::UdpSocket::bind(bind_addr).await?;
+            info!("MQTT broker UDP listening on {}", bind_addr);
             Ok(Some(Arc::new(socket)))
         } else {
             Ok(None)
@@ -174,8 +251,11 @@ impl MqttBroker {
     #[cfg(feature = "udp")]
     async fn setup_dtls(config: &BrokerConfig) -> Result<Option<Arc<tokio::net::UdpSocket>>> {
         if let Some(ref dtls_config) = config.dtls_config {
-            let socket = tokio::net::UdpSocket::bind(&dtls_config.bind_address).await?;
-            info!("MQTT broker DTLS listening on {}", dtls_config.bind_address);
+            let bind_addr = dtls_config.bind_addresses.first().ok_or_else(|| {
+                MqttError::Configuration("DTLS config has no bind addresses".to_string())
+            })?;
+            let socket = tokio::net::UdpSocket::bind(bind_addr).await?;
+            info!("MQTT broker DTLS listening on {}", bind_addr);
             Ok(Some(Arc::new(socket)))
         } else {
             Ok(None)
@@ -267,16 +347,20 @@ impl MqttBroker {
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting MQTT broker");
 
-        let Some(listener) = self.listener.take() else {
+        if self.listeners.is_empty() {
             return Err(MqttError::InvalidState(
                 "Broker already running".to_string(),
             ));
-        };
+        }
 
-        let tls_listener = self.tls_listener.take();
+        let listeners = std::mem::take(&mut self.listeners);
+        let tls_listeners = std::mem::take(&mut self.tls_listeners);
         let tls_acceptor = self.tls_acceptor.take();
-        let ws_listener = self.ws_listener.take();
+        let ws_listeners = std::mem::take(&mut self.ws_listeners);
         let ws_config = self.ws_config.take();
+        let ws_tls_listeners = std::mem::take(&mut self.ws_tls_listeners);
+        let ws_tls_config = self.ws_tls_config.take();
+        let ws_tls_acceptor = self.ws_tls_acceptor.take();
         #[cfg(feature = "udp")]
         let udp_socket = self.udp_socket.take();
         #[cfg(feature = "udp")]
@@ -319,156 +403,255 @@ impl MqttBroker {
 
         let mut shutdown_rx = shutdown_tx.subscribe();
 
-        // Spawn WebSocket accept task if enabled
-        if let (Some(ws_listener), Some(ws_config)) = (ws_listener, ws_config) {
-            let config = Arc::clone(&self.config);
-            let router = Arc::clone(&self.router);
-            let auth_provider = Arc::clone(&self.auth_provider);
-            let storage = self.storage.clone();
-            let stats = Arc::clone(&self.stats);
-            let resource_monitor = Arc::clone(&self.resource_monitor);
-            let shutdown_tx_clone = shutdown_tx.clone();
-            let mut shutdown_rx_ws = shutdown_tx.subscribe();
+        // Spawn WebSocket accept tasks (one per listener)
+        if let Some(ws_config) = ws_config {
+            for ws_listener in ws_listeners {
+                let ws_cfg = ws_config.clone();
+                let config = Arc::clone(&self.config);
+                let router = Arc::clone(&self.router);
+                let auth_provider = Arc::clone(&self.auth_provider);
+                let storage = self.storage.clone();
+                let stats = Arc::clone(&self.stats);
+                let resource_monitor = Arc::clone(&self.resource_monitor);
+                let shutdown_tx_clone = shutdown_tx.clone();
+                let mut shutdown_rx_ws = shutdown_tx.subscribe();
 
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        // Accept WebSocket connections
-                        accept_result = ws_listener.accept() => {
-                            match accept_result {
-                                Ok((tcp_stream, addr)) => {
-                                    debug!("New WebSocket connection from {}", addr);
+                tokio::spawn(async move {
+                    loop {
+                        tokio::select! {
+                            // Accept WebSocket connections
+                            accept_result = ws_listener.accept() => {
+                                match accept_result {
+                                    Ok((tcp_stream, addr)) => {
+                                        debug!("New WebSocket connection from {}", addr);
 
-                                    // Check connection limits
-                                    if !resource_monitor.can_accept_connection(addr.ip()).await {
-                                        warn!("WebSocket connection rejected from {}: resource limits exceeded", addr);
-                                        continue;
-                                    }
+                                        // Check connection limits
+                                        if !resource_monitor.can_accept_connection(addr.ip()).await {
+                                            warn!("WebSocket connection rejected from {}: resource limits exceeded", addr);
+                                            continue;
+                                        }
 
-                                    // Perform WebSocket handshake
-                                    match accept_websocket_connection(tcp_stream, &ws_config, addr).await {
-                                        Ok(ws_stream) => {
-                                            let transport = BrokerTransport::websocket(ws_stream);
+                                        // Perform WebSocket handshake
+                                        match accept_websocket_connection(tcp_stream, &ws_cfg, addr).await {
+                                            Ok(ws_stream) => {
+                                                let transport = BrokerTransport::websocket(ws_stream);
 
-                                            // Spawn handler task for this client
-                                            let handler = ClientHandler::new(
-                                                transport,
-                                                addr,
-                                                Arc::clone(&config),
-                                                Arc::clone(&router),
-                                                Arc::clone(&auth_provider),
-                                                storage.clone(),
-                                                Arc::clone(&stats),
-                                                Arc::clone(&resource_monitor),
-                                                shutdown_tx_clone.subscribe(),
-                                            );
+                                                // Spawn handler task for this client
+                                                let handler = ClientHandler::new(
+                                                    transport,
+                                                    addr,
+                                                    Arc::clone(&config),
+                                                    Arc::clone(&router),
+                                                    Arc::clone(&auth_provider),
+                                                    storage.clone(),
+                                                    Arc::clone(&stats),
+                                                    Arc::clone(&resource_monitor),
+                                                    shutdown_tx_clone.subscribe(),
+                                                );
 
-                                            tokio::spawn(async move {
-                                                if let Err(e) = handler.run().await {
-                                                    // Log client handler errors at appropriate level
-                                                    if e.to_string().contains("Connection closed") {
-                                                        info!("Client handler finished: {}", e);
-                                                    } else {
-                                                        warn!("Client handler error: {}", e);
+                                                tokio::spawn(async move {
+                                                    if let Err(e) = handler.run().await {
+                                                        // Log client handler errors at appropriate level
+                                                        if e.to_string().contains("Connection closed") {
+                                                            info!("Client handler finished: {}", e);
+                                                        } else {
+                                                            warn!("Client handler error: {}", e);
+                                                        }
                                                     }
-                                                }
-                                            });
-                                        }
-                                        Err(e) => {
-                                            error!("WebSocket handshake failed: {}", e);
+                                                });
+                                            }
+                                            Err(e) => {
+                                                error!("WebSocket handshake failed: {}", e);
+                                            }
                                         }
                                     }
-                                }
-                                Err(e) => {
-                                    error!("WebSocket accept error: {}", e);
+                                    Err(e) => {
+                                        error!("WebSocket accept error: {}", e);
+                                    }
                                 }
                             }
-                        }
 
-                        // Shutdown signal
-                        _ = shutdown_rx_ws.recv() => {
-                            debug!("WebSocket accept task shutting down");
-                            break;
+                            // Shutdown signal
+                            _ = shutdown_rx_ws.recv() => {
+                                debug!("WebSocket accept task shutting down");
+                                break;
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
 
-        // Spawn TLS accept task if enabled
-        if let (Some(tls_listener), Some(tls_acceptor)) = (tls_listener, tls_acceptor) {
-            let config = Arc::clone(&self.config);
-            let router = Arc::clone(&self.router);
-            let auth_provider = Arc::clone(&self.auth_provider);
-            let storage = self.storage.clone();
-            let stats = Arc::clone(&self.stats);
-            let resource_monitor = Arc::clone(&self.resource_monitor);
-            let shutdown_tx_clone = shutdown_tx.clone();
-            let mut shutdown_rx_tls = shutdown_tx.subscribe();
+        // Spawn WebSocket TLS accept tasks (one per listener)
+        if let (Some(ws_tls_config), Some(ws_tls_acceptor)) = (ws_tls_config, ws_tls_acceptor) {
+            let acceptor = Arc::new(ws_tls_acceptor);
+            for ws_tls_listener in ws_tls_listeners {
+                let ws_cfg = ws_tls_config.clone();
+                let acceptor = Arc::clone(&acceptor);
+                let config = Arc::clone(&self.config);
+                let router = Arc::clone(&self.router);
+                let auth_provider = Arc::clone(&self.auth_provider);
+                let storage = self.storage.clone();
+                let stats = Arc::clone(&self.stats);
+                let resource_monitor = Arc::clone(&self.resource_monitor);
+                let shutdown_tx_clone = shutdown_tx.clone();
+                let mut shutdown_rx_wss = shutdown_tx.subscribe();
 
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        // Accept TLS connections
-                        accept_result = tls_listener.accept() => {
-                            match accept_result {
-                                Ok((tcp_stream, addr)) => {
-                                    debug!("New TLS connection from {}", addr);
+                tokio::spawn(async move {
+                    loop {
+                        tokio::select! {
+                            accept_result = ws_tls_listener.accept() => {
+                                match accept_result {
+                                    Ok((tcp_stream, addr)) => {
+                                        debug!("New WebSocket TLS connection from {}", addr);
 
-                                    // Check connection limits
-                                    if !resource_monitor.can_accept_connection(addr.ip()).await {
-                                        warn!("TLS connection rejected from {}: resource limits exceeded", addr);
-                                        continue;
-                                    }
+                                        if !resource_monitor.can_accept_connection(addr.ip()).await {
+                                            warn!("WebSocket TLS connection rejected from {}: resource limits exceeded", addr);
+                                            continue;
+                                        }
 
-                                    // Perform TLS handshake
-                                    match accept_tls_connection(&tls_acceptor, tcp_stream, addr).await {
-                                        Ok(tls_stream) => {
-                                            let transport = BrokerTransport::tls(tls_stream);
+                                        let acc_clone = acceptor.clone();
+                                        let cfg_clone = ws_cfg.clone();
+                                        let config_clone = Arc::clone(&config);
+                                        let router_clone = Arc::clone(&router);
+                                        let auth_clone = Arc::clone(&auth_provider);
+                                        let storage_clone = storage.clone();
+                                        let stats_clone = Arc::clone(&stats);
+                                        let monitor_clone = Arc::clone(&resource_monitor);
+                                        let shutdown_tx_wstls = shutdown_tx_clone.clone();
 
-                                            // Spawn handler task for this client
-                                            let handler = ClientHandler::new(
-                                                transport,
-                                                addr,
-                                                Arc::clone(&config),
-                                                Arc::clone(&router),
-                                                Arc::clone(&auth_provider),
-                                                storage.clone(),
-                                                Arc::clone(&stats),
-                                                Arc::clone(&resource_monitor),
-                                                shutdown_tx_clone.subscribe(),
-                                            );
+                                        tokio::spawn(async move {
+                                            match accept_tls_connection(&acc_clone, tcp_stream, addr).await {
+                                                Ok(tls_stream) => {
+                                                    match accept_websocket_connection(tls_stream, &cfg_clone, addr).await {
+                                                        Ok(ws_stream) => {
+                                                            let transport = BrokerTransport::websocket(ws_stream);
 
-                                            tokio::spawn(async move {
-                                                if let Err(e) = handler.run().await {
-                                                    // Log client handler errors at appropriate level
-                                                    if e.to_string().contains("Connection closed") {
-                                                        info!("Client handler finished: {}", e);
-                                                    } else {
-                                                        warn!("Client handler error: {}", e);
+                                                            let handler = ClientHandler::new(
+                                                                transport,
+                                                                addr,
+                                                                config_clone,
+                                                                router_clone,
+                                                                auth_clone,
+                                                                storage_clone,
+                                                                stats_clone,
+                                                                monitor_clone,
+                                                                shutdown_tx_wstls.subscribe(),
+                                                            );
+
+                                                            if let Err(e) = handler.run().await {
+                                                                if e.to_string().contains("Connection closed") {
+                                                                    info!("Client handler finished: {}", e);
+                                                                } else {
+                                                                    warn!("Client handler error: {}", e);
+                                                                }
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            error!("WebSocket TLS handshake failed: {}", e);
+                                                        }
                                                     }
                                                 }
-                                            });
-                                        }
-                                        Err(e) => {
-                                            error!("TLS handshake failed: {}", e);
-                                        }
+                                                Err(e) => {
+                                                    error!("TLS handshake failed for WebSocket: {}", e);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    Err(e) => {
+                                        error!("WebSocket TLS accept error: {}", e);
                                     }
                                 }
-                                Err(e) => {
-                                    error!("TLS accept error: {}", e);
-                                }
+                            }
+
+                            _ = shutdown_rx_wss.recv() => {
+                                debug!("WebSocket TLS accept task shutting down");
+                                break;
                             }
                         }
+                    }
+                });
+            }
+        }
 
-                        // Shutdown signal
-                        _ = shutdown_rx_tls.recv() => {
-                            debug!("TLS accept task shutting down");
-                            break;
+        // Spawn TLS accept tasks (one per listener)
+        if let Some(tls_acceptor) = tls_acceptor {
+            let acceptor = Arc::new(tls_acceptor);
+            for tls_listener in tls_listeners {
+                let acceptor = Arc::clone(&acceptor);
+                let config = Arc::clone(&self.config);
+                let router = Arc::clone(&self.router);
+                let auth_provider = Arc::clone(&self.auth_provider);
+                let storage = self.storage.clone();
+                let stats = Arc::clone(&self.stats);
+                let resource_monitor = Arc::clone(&self.resource_monitor);
+                let shutdown_tx_clone = shutdown_tx.clone();
+                let mut shutdown_rx_tls = shutdown_tx.subscribe();
+
+                tokio::spawn(async move {
+                    loop {
+                        tokio::select! {
+                            // Accept TLS connections
+                            accept_result = tls_listener.accept() => {
+                                match accept_result {
+                                    Ok((tcp_stream, addr)) => {
+                                        debug!("New TLS connection from {}", addr);
+
+                                        // Check connection limits
+                                        if !resource_monitor.can_accept_connection(addr.ip()).await {
+                                            warn!("TLS connection rejected from {}: resource limits exceeded", addr);
+                                            continue;
+                                        }
+
+                                        // Perform TLS handshake
+                                        match accept_tls_connection(&acceptor, tcp_stream, addr).await {
+                                            Ok(tls_stream) => {
+                                                let transport = BrokerTransport::tls(tls_stream);
+
+                                                // Spawn handler task for this client
+                                                let handler = ClientHandler::new(
+                                                    transport,
+                                                    addr,
+                                                    Arc::clone(&config),
+                                                    Arc::clone(&router),
+                                                    Arc::clone(&auth_provider),
+                                                    storage.clone(),
+                                                    Arc::clone(&stats),
+                                                    Arc::clone(&resource_monitor),
+                                                    shutdown_tx_clone.subscribe(),
+                                                );
+
+                                                tokio::spawn(async move {
+                                                    if let Err(e) = handler.run().await {
+                                                        // Log client handler errors at appropriate level
+                                                        if e.to_string().contains("Connection closed") {
+                                                            info!("Client handler finished: {}", e);
+                                                        } else {
+                                                            warn!("Client handler error: {}", e);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            Err(e) => {
+                                                error!("TLS handshake failed: {}", e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("TLS accept error: {}", e);
+                                    }
+                                }
+                            }
+
+                            // Shutdown signal
+                            _ = shutdown_rx_tls.recv() => {
+                                debug!("TLS accept task shutting down");
+                                break;
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
 
         // Spawn UDP accept task if enabled
@@ -666,17 +849,27 @@ impl MqttBroker {
             });
         }
 
-        info!("Broker ready - accepting connections");
-        loop {
-            tokio::select! {
-                // Accept new TCP connections
-                accept_result = listener.accept() => {
+        // Spawn TCP accept tasks (one per listener)
+        for listener in listeners {
+            let config = Arc::clone(&self.config);
+            let router = Arc::clone(&self.router);
+            let auth_provider = Arc::clone(&self.auth_provider);
+            let storage = self.storage.clone();
+            let stats = Arc::clone(&self.stats);
+            let resource_monitor = Arc::clone(&self.resource_monitor);
+            let shutdown_tx_clone = shutdown_tx.clone();
+            let mut shutdown_rx_tcp = shutdown_tx.subscribe();
+
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, addr)) => {
                             debug!(addr = %addr, "New TCP connection");
 
                             // Check connection limits
-                            if !self.resource_monitor.can_accept_connection(addr.ip()).await {
+                            if !resource_monitor.can_accept_connection(addr.ip()).await {
                                 warn!("Connection rejected from {}: resource limits exceeded", addr);
                                 continue;
                             }
@@ -687,13 +880,13 @@ impl MqttBroker {
                             let handler = ClientHandler::new(
                                 transport,
                                 addr,
-                                Arc::clone(&self.config),
-                                Arc::clone(&self.router),
-                                Arc::clone(&self.auth_provider),
-                                self.storage.clone(),
-                                Arc::clone(&self.stats),
-                                Arc::clone(&self.resource_monitor),
-                                shutdown_tx.subscribe(),
+                                Arc::clone(&config),
+                                Arc::clone(&router),
+                                Arc::clone(&auth_provider),
+                                storage.clone(),
+                                Arc::clone(&stats),
+                                Arc::clone(&resource_monitor),
+                                shutdown_tx_clone.subscribe(),
                             );
 
                             tokio::spawn(async move {
@@ -712,15 +905,21 @@ impl MqttBroker {
                             // Continue accepting other connections
                         }
                     }
+                        }
+                        _ = shutdown_rx_tcp.recv() => {
+                            debug!("TCP accept task shutting down");
+                            break;
+                        }
+                    }
                 }
-
-                // Shutdown signal
-                _ = shutdown_rx.recv() => {
-                    info!("Broker shutting down");
-                    break;
-                }
-            }
+            });
         }
+
+        info!("Broker ready - accepting connections");
+
+        // Wait for shutdown signal
+        shutdown_rx.recv().await.ok();
+        info!("Broker shutting down");
 
         Ok(())
     }
@@ -756,9 +955,9 @@ impl MqttBroker {
         Arc::clone(&self.resource_monitor)
     }
 
-    /// Gets the local address the broker is bound to
+    /// Gets the first local address the broker is bound to (used by tests)
     pub fn local_addr(&self) -> Option<std::net::SocketAddr> {
-        self.listener.as_ref()?.local_addr().ok()
+        self.listeners.first()?.local_addr().ok()
     }
 
     /// Gets the UDP address if UDP is enabled

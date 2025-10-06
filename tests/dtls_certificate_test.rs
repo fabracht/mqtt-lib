@@ -66,7 +66,7 @@ fn test_broker_dtls_config() {
     use std::path::PathBuf;
 
     let config = DtlsConfig {
-        bind_address: "0.0.0.0:8884".parse().unwrap(),
+        bind_addresses: vec!["0.0.0.0:8884".parse().unwrap()],
         mtu: 1500,
         psk_identity: Some(b"broker".to_vec()),
         psk_key: Some(vec![0x01, 0x02, 0x03, 0x04]),
@@ -79,7 +79,7 @@ fn test_broker_dtls_config() {
     assert!(config.cert_file.is_none());
 
     let cert_config = DtlsConfig {
-        bind_address: "0.0.0.0:8884".parse().unwrap(),
+        bind_addresses: vec!["0.0.0.0:8884".parse().unwrap()],
         mtu: 1500,
         psk_identity: None,
         psk_key: None,

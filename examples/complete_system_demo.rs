@@ -38,11 +38,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure and start broker
     println!("📡 Starting MQTT broker...");
     let mut config = BrokerConfig {
-        bind_address: "127.0.0.1:1883".parse()?,
+        bind_addresses: vec!["127.0.0.1:1883".parse()?],
         max_clients: 1000,
         ..Default::default()
     };
-    config.auth_config.allow_anonymous = true; // For demo simplicity
+    config.auth_config.allow_anonymous = true;
 
     let mut broker = MqttBroker::with_config(config).await?;
 
