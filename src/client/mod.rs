@@ -127,6 +127,8 @@ pub struct MqttClient {
     /// Optional DTLS configuration
     #[cfg(feature = "udp")]
     dtls_config: Arc<RwLock<Option<DtlsConfig>>>,
+    /// Optional TLS configuration
+    tls_config: Arc<RwLock<Option<TlsConfig>>>,
     /// Skip TLS certificate verification (insecure, for testing only)
     insecure_tls: Arc<RwLock<bool>>,
 }
@@ -176,6 +178,7 @@ impl MqttClient {
             connection_mutex: Arc::new(tokio::sync::Mutex::new(())),
             #[cfg(feature = "udp")]
             dtls_config: Arc::new(RwLock::new(None)),
+            tls_config: Arc::new(RwLock::new(None)),
             insecure_tls: Arc::new(RwLock::new(false)),
         }
     }
@@ -347,6 +350,56 @@ impl MqttClient {
         }
     }
 
+    pub async fn set_tls_config(
+        &self,
+        cert_pem: Option<Vec<u8>>,
+        key_pem: Option<Vec<u8>>,
+        ca_cert_pem: Option<Vec<u8>>,
+    ) {
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        tracing::debug!(
+            "set_tls_config called - cert: {}, key: {}, ca: {}",
+            cert_pem.is_some(),
+            key_pem.is_some(),
+            ca_cert_pem.is_some()
+        );
+
+        let mut config_lock = self.tls_config.write().await;
+        let placeholder_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
+
+        if cert_pem.is_some() || key_pem.is_some() || ca_cert_pem.is_some() {
+            let mut config = TlsConfig::new(placeholder_addr, "placeholder");
+
+            if let (Some(cert), Some(key)) = (cert_pem, key_pem) {
+                if let Err(e) = config.load_client_cert_pem_bytes(&cert) {
+                    tracing::error!("Failed to load client certificate: {}", e);
+                    return;
+                }
+                if let Err(e) = config.load_client_key_pem_bytes(&key) {
+                    tracing::error!("Failed to load client key: {}", e);
+                    return;
+                }
+                tracing::debug!("Loaded client cert and key");
+            }
+
+            if let Some(ca_cert) = ca_cert_pem {
+                if let Err(e) = config.load_ca_cert_pem_bytes(&ca_cert) {
+                    tracing::error!("Failed to load CA certificate: {}", e);
+                    return;
+                }
+                config.use_system_roots = false;
+                tracing::debug!(
+                    "Loaded CA cert, use_system_roots=false, has {} certs",
+                    config.root_certs.as_ref().map_or(0, bebytes::Vec::len)
+                );
+            }
+
+            *config_lock = Some(config);
+            tracing::debug!("TLS config stored");
+        }
+    }
+
     /// Connects to the MQTT broker with default options
     ///
     /// # Examples
@@ -514,7 +567,25 @@ impl MqttClient {
             }
             ClientTransportType::Tls => {
                 let insecure = *self.insecure_tls.read().await;
-                let config = TlsConfig::new(addr, host).with_verify_server_cert(!insecure);
+                let tls_config_lock = self.tls_config.read().await;
+                let config = if let Some(existing_config) = &*tls_config_lock {
+                    tracing::debug!(
+                        "Using stored TLS config - use_system_roots: {}, has_ca: {}, has_cert: {}",
+                        existing_config.use_system_roots,
+                        existing_config.root_certs.is_some(),
+                        existing_config.client_cert.is_some()
+                    );
+                    let mut cfg = existing_config.clone();
+                    cfg.addr = addr;
+                    cfg.hostname = host.to_string();
+                    cfg.verify_server_cert = !insecure;
+                    cfg
+                } else {
+                    tracing::debug!("No stored TLS config, using default");
+                    TlsConfig::new(addr, host).with_verify_server_cert(!insecure)
+                };
+                drop(tls_config_lock);
+
                 let mut tls_transport = TlsTransport::new(config);
                 tls_transport
                     .connect()
