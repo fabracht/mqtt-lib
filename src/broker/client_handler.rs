@@ -30,7 +30,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::{interval, timeout};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Handles a single client connection
 pub struct ClientHandler {
@@ -101,6 +101,7 @@ impl ClientHandler {
     /// # Panics
     ///
     /// Panics if `client_id` is None after successful connection
+    #[allow(clippy::too_many_lines)]
     pub async fn run(mut self) -> Result<()> {
         // Wait for CONNECT packet
         tracing::debug!(
@@ -151,21 +152,30 @@ impl ClientHandler {
             }
         }
 
+        // Create disconnect channel for session takeover handling
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::oneshot::channel();
+
         // Register with router
         let client_id = self.client_id.as_ref().unwrap().clone();
         self.router
-            .register_client(client_id.clone(), self.publish_tx.clone())
+            .register_client(client_id.clone(), self.publish_tx.clone(), disconnect_tx)
             .await;
 
         // Handle packets until disconnect
-        let result = if self.keep_alive.is_zero() {
+        let (result, session_taken_over) = if self.keep_alive.is_zero() {
             // No keepalive checking when keepalive is disabled
-            self.handle_packets_no_keepalive().await
+            match self.handle_packets_no_keepalive(&mut disconnect_rx).await {
+                Ok(taken_over) => (Ok(()), taken_over),
+                Err(e) => (Err(e), false),
+            }
         } else {
             // Start keep-alive timer
             let mut keep_alive_interval = interval(self.keep_alive);
             keep_alive_interval.reset();
-            self.handle_packets(&mut keep_alive_interval).await
+            match self.handle_packets(&mut keep_alive_interval, &mut disconnect_rx).await {
+                Ok(taken_over) => (Ok(()), taken_over),
+                Err(e) => (Err(e), false),
+            }
         };
 
         // Check if we should preserve the session
@@ -175,12 +185,16 @@ impl ClientHandler {
             false
         };
 
-        // Only unregister client and remove subscriptions if session is not persistent
-        if !preserve_session {
-            self.router.unregister_client(&client_id).await;
+        // Only unregister client if not taken over
+        if !session_taken_over {
+            info!("Unregistering client {} (not taken over)", client_id);
+            if !preserve_session {
+                self.router.unregister_client(&client_id).await;
+            } else {
+                self.router.disconnect_client(&client_id).await;
+            }
         } else {
-            // Just remove the client connection, but keep subscriptions
-            self.router.disconnect_client(&client_id).await;
+            info!("Skipping unregister for client {} (session taken over)", client_id);
         }
 
         // Unregister connection from resource monitor
@@ -234,7 +248,10 @@ impl ClientHandler {
     }
 
     /// Handles incoming packets without keepalive checking
-    async fn handle_packets_no_keepalive(&mut self) -> Result<()> {
+    async fn handle_packets_no_keepalive(
+        &mut self,
+        disconnect_rx: &mut tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<bool> {
         loop {
             tokio::select! {
                 // Read incoming packets
@@ -243,12 +260,11 @@ impl ClientHandler {
                         Ok(packet) => {
                             self.handle_packet(packet).await?;
                         }
-                        Err(MqttError::Io(e)) if e.contains("stream has been shut down") => {
+                        Err(e) if e.is_normal_disconnect() => {
                             debug!("Client disconnected");
-                            return Ok(());
+                            return Ok(false);
                         }
                         Err(e) => {
-                            error!("Read error in handle_packets_no_keepalive: {}", e);
                             return Err(e);
                         }
                     }
@@ -260,8 +276,14 @@ impl ClientHandler {
                         self.send_publish(publish).await?;
                     } else {
                         warn!("Publish channel closed unexpectedly");
-                        return Ok(());
+                        return Ok(false);
                     }
+                }
+
+                // Session takeover
+                _ = &mut *disconnect_rx => {
+                    info!("Session taken over by another client");
+                    return Ok(true);
                 }
             }
         }
@@ -271,7 +293,8 @@ impl ClientHandler {
     async fn handle_packets(
         &mut self,
         keep_alive_interval: &mut tokio::time::Interval,
-    ) -> Result<()> {
+        disconnect_rx: &mut tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<bool> {
         let mut last_packet_time = tokio::time::Instant::now();
 
         loop {
@@ -283,12 +306,11 @@ impl ClientHandler {
                             last_packet_time = tokio::time::Instant::now();
                             self.handle_packet(packet).await?;
                         }
-                        Err(MqttError::Io(e)) if e.contains("stream has been shut down") => {
+                        Err(e) if e.is_normal_disconnect() => {
                             debug!("Client disconnected");
-                            return Ok(());
+                            return Ok(false);
                         }
                         Err(e) => {
-                            error!("Read error in handle_packets: {}", e);
                             return Err(e);
                         }
                     }
@@ -300,7 +322,7 @@ impl ClientHandler {
                         self.send_publish(publish).await?;
                     } else {
                         warn!("Publish channel closed unexpectedly in handle_packets");
-                        return Ok(());
+                        return Ok(false);
                     }
                 }
 
@@ -313,12 +335,18 @@ impl ClientHandler {
                     }
                 }
 
+                // Session takeover
+                _ = &mut *disconnect_rx => {
+                    info!("Session taken over by another client");
+                    return Ok(true);
+                }
+
                 // Shutdown signal
                 _ = self.shutdown_rx.recv() => {
                     debug!("Shutdown signal received");
                     let disconnect = DisconnectPacket::new(ReasonCode::ServerShuttingDown);
                     let _ = self.transport.write_packet(Packet::Disconnect(disconnect)).await;
-                    return Ok(());
+                    return Ok(false);
                 }
             }
         }
