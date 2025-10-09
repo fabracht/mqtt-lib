@@ -20,7 +20,7 @@ pub struct BrokerCommand {
     pub max_clients: usize,
 
     /// Enable anonymous access (no authentication required)
-    #[arg(long, default_value = "true")]
+    #[arg(long)]
     pub allow_anonymous: bool,
 
     /// Password file path (format: username:password per line)
@@ -34,6 +34,14 @@ pub struct BrokerCommand {
     /// TLS private key file path (PEM format)
     #[arg(long)]
     pub tls_key: Option<PathBuf>,
+
+    /// TLS CA certificate file for client verification (PEM format, enables mTLS)
+    #[arg(long)]
+    pub tls_ca_cert: Option<PathBuf>,
+
+    /// Require client certificates for TLS connections (mutual TLS)
+    #[arg(long)]
+    pub tls_require_client_cert: bool,
 
     /// TLS bind address - can be specified multiple times
     #[arg(long, action = ArgAction::Append)]
@@ -318,11 +326,28 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
                 .collect()
         };
 
-        let tls_config = TlsConfig::new(cert.clone(), key.clone()).with_bind_addresses(tls_addrs?);
+        let mut tls_config =
+            TlsConfig::new(cert.clone(), key.clone()).with_bind_addresses(tls_addrs?);
+
+        if let Some(ca_cert) = &cmd.tls_ca_cert {
+            if !ca_cert.exists() {
+                anyhow::bail!("TLS CA certificate file not found: {}", ca_cert.display());
+            }
+            tls_config = tls_config
+                .with_ca_file(ca_cert.clone())
+                .with_require_client_cert(cmd.tls_require_client_cert);
+            info!("TLS enabled with mTLS (client certificate verification)");
+        } else if cmd.tls_require_client_cert {
+            anyhow::bail!("--tls-ca-cert is required when --tls-require-client-cert is set");
+        } else {
+            info!("TLS enabled");
+        }
+
         config = config.with_tls(tls_config);
-        info!("TLS enabled");
     } else if cmd.tls_cert.is_some() || cmd.tls_key.is_some() {
         anyhow::bail!("Both --tls-cert and --tls-key must be provided together");
+    } else if cmd.tls_ca_cert.is_some() || cmd.tls_require_client_cert {
+        anyhow::bail!("--tls-cert and --tls-key must be provided to use --tls-ca-cert or --tls-require-client-cert");
     }
 
     // Configure WebSocket

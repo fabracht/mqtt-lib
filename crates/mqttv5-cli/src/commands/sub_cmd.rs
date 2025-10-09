@@ -208,8 +208,11 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         info!("Insecure TLS mode enabled (certificate verification disabled)");
     }
 
-    // Configure DTLS if using mqtts-dtls://
-    if broker_url.starts_with("mqtts-dtls://") {
+    // Configure TLS/DTLS if using secure connection
+    if broker_url.starts_with("mqtts-dtls://")
+        || broker_url.starts_with("ssl://")
+        || broker_url.starts_with("mqtts://")
+    {
         // Configure with PSK if provided
         if let (Some(identity), Some(key_hex)) = (&cmd.psk_identity, &cmd.psk_key) {
             let psk_key =
@@ -225,11 +228,23 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
                 .await;
         }
         // Or configure with certificates if provided
-        else if let (Some(cert_path), Some(key_path)) = (&cmd.cert, &cmd.key) {
-            let cert_pem = std::fs::read(cert_path)
-                .with_context(|| format!("Failed to read certificate file: {cert_path:?}"))?;
-            let key_pem = std::fs::read(key_path)
-                .with_context(|| format!("Failed to read key file: {key_path:?}"))?;
+        else if cmd.cert.is_some() || cmd.key.is_some() || cmd.ca_cert.is_some() {
+            let cert_pem =
+                if let Some(cert_path) = &cmd.cert {
+                    Some(std::fs::read(cert_path).with_context(|| {
+                        format!("Failed to read certificate file: {cert_path:?}")
+                    })?)
+                } else {
+                    None
+                };
+            let key_pem = if let Some(key_path) = &cmd.key {
+                Some(
+                    std::fs::read(key_path)
+                        .with_context(|| format!("Failed to read key file: {key_path:?}"))?,
+                )
+            } else {
+                None
+            };
             let ca_pem =
                 if let Some(ca_path) = &cmd.ca_cert {
                     Some(std::fs::read(ca_path).with_context(|| {
@@ -240,8 +255,16 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
                 };
 
             client
-                .set_dtls_config(Some(cert_pem), Some(key_pem), ca_pem, None, None)
+                .set_dtls_config(
+                    cert_pem.clone(),
+                    key_pem.clone(),
+                    ca_pem.clone(),
+                    None,
+                    None,
+                )
                 .await;
+
+            client.set_tls_config(cert_pem, key_pem, ca_pem).await;
         }
     }
 
