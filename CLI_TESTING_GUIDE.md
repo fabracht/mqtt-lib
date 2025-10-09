@@ -27,11 +27,13 @@ cargo install --path crates/mqttv5-cli
 ### 1. TCP Connection (Default)
 
 **Terminal 1 - Subscribe:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/basic --non-interactive
 ```
 
 **Terminal 2 - Publish:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/basic --message "Hello TCP" --non-interactive
 ```
@@ -41,25 +43,84 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/basic --message "Hello TCP" -
 ### 2. TLS Connection
 
 **Terminal 1 - Subscribe:**
+
 ```bash
 mqttv5 sub --url ssl://localhost:8883 --topic test/tls --insecure --non-interactive
 ```
 
 **Terminal 2 - Publish:**
+
 ```bash
 mqttv5 pub --url ssl://localhost:8883 --topic test/tls --message "Hello TLS" --insecure --non-interactive
 ```
 
 ---
 
+### 2b. Mutual TLS (mTLS) Connection
+
+Requires mosquitto broker configured with mTLS or our mqttv5 broker with mTLS enabled.
+
+**Start mqttv5 broker with mTLS (for testing):**
+
+```bash
+mqttv5 broker \
+  --tls-cert test_certs/server.pem \
+  --tls-key test_certs/server.key \
+  --tls-ca-cert test_certs/ca.pem \
+  --tls-require-client-cert \
+  --allow-anonymous
+```
+
+**Terminal 1 - Subscribe with client certificate:**
+
+```bash
+mqttv5 sub \
+  --url ssl://localhost:8883 \
+  --topic test/mtls \
+  --ca-cert test_certs/ca.pem \
+  --cert test_certs/client.pem \
+  --key test_certs/client.key \
+  --non-interactive
+```
+
+**Terminal 2 - Publish with client certificate:**
+
+```bash
+mqttv5 pub \
+  --url ssl://localhost:8883 \
+  --topic test/mtls \
+  --message "Hello mTLS" \
+  --ca-cert test_certs/ca.pem \
+  --cert test_certs/client.pem \
+  --key test_certs/client.key \
+  --non-interactive
+```
+
+**Test connection rejection without client cert:**
+
+```bash
+mqttv5 sub \
+  --url ssl://localhost:8883 \
+  --topic test/mtls \
+  --ca-cert test_certs/ca.pem \
+  --insecure \
+  --non-interactive
+```
+
+Expected: Connection fails with TLS handshake error (client certificate required)
+
+---
+
 ### 3. WebSocket Connection
 
 **Terminal 1 - Subscribe:**
+
 ```bash
 mqttv5 sub --url ws://localhost:9001 --topic test/ws --non-interactive
 ```
 
 **Terminal 2 - Publish:**
+
 ```bash
 mqttv5 pub --url ws://localhost:9001 --topic test/ws --message "Hello WebSocket" --non-interactive
 ```
@@ -69,11 +130,13 @@ mqttv5 pub --url ws://localhost:9001 --topic test/ws --message "Hello WebSocket"
 ### 4. WebSocket TLS Connection
 
 **Terminal 1 - Subscribe:**
+
 ```bash
 mqttv5 sub --url wss://localhost:9443 --topic test/wss --insecure --non-interactive
 ```
 
 **Terminal 2 - Publish:**
+
 ```bash
 mqttv5 pub --url wss://localhost:9443 --topic test/wss --message "Hello WSS" --insecure --non-interactive
 ```
@@ -85,11 +148,13 @@ mqttv5 pub --url wss://localhost:9443 --topic test/wss --message "Hello WSS" --i
 ### QoS 0 (At Most Once)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/qos0 --qos 0 --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/qos0 --message "QoS 0 message" --qos 0 --non-interactive
 ```
@@ -99,11 +164,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/qos0 --message "QoS 0 message
 ### QoS 1 (At Least Once)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/qos1 --qos 1 --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/qos1 --message "QoS 1 message" --qos 1 --non-interactive
 ```
@@ -113,11 +180,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/qos1 --message "QoS 1 message
 ### QoS 2 (Exactly Once)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/qos2 --qos 2 --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/qos2 --message "QoS 2 message" --qos 2 --non-interactive
 ```
@@ -127,11 +196,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/qos2 --message "QoS 2 message
 ### QoS 2 over WebSocket (NEW FIX)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url ws://localhost:9001 --topic test/ws/qos2 --qos 2 --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url ws://localhost:9001 --topic test/ws/qos2 --message "QoS 2 over WebSocket" --qos 2 --non-interactive
 ```
@@ -143,11 +214,13 @@ mqttv5 pub --url ws://localhost:9001 --topic test/ws/qos2 --message "QoS 2 over 
 ### Single-level Wildcard (+)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic sensors/+/temperature --verbose --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic sensors/room1/temperature --message "22.5" --non-interactive
 mqttv5 pub --url tcp://localhost:1883 --topic sensors/room2/temperature --message "23.1" --non-interactive
@@ -159,11 +232,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic sensors/outdoor/temperature --mess
 ### Multi-level Wildcard (#)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic home/# --verbose --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic home/living/light --message "on" --non-interactive
 mqttv5 pub --url tcp://localhost:1883 --topic home/bedroom/temp --message "20" --non-interactive
@@ -177,11 +252,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic home/kitchen/humidity --message "4
 ### Publish Retained Message
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic status/system --message "online" --retain --non-interactive
 ```
 
 **Terminal 1 (subscribe AFTER publishing):**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic status/system --count 1 --non-interactive
 ```
@@ -195,6 +272,7 @@ Expected: Subscriber receives "online" immediately
 ### Persistent Session (Receive Offline Messages)
 
 **Terminal 1 - Start subscriber with persistent session:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/offline --qos 1 --client-id test-client-123 --no-clean-start --session-expiry 300 --count 3 --non-interactive
 ```
@@ -202,6 +280,7 @@ mqttv5 sub --url tcp://localhost:1883 --topic test/offline --qos 1 --client-id t
 **Press Ctrl+C to disconnect subscriber**
 
 **Terminal 2 - Publish while subscriber offline:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/offline --message "Offline message 1" --qos 1 --non-interactive
 mqttv5 pub --url tcp://localhost:1883 --topic test/offline --message "Offline message 2" --qos 1 --non-interactive
@@ -209,6 +288,7 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/offline --message "Offline me
 ```
 
 **Terminal 1 - Reconnect with same client ID:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/offline --qos 1 --client-id test-client-123 --no-clean-start --session-expiry 300 --count 3 --non-interactive
 ```
@@ -216,6 +296,7 @@ mqttv5 sub --url tcp://localhost:1883 --topic test/offline --qos 1 --client-id t
 Expected: Receives all 3 offline messages immediately upon reconnection
 
 **Important Notes:**
+
 - The `--qos` flag MUST match the QoS used when publishing (use QoS 1 or 2 for persistent sessions)
 - QoS 0 messages are NOT queued by the broker and will be lost when offline
 - Both subscriber and publisher must use the same QoS level for message persistence to work
@@ -226,11 +307,13 @@ Expected: Receives all 3 offline messages immediately upon reconnection
 ## Will Messages (Last Will and Testament)
 
 **Terminal 1 - Monitor will topic:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic status/client --non-interactive
 ```
 
 **Terminal 2 - Connect with will message (keep alive for testing):**
+
 ```bash
 mqttv5 pub \
   --url tcp://localhost:1883 \
@@ -255,11 +338,13 @@ Expected: Terminal 1 receives "client disconnected unexpectedly"
 ### Username/Password Authentication
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/auth --username testuser --password testpass --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/auth --message "Authenticated message" --username testuser --password testpass --non-interactive
 ```
@@ -273,11 +358,13 @@ Note: Requires Mosquitto configured with password file
 ### Publish TCP, Subscribe WebSocket
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url ws://localhost:9001 --topic test/cross --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/cross --message "Cross-transport test" --non-interactive
 ```
@@ -287,11 +374,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/cross --message "Cross-transp
 ### Publish WebSocket, Subscribe TLS
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url ssl://localhost:8883 --topic test/cross2 --insecure --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url ws://localhost:9001 --topic test/cross2 --message "WS to TLS" --non-interactive
 ```
@@ -301,16 +390,19 @@ mqttv5 pub --url ws://localhost:9001 --topic test/cross2 --message "WS to TLS" -
 ## Multiple Subscribers (Same Topic)
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic broadcast/news --client-id sub1 --verbose --non-interactive
 ```
 
 **Open Terminal 3:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic broadcast/news --client-id sub2 --verbose --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic broadcast/news --message "Breaking news!" --non-interactive
 ```
@@ -322,11 +414,13 @@ Expected: Both subscribers receive the message
 ## Message Count Test
 
 **Terminal 1 - Receive exactly 5 messages then exit:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/count --count 5 --non-interactive
 ```
 
 **Terminal 2 - Send 10 messages:**
+
 ```bash
 for i in {1..10}; do
   mqttv5 pub --url tcp://localhost:1883 --topic test/count --message "Message $i" --non-interactive
@@ -343,11 +437,13 @@ Expected: Subscriber exits after 5 messages
 ### High-Frequency Publishing
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic stress/test --verbose --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 for i in {1..100}; do
   mqttv5 pub --url tcp://localhost:1883 --topic stress/test --message "Stress message $i" --qos 1 --non-interactive
@@ -359,11 +455,13 @@ done
 ### Large Payload
 
 **Terminal 1:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/large --non-interactive
 ```
 
 **Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/large --message "$(python3 -c 'print("A" * 10000)')" --non-interactive
 ```
@@ -373,11 +471,13 @@ mqttv5 pub --url tcp://localhost:1883 --topic test/large --message "$(python3 -c
 ## Keep-Alive Tests
 
 **Terminal 1 - Long-running subscriber:**
+
 ```bash
 mqttv5 sub --url tcp://localhost:1883 --topic test/keepalive --keep-alive 10 --non-interactive
 ```
 
 **Wait 30+ seconds, then Terminal 2:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic test/keepalive --message "Still connected?" --non-interactive
 ```
@@ -405,6 +505,7 @@ mqttv5 sub --url wss://localhost:9443 --topic all/transports --client-id wss-sub
 ```
 
 **Terminal 5 - Publish:**
+
 ```bash
 mqttv5 pub --url tcp://localhost:1883 --topic all/transports --message "Message to all transports" --non-interactive
 ```
@@ -478,17 +579,17 @@ Expected: Error about unsupported URL scheme
 
 ## Quick Test Checklist
 
-- [ ] TCP basic pub/sub
-- [ ] TLS with insecure flag
-- [ ] WebSocket basic
-- [ ] WebSocket TLS with insecure
-- [ ] QoS 0, 1, 2 on each transport
-- [ ] QoS 2 specifically on WebSocket (regression test)
-- [ ] Retained messages
-- [ ] Wildcard subscriptions (+, #)
-- [ ] Session persistence (offline messages)
-- [ ] Will messages
-- [ ] Cross-transport communication
-- [ ] Multiple subscribers same topic
-- [ ] Large payloads
-- [ ] High-frequency messages
+- [x] TCP basic pub/sub
+- [x] TLS with insecure flag
+- [x] WebSocket basic
+- [x] WebSocket TLS with insecure
+- [x] QoS 0, 1, 2 on each transport
+- [x] QoS 2 specifically on WebSocket (regression test)
+- [x] Retained messages
+- [x] Wildcard subscriptions (+, #)
+- [x] Session persistence (offline messages)
+- [x] Will messages
+- [x] Cross-transport communication
+- [x] Multiple subscribers same topic
+- [x] Large payloads
+- [x] High-frequency messages

@@ -93,9 +93,12 @@ BROKER_COMPARISON.md
 *_VALIDATION_REPORT.md
 *_OPTIMIZATION_*.md
 *_TEST_FINDINGS.md
+*_TESTING_GUIDE.md
+*_REFACTORING.md
 CI_OPTIMIZATION_*.md
 PROPERTY_TEST_*.md
 GITHUB_SECURITY_*.md
+CLI_TESTING_GUIDE.md
 performance_report*.md
 benchmark_report*.md
 comparison_report*.md
