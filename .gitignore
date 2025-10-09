@@ -4,6 +4,7 @@ Cargo.lock
 **/*.rs.bk
 *.pdb
 mutants.out*
+docs/
 
 # IDE and Editor
 .idea/
