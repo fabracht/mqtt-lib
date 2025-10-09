@@ -96,7 +96,11 @@ impl UdpSession {
 
     pub async fn get_pending_acks(&mut self) -> Option<Vec<u8>> {
         let mut reliability = self.reliability.lock().await;
-        reliability.generate_ack()
+        let ack = reliability.generate_ack();
+        if ack.is_some() {
+            tracing::trace!("Broker generating ACK for peer {}", self.peer_addr);
+        }
+        ack
     }
 
     pub async fn get_packets_to_retry(&mut self) -> Vec<Vec<u8>> {

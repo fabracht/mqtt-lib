@@ -1,6 +1,9 @@
 //! MQTT v5.0 Broker Server
 
 use crate::broker::auth::{AllowAllAuthProvider, AuthProvider};
+#[cfg(feature = "udp")]
+use crate::broker::binding::bind_udp_address;
+use crate::broker::binding::{bind_tcp_addresses, format_binding_error};
 use crate::broker::client_handler::ClientHandler;
 use crate::broker::config::{BrokerConfig, StorageBackend as StorageBackendType};
 use crate::broker::resource_monitor::{ResourceLimits, ResourceMonitor};
@@ -35,25 +38,6 @@ pub struct MqttBroker {
     udp_socket: Option<Arc<tokio::net::UdpSocket>>,
     dtls_socket: Option<Arc<tokio::net::UdpSocket>>,
     shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
-}
-
-async fn bind_all(addrs: &[std::net::SocketAddr], transport_name: &str) -> Vec<TcpListener> {
-    let mut listeners = Vec::new();
-    for addr in addrs {
-        match TcpListener::bind(addr).await {
-            Ok(listener) => {
-                info!("MQTT broker {} listening on {}", transport_name, addr);
-                listeners.push(listener);
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to bind {} on {} ({}), continuing with other addresses",
-                    transport_name, addr, e
-                );
-            }
-        }
-    }
-    listeners
 }
 
 async fn create_auth_provider(
@@ -110,12 +94,13 @@ impl MqttBroker {
     pub async fn with_config(config: BrokerConfig) -> Result<Self> {
         config.validate()?;
 
-        let listeners = bind_all(&config.bind_addresses, "TCP").await;
-        if listeners.is_empty() {
-            return Err(MqttError::Configuration(
-                "Failed to bind to any TCP address".to_string(),
-            ));
+        let bind_result = bind_tcp_addresses(&config.bind_addresses, "TCP").await;
+        if bind_result.is_empty() {
+            let error_msg =
+                format_binding_error("TCP", &bind_result.failures, &config.bind_addresses);
+            return Err(MqttError::Configuration(error_msg));
         }
+        let listeners = bind_result.successful;
 
         let (ws_listeners, ws_config) = Self::setup_websocket(&config).await?;
         let (ws_tls_listeners, ws_tls_config, ws_tls_acceptor) =
@@ -168,15 +153,20 @@ impl MqttBroker {
         config: &BrokerConfig,
     ) -> Result<(Vec<TcpListener>, Option<WebSocketServerConfig>)> {
         if let Some(ref ws_config) = config.websocket_config {
-            let ws_listeners = bind_all(&ws_config.bind_addresses, "WebSocket").await;
-            if ws_listeners.is_empty() {
-                warn!("Failed to bind WebSocket to any address, WebSocket disabled");
+            let bind_result = bind_tcp_addresses(&ws_config.bind_addresses, "WebSocket").await;
+            if bind_result.is_empty() {
+                let error_msg = format_binding_error(
+                    "WebSocket",
+                    &bind_result.failures,
+                    &ws_config.bind_addresses,
+                );
+                warn!("{}, WebSocket disabled", error_msg);
                 return Ok((Vec::new(), None));
             }
             let server_config = WebSocketServerConfig::new()
                 .with_path(ws_config.path.clone())
                 .with_subprotocol(ws_config.subprotocol.clone());
-            Ok((ws_listeners, Some(server_config)))
+            Ok((bind_result.successful, Some(server_config)))
         } else {
             Ok((Vec::new(), None))
         }
@@ -207,10 +197,15 @@ impl MqttBroker {
                     acceptor_config.with_require_client_cert(tls_config.require_client_cert);
                 let acceptor = acceptor_config.build_acceptor()?;
 
-                let ws_tls_listeners =
-                    bind_all(&ws_tls_config.bind_addresses, "WebSocket TLS").await;
-                if ws_tls_listeners.is_empty() {
-                    warn!("Failed to bind WebSocket TLS to any address, WebSocket TLS disabled");
+                let bind_result =
+                    bind_tcp_addresses(&ws_tls_config.bind_addresses, "WebSocket TLS").await;
+                if bind_result.is_empty() {
+                    let error_msg = format_binding_error(
+                        "WebSocket TLS",
+                        &bind_result.failures,
+                        &ws_tls_config.bind_addresses,
+                    );
+                    warn!("{}, WebSocket TLS disabled", error_msg);
                     return Ok((Vec::new(), None, None));
                 }
 
@@ -218,7 +213,7 @@ impl MqttBroker {
                     .with_path(ws_tls_config.path.clone())
                     .with_subprotocol(ws_tls_config.subprotocol.clone());
 
-                Ok((ws_tls_listeners, Some(server_config), Some(acceptor)))
+                Ok((bind_result.successful, Some(server_config), Some(acceptor)))
             } else {
                 Err(MqttError::Configuration(
                     "WebSocket TLS requires TLS configuration (cert/key)".to_string(),
@@ -247,13 +242,15 @@ impl MqttBroker {
                 acceptor_config.with_require_client_cert(tls_config.require_client_cert);
             let acceptor = acceptor_config.build_acceptor()?;
 
-            let tls_listeners = bind_all(&tls_config.bind_addresses, "TLS").await;
-            if tls_listeners.is_empty() {
-                warn!("Failed to bind TLS to any address, TLS disabled");
+            let bind_result = bind_tcp_addresses(&tls_config.bind_addresses, "TLS").await;
+            if bind_result.is_empty() {
+                let error_msg =
+                    format_binding_error("TLS", &bind_result.failures, &tls_config.bind_addresses);
+                warn!("{}, TLS disabled", error_msg);
                 return Ok((Vec::new(), None));
             }
 
-            Ok((tls_listeners, Some(acceptor)))
+            Ok((bind_result.successful, Some(acceptor)))
         } else {
             Ok((Vec::new(), None))
         }
@@ -265,8 +262,7 @@ impl MqttBroker {
             let bind_addr = udp_config.bind_addresses.first().ok_or_else(|| {
                 MqttError::Configuration("UDP config has no bind addresses".to_string())
             })?;
-            let socket = tokio::net::UdpSocket::bind(bind_addr).await?;
-            info!("MQTT broker UDP listening on {}", bind_addr);
+            let socket = bind_udp_address(*bind_addr, "UDP").await?;
             Ok(Some(Arc::new(socket)))
         } else {
             Ok(None)
@@ -284,8 +280,7 @@ impl MqttBroker {
             let bind_addr = dtls_config.bind_addresses.first().ok_or_else(|| {
                 MqttError::Configuration("DTLS config has no bind addresses".to_string())
             })?;
-            let socket = tokio::net::UdpSocket::bind(bind_addr).await?;
-            info!("MQTT broker DTLS listening on {}", bind_addr);
+            let socket = bind_udp_address(*bind_addr, "DTLS").await?;
             Ok(Some(Arc::new(socket)))
         } else {
             Ok(None)
@@ -765,6 +760,32 @@ impl MqttBroker {
                                                 }
                                             });
                                         }
+
+                                        let udp_socket_reliability = Arc::clone(&udp_socket);
+                                        let peer_addr_reliability = session.peer_addr;
+                                        let reliability_task = Arc::clone(&session.reliability);
+
+                                        tokio::spawn(async move {
+                                            let mut ticker = tokio::time::interval(std::time::Duration::from_millis(100));
+                                            loop {
+                                                ticker.tick().await;
+
+                                                let mut rel = reliability_task.lock().await;
+
+                                                if let Some(ack_packet) = rel.generate_ack() {
+                                                    if let Err(e) = udp_socket_reliability.send_to(&ack_packet, peer_addr_reliability).await {
+                                                        warn!("Failed to send ACK to {}: {}", peer_addr_reliability, e);
+                                                    }
+                                                }
+
+                                                let retry_packets = rel.get_packets_to_retry();
+                                                for retry_packet in retry_packets {
+                                                    if let Err(e) = udp_socket_reliability.send_to(&retry_packet, peer_addr_reliability).await {
+                                                        warn!("Failed to send retry to {}: {}", peer_addr_reliability, e);
+                                                    }
+                                                }
+                                            }
+                                        });
                                     }
 
                                     session.update_activity();
