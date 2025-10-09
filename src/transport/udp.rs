@@ -196,38 +196,6 @@ impl UdpTransport {
 impl Transport for UdpTransport {
     async fn connect(&mut self) -> Result<()> {
         self.ensure_connected().await?;
-
-        // Start background task for reliability (always enabled for UDP)
-        let socket = self.socket.as_ref().unwrap().clone();
-        let reliability = self.reliability.clone();
-
-        let handle = tokio::spawn(async move {
-            let mut ticker = interval(Duration::from_millis(100));
-            loop {
-                ticker.tick().await;
-
-                let mut rel = reliability.lock().await;
-
-                // Send pending ACKs
-                if let Some(ack_packet) = rel.generate_ack() {
-                    if let Err(e) = socket.send(&ack_packet).await {
-                        warn!("Failed to send ACK packet: {}", e);
-                    }
-                }
-
-                // Retry unacknowledged packets
-                for retry_packet in rel.get_packets_to_retry() {
-                    if let Err(e) = socket.send(&retry_packet).await {
-                        warn!("Failed to send retry packet: {}", e);
-                    }
-                }
-            }
-        });
-
-        // Store the task handle for cleanup
-        let mut task_lock = self.reliability_task.lock().await;
-        *task_lock = Some(handle);
-
         Ok(())
     }
 
@@ -316,10 +284,67 @@ impl UdpTransport {
     pub fn into_split(self) -> Result<(UdpReadHalf, UdpWriteHalf)> {
         let socket = self.socket.ok_or(MqttError::NotConnected)?;
 
-        // Note: The background reliability task is already running from connect()
-        // We don't need to start another one here as it would create duplicate tasks
+        let socket_for_task = socket.clone();
+        let reliability_for_task = self.reliability.clone();
 
-        let reader = UdpReadHalf::new(socket.clone(), self.config.mtu, self.reliability.clone());
+        let handle = tokio::spawn(async move {
+            const MAX_CONSECUTIVE_ERRORS: u32 = 10;
+            let mut ticker = interval(Duration::from_millis(100));
+            let mut consecutive_errors = 0;
+
+            loop {
+                ticker.tick().await;
+
+                let mut rel = reliability_for_task.lock().await;
+
+                if let Some(ack_packet) = rel.generate_ack() {
+                    match socket_for_task.send(&ack_packet).await {
+                        Ok(_) => {
+                            consecutive_errors = 0;
+                        }
+                        Err(e) => {
+                            consecutive_errors += 1;
+                            if consecutive_errors == 1 {
+                                warn!("Failed to send ACK packet: {}", e);
+                            } else if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                                debug!("Too many consecutive errors ({}), stopping reliability task", consecutive_errors);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                let retry_packets = rel.get_packets_to_retry();
+                if retry_packets.is_empty() {
+                    consecutive_errors = consecutive_errors.saturating_sub(1);
+                }
+
+                for retry_packet in retry_packets {
+                    match socket_for_task.send(&retry_packet).await {
+                        Ok(_) => {
+                            consecutive_errors = 0;
+                        }
+                        Err(e) => {
+                            consecutive_errors += 1;
+                            if consecutive_errors == 1 {
+                                warn!("Failed to send retry packet: {}", e);
+                            } else if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                                debug!("Too many consecutive errors ({}), stopping reliability task", consecutive_errors);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    break;
+                }
+            }
+
+            debug!("UDP reliability task (from into_split) terminated");
+        });
+
+        let reader = UdpReadHalf::new(socket.clone(), self.config.mtu, self.reliability.clone(), Some(handle));
         let writer = UdpWriteHalf::new(
             socket,
             self.config.mtu,
@@ -336,6 +361,7 @@ pub struct UdpReadHalf {
     fragment_reassembler: Arc<Mutex<FragmentReassembler>>,
     mtu: usize,
     reliability: Arc<Mutex<UdpReliability>>,
+    reliability_task: Option<JoinHandle<()>>,
 }
 
 impl UdpReadHalf {
@@ -343,20 +369,29 @@ impl UdpReadHalf {
         socket: Arc<UdpSocket>,
         mtu: usize,
         reliability: Arc<Mutex<UdpReliability>>,
+        reliability_task: Option<JoinHandle<()>>,
     ) -> Self {
         Self {
             socket,
             fragment_reassembler: Arc::new(Mutex::new(FragmentReassembler::new())),
             mtu,
             reliability,
+            reliability_task,
         }
     }
 
     async fn reassemble_fragment(&self, unwrapped_data: &[u8]) -> Result<Option<Vec<u8>>> {
-        // Data has already been unwrapped from reliability layer
-        // Use the shared fragment reassembler
         let mut reassembler = self.fragment_reassembler.lock().await;
         reassembler.reassemble_fragment(unwrapped_data)
+    }
+}
+
+impl Drop for UdpReadHalf {
+    fn drop(&mut self) {
+        if let Some(handle) = self.reliability_task.take() {
+            handle.abort();
+            debug!("Aborted reliability task from UdpReadHalf drop");
+        }
     }
 }
 
