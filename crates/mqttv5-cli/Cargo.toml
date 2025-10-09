@@ -28,3 +28,5 @@ rand = "0.9.2"
 serde_json = "1.0.145"
 rustls = { version = "0.23", features = ["ring"] }
 hex = "0.4.3"
+rpassword = "7.4"
+bcrypt = "0.17.1"

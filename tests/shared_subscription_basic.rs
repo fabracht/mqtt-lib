@@ -17,9 +17,18 @@ async fn test_shared_subscription_distribution() {
     let (tx3, mut rx3) = mpsc::channel(100);
 
     // Register workers
-    router.register_client("worker1".to_string(), tx1).await;
-    router.register_client("worker2".to_string(), tx2).await;
-    router.register_client("worker3".to_string(), tx3).await;
+    let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+    router
+        .register_client("worker1".to_string(), tx1, dtx1)
+        .await;
+    let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+    router
+        .register_client("worker2".to_string(), tx2, dtx2)
+        .await;
+    let (dtx3, _drx3) = tokio::sync::oneshot::channel();
+    router
+        .register_client("worker3".to_string(), tx3, dtx3)
+        .await;
 
     // All workers subscribe to same shared subscription
     router
@@ -97,14 +106,17 @@ async fn test_mixed_shared_and_regular_subscriptions() {
     let (tx_regular, mut rx_regular) = mpsc::channel(100);
 
     // Register clients
+    let (dtx1, _drx1) = tokio::sync::oneshot::channel();
     router
-        .register_client("shared1".to_string(), tx_shared1)
+        .register_client("shared1".to_string(), tx_shared1, dtx1)
         .await;
+    let (dtx2, _drx2) = tokio::sync::oneshot::channel();
     router
-        .register_client("shared2".to_string(), tx_shared2)
+        .register_client("shared2".to_string(), tx_shared2, dtx2)
         .await;
+    let (dtx3, _drx3) = tokio::sync::oneshot::channel();
     router
-        .register_client("regular".to_string(), tx_regular)
+        .register_client("regular".to_string(), tx_regular, dtx3)
         .await;
 
     // Shared subscriptions

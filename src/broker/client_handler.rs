@@ -172,7 +172,10 @@ impl ClientHandler {
             // Start keep-alive timer
             let mut keep_alive_interval = interval(self.keep_alive);
             keep_alive_interval.reset();
-            match self.handle_packets(&mut keep_alive_interval, &mut disconnect_rx).await {
+            match self
+                .handle_packets(&mut keep_alive_interval, &mut disconnect_rx)
+                .await
+            {
                 Ok(taken_over) => (Ok(()), taken_over),
                 Err(e) => (Err(e), false),
             }
@@ -194,7 +197,10 @@ impl ClientHandler {
                 self.router.disconnect_client(&client_id).await;
             }
         } else {
-            info!("Skipping unregister for client {} (session taken over)", client_id);
+            info!(
+                "Skipping unregister for client {} (session taken over)",
+                client_id
+            );
         }
 
         // Unregister connection from resource monitor

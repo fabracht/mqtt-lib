@@ -164,8 +164,13 @@ impl UdpPacketHandler {
         }
 
         // Register client with router to receive messages
+        let (disconnect_tx, _disconnect_rx) = tokio::sync::oneshot::channel();
         self.router
-            .register_client(connect.client_id.clone(), session.publish_tx.clone())
+            .register_client(
+                connect.client_id.clone(),
+                session.publish_tx.clone(),
+                disconnect_tx,
+            )
             .await;
 
         self.stats.client_connected();

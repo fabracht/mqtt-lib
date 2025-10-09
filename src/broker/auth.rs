@@ -151,6 +151,8 @@ pub struct PasswordAuthProvider {
     users: Arc<RwLock<HashMap<String, String>>>,
     /// Path to password file (optional)
     password_file: Option<std::path::PathBuf>,
+    /// Allow anonymous connections (no username/password)
+    allow_anonymous: bool,
 }
 
 impl PasswordAuthProvider {
@@ -160,6 +162,7 @@ impl PasswordAuthProvider {
         Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             password_file: None,
+            allow_anonymous: false,
         }
     }
 
@@ -175,10 +178,18 @@ impl PasswordAuthProvider {
         let provider = Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             password_file: Some(path.clone()),
+            allow_anonymous: false,
         };
 
         provider.load_password_file().await?;
         Ok(provider)
+    }
+
+    /// Sets whether anonymous connections are allowed
+    #[must_use]
+    pub fn with_anonymous(mut self, allow: bool) -> Self {
+        self.allow_anonymous = allow;
+        self
     }
 
     /// Loads or reloads the password file
@@ -295,11 +306,19 @@ impl AuthProvider for PasswordAuthProvider {
         Box::pin(async move {
             // Check if username is provided
             let Some(username) = &connect.username else {
+                if self.allow_anonymous {
+                    debug!("Anonymous connection allowed");
+                    return Ok(AuthResult::success());
+                }
                 return Ok(AuthResult::fail(ReasonCode::BadUsernameOrPassword));
             };
 
             // Check if password is provided
             let Some(password) = &connect.password else {
+                if self.allow_anonymous {
+                    debug!("Anonymous connection allowed (username without password)");
+                    return Ok(AuthResult::success());
+                }
                 return Ok(AuthResult::fail(ReasonCode::BadUsernameOrPassword));
             };
 

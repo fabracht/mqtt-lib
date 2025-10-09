@@ -30,7 +30,7 @@ pub trait PacketIo: Transport {
             let n = self.read(&mut byte).await?;
             if n == 0 {
                 tracing::debug!("Connection closed - received 0 bytes when reading packet header");
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                return Err(MqttError::ClientClosed);
             }
             tracing::trace!(
                 "Read first byte: 0x{:02x} (packet_type={}, flags={})",
@@ -45,7 +45,7 @@ pub trait PacketIo: Transport {
                 let n = self.read(&mut byte).await?;
                 if n == 0 {
                     tracing::debug!("Connection closed while reading remaining length");
-                    return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                    return Err(MqttError::ClientClosed);
                 }
                 header_buf.put_u8(byte[0]);
                 tracing::trace!("Read remaining length byte: 0x{:02x}", byte[0]);
@@ -86,9 +86,7 @@ pub trait PacketIo: Transport {
             while bytes_read < payload.len() {
                 let n = self.read(&mut payload[bytes_read..]).await?;
                 if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed while reading packet".to_string(),
-                    ));
+                    return Err(MqttError::ClientClosed);
                 }
                 bytes_read += n;
             }
@@ -186,7 +184,7 @@ impl PacketReader for OwnedReadHalf {
         let mut byte = [0u8; 1];
         let n = self.read(&mut byte).await?;
         if n == 0 {
-            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+            return Err(MqttError::ClientClosed);
         }
         header_buf.put_u8(byte[0]);
 
@@ -194,7 +192,7 @@ impl PacketReader for OwnedReadHalf {
         loop {
             let n = self.read(&mut byte).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                return Err(MqttError::ClientClosed);
             }
             header_buf.put_u8(byte[0]);
 
@@ -219,9 +217,7 @@ impl PacketReader for OwnedReadHalf {
         while bytes_read < payload.len() {
             let n = self.read(&mut payload[bytes_read..]).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError(
-                    "Connection closed while reading packet".to_string(),
-                ));
+                return Err(MqttError::ClientClosed);
             }
             bytes_read += n;
         }
@@ -302,7 +298,7 @@ impl PacketReader for TlsReadHalf {
         let mut byte = [0u8; 1];
         let n = self.read(&mut byte).await?;
         if n == 0 {
-            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+            return Err(MqttError::ClientClosed);
         }
         header_buf.put_u8(byte[0]);
 
@@ -310,7 +306,7 @@ impl PacketReader for TlsReadHalf {
         loop {
             let n = self.read(&mut byte).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                return Err(MqttError::ClientClosed);
             }
             header_buf.put_u8(byte[0]);
 
@@ -335,9 +331,7 @@ impl PacketReader for TlsReadHalf {
         while bytes_read < payload.len() {
             let n = self.read(&mut payload[bytes_read..]).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError(
-                    "Connection closed while reading packet".to_string(),
-                ));
+                return Err(MqttError::ClientClosed);
             }
             bytes_read += n;
         }

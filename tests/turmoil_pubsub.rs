@@ -29,8 +29,9 @@ fn test_basic_publish_subscribe() {
         // Create publisher and subscriber
         let (sub_tx, mut sub_rx) = mpsc::channel(100);
 
+        let (dtx, _drx) = tokio::sync::oneshot::channel();
         router
-            .register_client("subscriber".to_string(), sub_tx)
+            .register_client("subscriber".to_string(), sub_tx, dtx)
             .await;
         router
             .subscribe(
@@ -78,11 +79,13 @@ fn test_wildcard_subscriptions() {
         let (single_tx, mut single_rx) = mpsc::channel(100);
         let (multi_tx, mut multi_rx) = mpsc::channel(100);
 
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
         router
-            .register_client("single_wildcard".to_string(), single_tx)
+            .register_client("single_wildcard".to_string(), single_tx, dtx1)
             .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
         router
-            .register_client("multi_wildcard".to_string(), multi_tx)
+            .register_client("multi_wildcard".to_string(), multi_tx, dtx2)
             .await;
 
         // Single-level wildcard subscription
@@ -174,14 +177,17 @@ fn test_multiple_subscribers_same_topic() {
         let (sub2_tx, mut sub2_rx) = mpsc::channel(100);
         let (sub3_tx, mut sub3_rx) = mpsc::channel(100);
 
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
         router
-            .register_client("subscriber1".to_string(), sub1_tx)
+            .register_client("subscriber1".to_string(), sub1_tx, dtx1)
             .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
         router
-            .register_client("subscriber2".to_string(), sub2_tx)
+            .register_client("subscriber2".to_string(), sub2_tx, dtx2)
             .await;
+        let (dtx3, _drx3) = tokio::sync::oneshot::channel();
         router
-            .register_client("subscriber3".to_string(), sub3_tx)
+            .register_client("subscriber3".to_string(), sub3_tx, dtx3)
             .await;
 
         // All subscribe to the same topic
@@ -243,11 +249,13 @@ fn test_qos_levels() {
         let (qos0_tx, mut qos0_rx) = mpsc::channel(100);
         let (qos1_tx, mut qos1_rx) = mpsc::channel(100);
 
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
         router
-            .register_client("qos0_client".to_string(), qos0_tx)
+            .register_client("qos0_client".to_string(), qos0_tx, dtx1)
             .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
         router
-            .register_client("qos1_client".to_string(), qos1_tx)
+            .register_client("qos1_client".to_string(), qos1_tx, dtx2)
             .await;
 
         // Subscribe with different QoS levels
@@ -311,8 +319,9 @@ fn test_unsubscribe_functionality() {
         let router = Arc::new(MessageRouter::new());
 
         let (sub_tx, mut sub_rx) = mpsc::channel(100);
+        let (dtx, _drx) = tokio::sync::oneshot::channel();
         router
-            .register_client("test_client".to_string(), sub_tx)
+            .register_client("test_client".to_string(), sub_tx, dtx)
             .await;
 
         // Subscribe to topic

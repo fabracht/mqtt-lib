@@ -138,9 +138,7 @@ impl Transport for TcpTransport {
             let n = stream.read(buf).await?;
             if n == 0 {
                 tracing::debug!("TCP connection closed by remote (EOF)");
-                return Err(MqttError::ConnectionError(
-                    "Connection closed by remote".to_string(),
-                ));
+                return Err(MqttError::ConnectionClosedByPeer);
             }
             tracing::trace!("TCP read {} bytes: {:02x?}", n, &buf[..n.min(32)]);
             Ok(n)

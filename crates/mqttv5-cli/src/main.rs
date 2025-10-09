@@ -31,6 +31,8 @@ enum Commands {
     Sub(commands::sub_cmd::SubCommand),
     /// Start MQTT broker (replaces mosquitto daemon)
     Broker(commands::broker_cmd::BrokerCommand),
+    /// Manage password file for broker authentication (replaces mosquitto_passwd)
+    Passwd(commands::passwd_cmd::PasswdCommand),
 }
 
 #[tokio::main]
@@ -59,5 +61,6 @@ async fn main() -> Result<()> {
         Commands::Pub(cmd) => commands::pub_cmd::execute(cmd).await,
         Commands::Sub(cmd) => commands::sub_cmd::execute(cmd).await,
         Commands::Broker(cmd) => commands::broker_cmd::execute(cmd).await,
+        Commands::Passwd(cmd) => commands::passwd_cmd::execute(cmd),
     }
 }

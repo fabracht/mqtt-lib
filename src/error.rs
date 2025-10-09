@@ -118,6 +118,9 @@ pub enum MqttError {
     #[error("Client closed connection")]
     ClientClosed,
 
+    #[error("Connection closed by peer")]
+    ConnectionClosedByPeer,
+
     #[error("Maximum connect time exceeded")]
     MaxConnectTime,
 
@@ -201,6 +204,21 @@ pub enum MqttError {
 
     #[error("Configuration error: {0}")]
     Configuration(String),
+}
+
+impl MqttError {
+    pub fn is_normal_disconnect(&self) -> bool {
+        match self {
+            Self::ClientClosed | Self::ConnectionClosedByPeer => true,
+            Self::Io(msg)
+                if msg.contains("stream has been shut down")
+                    || msg.contains("Connection reset") =>
+            {
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl From<std::io::Error> for MqttError {

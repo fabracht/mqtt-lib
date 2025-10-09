@@ -56,6 +56,36 @@ async fn bind_all(addrs: &[std::net::SocketAddr], transport_name: &str) -> Vec<T
     listeners
 }
 
+async fn create_auth_provider(
+    config: &crate::broker::config::AuthConfig,
+) -> Result<Arc<dyn AuthProvider>> {
+    use crate::broker::auth::PasswordAuthProvider;
+
+    match &config.password_file {
+        Some(password_file) if !config.allow_anonymous => {
+            let provider = PasswordAuthProvider::from_file(password_file)
+                .await?
+                .with_anonymous(false);
+            info!("Password authentication enabled (anonymous disabled)");
+            Ok(Arc::new(provider))
+        }
+        Some(password_file) => {
+            let provider = PasswordAuthProvider::from_file(password_file)
+                .await?
+                .with_anonymous(true);
+            info!("Password authentication enabled (anonymous allowed)");
+            Ok(Arc::new(provider))
+        }
+        None if config.allow_anonymous => {
+            info!("Anonymous authentication enabled");
+            Ok(Arc::new(AllowAllAuthProvider))
+        }
+        None => Err(MqttError::Configuration(
+            "Authentication required but no password file specified".to_string(),
+        )),
+    }
+}
+
 impl MqttBroker {
     /// Creates a new broker with default configuration
     ///
@@ -106,7 +136,7 @@ impl MqttBroker {
             Arc::new(MessageRouter::new())
         };
 
-        let auth_provider: Arc<dyn AuthProvider> = Arc::new(AllowAllAuthProvider);
+        let auth_provider = create_auth_provider(&config.auth_config).await?;
         let stats = Arc::new(BrokerStats::new());
         let resource_monitor = Arc::new(ResourceMonitor::new(Self::default_resource_limits(
             config.max_clients,
@@ -451,9 +481,8 @@ impl MqttBroker {
 
                                                 tokio::spawn(async move {
                                                     if let Err(e) = handler.run().await {
-                                                        // Log client handler errors at appropriate level
-                                                        if e.to_string().contains("Connection closed") {
-                                                            info!("Client handler finished: {}", e);
+                                                        if e.is_normal_disconnect() {
+                                                            debug!("Client handler finished");
                                                         } else {
                                                             warn!("Client handler error: {}", e);
                                                         }
@@ -623,9 +652,8 @@ impl MqttBroker {
 
                                                 tokio::spawn(async move {
                                                     if let Err(e) = handler.run().await {
-                                                        // Log client handler errors at appropriate level
-                                                        if e.to_string().contains("Connection closed") {
-                                                            info!("Client handler finished: {}", e);
+                                                        if e.is_normal_disconnect() {
+                                                            debug!("Client handler finished");
                                                         } else {
                                                             warn!("Client handler error: {}", e);
                                                         }
@@ -891,9 +919,8 @@ impl MqttBroker {
 
                             tokio::spawn(async move {
                                 if let Err(e) = handler.run().await {
-                                    // Log client handler errors at appropriate level
-                                    if e.to_string().contains("Connection closed") {
-                                        info!("Client handler finished: {}", e);
+                                    if e.is_normal_disconnect() {
+                                        debug!("Client handler finished");
                                     } else {
                                         warn!("Client handler error: {}", e);
                                     }
