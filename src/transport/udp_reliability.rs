@@ -150,11 +150,10 @@ impl UdpReliability {
                         Ok(None)
                     }
                     Entry::Vacant(e) => {
-                        // Track received packet
+                        trace!("Received DATA packet: seq={}, queuing for ACK", sequence);
                         e.insert(Instant::now());
                         self.ack_queue.push_back(sequence);
 
-                        // Update next expected if this fills a gap
                         if sequence >= self.next_expected {
                             self.next_expected = sequence + 1;
                         }
@@ -163,8 +162,12 @@ impl UdpReliability {
                 }
             }
             0x02 => {
-                // ACK packet
+                trace!("Received ACK packet, processing...");
                 self.process_ack(&mut buf)?;
+                trace!(
+                    "ACK processed, {} unacked packets remaining",
+                    self.unacked_packets.len()
+                );
                 Ok(None)
             }
             0x03 => {
@@ -327,14 +330,26 @@ impl UdpReliability {
         let now = Instant::now();
         let mut packets_to_retry = Vec::new();
 
-        for packet in self.unacked_packets.values_mut() {
-            if packet.retry_count >= MAX_RETRIES {
-                warn!("Packet {} exceeded max retries", packet.sequence);
-                continue;
-            }
+        if !self.unacked_packets.is_empty() {
+            trace!(
+                "Checking {} unacked packets for retry",
+                self.unacked_packets.len()
+            );
+        }
 
+        self.unacked_packets.retain(|seq, packet| {
+            if packet.retry_count >= MAX_RETRIES {
+                debug!("Removing packet {} after exceeding max retries", seq);
+                false
+            } else {
+                true
+            }
+        });
+
+        for packet in self.unacked_packets.values_mut() {
             let timeout = self.rto * 2u32.pow(packet.retry_count as u32);
-            if now.duration_since(packet.sent_time) > timeout {
+            let elapsed = now.duration_since(packet.sent_time);
+            if elapsed > timeout {
                 packet.retry_count += 1;
                 packet.sent_time = now;
 
@@ -345,8 +360,8 @@ impl UdpReliability {
 
                 packets_to_retry.push(buf.to_vec());
                 debug!(
-                    "Retrying packet {} (attempt {})",
-                    packet.sequence, packet.retry_count
+                    "Retrying packet {} (attempt {}, elapsed={:?}, timeout={:?})",
+                    packet.sequence, packet.retry_count, elapsed, timeout
                 );
             }
         }

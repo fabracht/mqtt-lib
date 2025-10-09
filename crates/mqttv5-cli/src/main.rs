@@ -42,20 +42,27 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Initialize logging based on verbosity
-    let log_level = if cli.debug {
-        tracing::Level::DEBUG
-    } else if cli.verbose {
-        tracing::Level::INFO
+    if std::env::var("RUST_LOG").is_ok() {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_target(false)
+            .without_time()
+            .init();
     } else {
-        tracing::Level::ERROR
-    };
+        let log_level = if cli.debug {
+            tracing::Level::DEBUG
+        } else if cli.verbose {
+            tracing::Level::INFO
+        } else {
+            tracing::Level::ERROR
+        };
 
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_target(false)
-        .without_time()
-        .init();
+        tracing_subscriber::fmt()
+            .with_max_level(log_level)
+            .with_target(false)
+            .without_time()
+            .init();
+    }
 
     match cli.command {
         Commands::Pub(cmd) => commands::pub_cmd::execute(cmd).await,

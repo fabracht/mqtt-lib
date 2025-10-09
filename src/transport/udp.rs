@@ -307,7 +307,10 @@ impl UdpTransport {
                             if consecutive_errors == 1 {
                                 warn!("Failed to send ACK packet: {}", e);
                             } else if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                                debug!("Too many consecutive errors ({}), stopping reliability task", consecutive_errors);
+                                debug!(
+                                    "Too many consecutive errors ({}), stopping reliability task",
+                                    consecutive_errors
+                                );
                                 break;
                             }
                         }
@@ -329,7 +332,10 @@ impl UdpTransport {
                             if consecutive_errors == 1 {
                                 warn!("Failed to send retry packet: {}", e);
                             } else if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                                debug!("Too many consecutive errors ({}), stopping reliability task", consecutive_errors);
+                                debug!(
+                                    "Too many consecutive errors ({}), stopping reliability task",
+                                    consecutive_errors
+                                );
                                 break;
                             }
                         }
@@ -344,7 +350,12 @@ impl UdpTransport {
             debug!("UDP reliability task (from into_split) terminated");
         });
 
-        let reader = UdpReadHalf::new(socket.clone(), self.config.mtu, self.reliability.clone(), Some(handle));
+        let reader = UdpReadHalf::new(
+            socket.clone(),
+            self.config.mtu,
+            self.reliability.clone(),
+            Some(handle),
+        );
         let writer = UdpWriteHalf::new(
             socket,
             self.config.mtu,
