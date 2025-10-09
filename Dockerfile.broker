@@ -49,4 +49,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
     CMD mqttv5 pub --host localhost --topic "health/check" --message "ping" --non-interactive --qos 0 || exit 1
 
 # Default command
-CMD ["mqttv5", "broker", "--host", "0.0.0.0:1883", "--foreground"]
+CMD ["mqttv5", "broker", "--host", "0.0.0.0:1883"]

@@ -13,7 +13,7 @@ services:
     volumes:
       - ./test_certs:/app/certs:ro
       - mqttv5-data:/app/data
-    command: ["mqttv5", "broker", "--host", "0.0.0.0:1883", "--foreground"]
+    command: ["mqttv5", "broker", "--host", "0.0.0.0:1883"]
     environment:
       - RUST_LOG=mqtt_v5=info
     healthcheck:
@@ -34,7 +34,7 @@ services:
     volumes:
       - ./test_certs:/app/certs:ro
       - mqttv5-tls-data:/app/data
-    command: ["mqttv5", "broker", "--host", "0.0.0.0:8883", "--foreground"]
+    command: ["mqttv5", "broker", "--host", "0.0.0.0:8883"]
     environment:
       - RUST_LOG=mqtt_v5=info
     healthcheck:

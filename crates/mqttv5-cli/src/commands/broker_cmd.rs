@@ -106,10 +106,6 @@ pub struct BrokerCommand {
     /// Skip prompts and use defaults
     #[arg(long)]
     pub non_interactive: bool,
-
-    /// Run in foreground (don't daemonize)
-    #[arg(long, short)]
-    pub foreground: bool,
 }
 
 pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {

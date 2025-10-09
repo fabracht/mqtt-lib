@@ -19,10 +19,6 @@ async fn test_cli_broker_functionality() {
         help_result.stdout_contains("--host"),
         "Should show host option"
     );
-    assert!(
-        help_result.stdout_contains("--foreground"),
-        "Should show foreground option"
-    );
 
     // Note: We use TestBroker from library instead of CLI broker for tests
     // This ensures tests are reliable and don't conflict with system ports
