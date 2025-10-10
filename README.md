@@ -376,11 +376,14 @@ cargo make ci-verify      # Run ALL CI checks (must pass before push)
 cargo make pre-commit     # Run before committing (fmt + clippy + test)
 
 # Examples (use raw cargo for specific targets)
+cargo run --example simple_client           # Basic client usage
 cargo run --example simple_broker           # Start basic broker
 cargo run --example broker_with_tls         # TLS-enabled broker
 cargo run --example broker_with_websocket   # WebSocket-enabled broker
 cargo run --example broker_all_transports   # Broker with all transports (TCP/TLS/WebSocket)
 cargo run --example broker_bridge_demo      # Broker bridging demo
+cargo run --example broker_with_monitoring  # Broker with $SYS topics
+cargo run --example shared_subscription_demo # Shared subscription load balancing
 
 # Benchmarks (use raw cargo for specific targets)
 cargo bench --bench broker_performance      # Broker performance tests

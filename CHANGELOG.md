@@ -116,11 +116,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Session persistence (clean_start=false support)
   - Client-side message queuing for offline scenarios
   - Flow control respecting broker receive maximum limits
-- **Comprehensive IoT examples**:
-  - IoT device simulator with circuit breaker patterns
-  - Smart home hub with concurrent device management
-  - Industrial sensor network with failover logic
-  - Observability dashboard with real-time metrics collection
+- **Focused library examples**:
+  - Simple client and broker examples demonstrating core API
+  - Transport examples (TCP, TLS, WebSocket) showing configuration patterns
+  - Shared subscription and bridging examples for advanced features
 - **Testing infrastructure**:
   - Mock client trait for unit testing
   - Property-based testing with Proptest
@@ -159,11 +158,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tracing ^0.1` - Structured logging
 
 ### Examples
-Four comprehensive examples demonstrating real-world usage patterns:
-1. **IoT Device Simulator** - Error handling, circuit breakers, retry logic
-2. **Smart Home Hub** - Concurrent device management, mTLS authentication
-3. **Industrial Sensor Network** - Enterprise security, custom CA, failover
-4. **Observability Dashboard** - Metrics collection, HTTP endpoints, monitoring
+Eight focused examples demonstrating library capabilities:
+1. **simple_client** - Basic client API usage with callbacks and publishing
+2. **simple_broker** - Minimal broker setup and configuration
+3. **broker_with_tls** - Secure TLS/SSL transport configuration
+4. **broker_with_websocket** - WebSocket transport for browser clients
+5. **broker_all_transports** - Multi-transport broker (TCP/TLS/WebSocket)
+6. **broker_bridge_demo** - Broker-to-broker bridging configuration
+7. **broker_with_monitoring** - $SYS topics and resource monitoring
+8. **shared_subscription_demo** - Load balancing with shared subscriptions
 
 ## [0.3.0] - 2025-08-01
 
