@@ -64,6 +64,14 @@ impl BddWorld {
         }
     }
 
+    pub fn check_subscriber_finished(&self, key: &str) -> bool {
+        if let Some(handle) = self.pending_sub_handles.get(key) {
+            handle.is_finished()
+        } else {
+            false
+        }
+    }
+
     pub fn kill_sub_processes(&mut self) {
         for mut proc in self.sub_processes.drain(..) {
             let _ = proc.kill();

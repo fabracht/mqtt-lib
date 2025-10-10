@@ -133,6 +133,18 @@ async fn wait_milliseconds(_world: &mut BddWorld, millis: u64) {
     tokio::time::sleep(Duration::from_millis(millis)).await;
 }
 
+#[then("the subscriber should not have received any messages yet")]
+fn subscriber_should_not_have_messages(world: &mut BddWorld) {
+    let topic_key = world.pending_sub_handles.keys().next().unwrap().clone();
+    let is_finished = world.check_subscriber_finished(&topic_key);
+
+    assert!(
+        !is_finished,
+        "Subscriber should still be waiting for messages (not finished yet), but it has already completed. \
+        This indicates the will message was delivered too early, before the delay interval expired."
+    );
+}
+
 #[then(regex = r#"^I should receive "([^"]*)"$"#)]
 async fn should_receive_message(world: &mut BddWorld, expected_message: String) {
     let topic_key = world.pending_sub_handles.keys().next().unwrap().clone();

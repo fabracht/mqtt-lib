@@ -12,8 +12,10 @@ Feature: Will Messages (Last Will and Testament)
   Scenario: Will delay interval works correctly
     Given a broker is running
     When I subscribe to "will/delayed" expecting 1 message
-    And I publish with will message "delayed-offline" on topic "will/delayed" with delay 1
-    And I wait 1500 milliseconds
+    And I publish with will message "delayed-offline" on topic "will/delayed" with delay 2
+    And I wait 500 milliseconds
+    Then the subscriber should not have received any messages yet
+    When I wait 2000 milliseconds
     Then I should receive "delayed-offline"
 
   Scenario: Will QoS is respected
