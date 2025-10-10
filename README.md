@@ -3,12 +3,12 @@
 [![Crates.io](https://img.shields.io/crates/v/mqtt5.svg)](https://crates.io/crates/mqtt5)
 [![Documentation](https://docs.rs/mqtt5/badge.svg)](https://docs.rs/mqtt5)
 [![Rust CI](https://github.com/fabriciobracht/mqtt-lib/workflows/Rust%20CI/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
-[![Security Audit](https://github.com/fabriciobracht/mqtt-lib/workflows/Security%20Audit/badge.svg)](https://github.com/fabriciobracht/mqtt-lib/actions)
 [![License](https://img.shields.io/crates/l/mqtt5.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
 
-🚀 **A complete MQTT v5.0 platform featuring both high-performance client library AND full-featured broker implementation - pure Rust, zero unsafe code**
+🚀 **MQTT v5.0 platform featuring client library AND full-featured broker implementation - pure Rust**
 
 This project provides everything you need for MQTT v5.0 development:
+
 - **Production-ready MQTT v5.0 broker** (Mosquitto replacement)
 - **High-performance client library** with AWS IoT compatibility
 - **Multiple transport support** (TCP, TLS, WebSocket)
@@ -16,20 +16,22 @@ This project provides everything you need for MQTT v5.0 development:
 
 ## 🏗️ Dual Architecture: Client + Broker
 
-| Component | Use Case | Key Features |
-|-----------|----------|--------------|
+| Component       | Use Case                         | Key Features                                         |
+| --------------- | -------------------------------- | ---------------------------------------------------- |
 | **MQTT Broker** | Run your own MQTT infrastructure | TLS, WebSocket, Authentication, Bridging, Monitoring |
-| **MQTT Client** | Connect to any MQTT broker | AWS IoT compatible, Auto-reconnect, Mock testing |
+| **MQTT Client** | Connect to any MQTT broker       | AWS IoT compatible, Auto-reconnect, Mock testing     |
 
 ## 📦 Installation
 
 ### Library Crate
+
 ```toml
 [dependencies]
 mqtt5 = "0.4.1"
 ```
 
 ### CLI Tool
+
 ```bash
 cargo install mqttv5-cli
 ```
@@ -45,9 +47,9 @@ use mqtt5::broker::{BrokerConfig, MqttBroker};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create broker with default configuration
     let mut broker = MqttBroker::bind("0.0.0.0:1883").await?;
-    
+
     println!("🚀 MQTT broker running on port 1883");
-    
+
     // Run until shutdown
     broker.run().await?;
     Ok(())
@@ -67,15 +69,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.connect("mqtt://localhost:1883").await?;       // TCP
     // client.connect("mqtts://localhost:8883").await?;   // TLS
     // client.connect("ws://localhost:8080/mqtt").await?; // WebSocket
-    
+
     // Subscribe with callback
     client.subscribe("sensors/+/data", |msg| {
         println!("📧 {}: {}", msg.topic, String::from_utf8_lossy(&msg.payload));
     }).await?;
-    
+
     // Publish a message
     client.publish("sensors/temp/data", b"25.5°C").await?;
-    
+
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     Ok(())
 }
@@ -124,7 +126,7 @@ mqttv5 pub
 ### Key CLI Advantages
 
 - **🎯 Unified interface** - One command instead of mosquitto_pub/mosquitto_sub/mosquitto
-- **🧠 Smart prompting** - Guides users instead of showing walls of help text  
+- **🧠 Smart prompting** - Guides users instead of showing walls of help text
 - **✅ Input validation** - Catches errors early with helpful suggestions
 - **📝 Descriptive flags** - `--topic` instead of `-t`, with short aliases available
 - **🔄 Interactive & non-interactive** - Works great for both humans and scripts
@@ -132,6 +134,7 @@ mqttv5 pub
 ## 🎯 Why This Platform?
 
 ### ✅ Production-Ready Broker
+
 - **Mosquitto replacement** with better performance and memory usage
 - **Multiple transports**: TCP, TLS, WebSocket in a single binary
 - **Built-in authentication**: Username/password, file-based, bcrypt
@@ -139,6 +142,7 @@ mqttv5 pub
 - **Self-contained**: No external dependencies (Redis, PostgreSQL, etc.)
 
 ### ✅ High-Performance Client
+
 - **Pure Rust implementation**: No FFI, no unsafe code
 - **AWS IoT compatibility**: Works seamlessly with AWS IoT Core
 - **Zero-copy operations**: Efficient memory usage with BeBytes
@@ -148,6 +152,7 @@ mqttv5 pub
 ## 📦 Broker Features
 
 ### Core MQTT v5.0 Broker
+
 - ✅ **Full MQTT v5.0 compliance** - All packet types, properties, reason codes
 - ✅ **Multiple QoS levels** - QoS 0, 1, 2 with proper flow control
 - ✅ **Session persistence** - Clean start, session expiry, message queuing
@@ -156,6 +161,7 @@ mqttv5 pub
 - ✅ **Will messages** - Last Will and Testament (LWT) support
 
 ### Transport & Security
+
 - ✅ **TCP transport** - Standard MQTT over TCP on port 1883
 - ✅ **TLS/SSL transport** - Secure MQTT over TLS on port 8883
 - ✅ **WebSocket transport** - MQTT over WebSocket for browsers/firewalls
@@ -163,6 +169,7 @@ mqttv5 pub
 - ✅ **Username/password authentication** - File-based user management
 
 ### Advanced Features
+
 - ✅ **Broker-to-broker bridging** - Connect multiple broker instances
 - ✅ **Resource monitoring** - $SYS topics, connection metrics, rate limiting
 - ✅ **Hot configuration reload** - Update settings without restart
@@ -170,6 +177,7 @@ mqttv5 pub
 - ✅ **ACL (Access Control Lists)** - Fine-grained topic permissions
 
 ### Performance & Scalability
+
 - ✅ **High concurrency** - Handle 10,000+ concurrent connections
 - ✅ **Connection pooling** - Efficient resource reuse
 - ✅ **Optimized routing** - Fast topic matching and message delivery
@@ -179,6 +187,7 @@ mqttv5 pub
 ## 📦 Client Features
 
 ### Core MQTT v5.0 Client
+
 - ✅ **Full MQTT v5.0 protocol compliance** - All MQTT 5.0 features implemented
 - ✅ **Callback-based message handling** - Simple, intuitive API with automatic message routing
 - ✅ **AWS IoT SDK Compatible** - Subscribe returns `(packet_id, qos)` like Python paho-mqtt
@@ -186,12 +195,14 @@ mqttv5 pub
 - ✅ **Client-side message queuing** - Handles offline scenarios gracefully
 
 ### Transport & Connectivity
+
 - ✅ **Certificate loading from bytes** - Load TLS certificates from memory (PEM/DER formats)
 - ✅ **WebSocket transport** - MQTT over WebSocket for browsers and firewall-restricted environments
 - ✅ **TLS/SSL support** - Secure connections with certificate validation
 - ✅ **Session persistence** - Survives disconnections with clean_start=false
 
 ### Testing & Development
+
 - ✅ **Mockable Client Interface** - `MqttClientTrait` enables testing without real brokers
 - ✅ **Comprehensive property testing** - 29 property-based tests ensuring robustness
 - ✅ **CLI Integration Testing** - End-to-end tests with real broker verification
@@ -249,7 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_method: AuthMethod::Password,
         auth_data: None,
     };
-    
+
     let config = BrokerConfig::default()
         .with_bind_address("0.0.0.0:1883".parse()?)
         .with_auth(auth_config);
@@ -270,7 +281,7 @@ use mqtt_v5::QoS;
 let bridge_config = BridgeConfig::new("edge-to-cloud", "cloud-broker:1883")
     // Forward sensor data from edge to cloud
     .add_topic("sensors/+/data", BridgeDirection::Out, QoS::AtLeastOnce)
-    // Receive commands from cloud to edge  
+    // Receive commands from cloud to edge
     .add_topic("commands/+/device", BridgeDirection::In, QoS::AtLeastOnce)
     // Bidirectional health monitoring
     .add_topic("health/+/status", BridgeDirection::Both, QoS::AtMostOnce);
@@ -290,14 +301,14 @@ use mqtt_v5::{MockMqttClient, MqttClientTrait, PublishResult, QoS};
 async fn test_my_iot_function() {
     // Create mock client
     let mock = MockMqttClient::new("test-device");
-    
+
     // Configure mock responses
     mock.set_connect_response(Ok(())).await;
     mock.set_publish_response(Ok(PublishResult::QoS1Or2 { packet_id: 123 })).await;
-    
+
     // Test your function that accepts MqttClientTrait
     my_iot_function(&mock).await.unwrap();
-    
+
     // Verify the calls
     let calls = mock.get_calls().await;
     assert_eq!(calls.len(), 2); // connect + publish
@@ -343,6 +354,7 @@ client.publish("$aws/things/device-123/shadow/update", shadow_data).await?;
 ```
 
 Key AWS IoT features:
+
 - **Endpoint detection**: Automatically detects AWS IoT endpoints and optimizes connection behavior
 - **Topic validation**: Built-in validation for AWS IoT topic restrictions and limits
 - **ALPN support**: TLS configuration with AWS IoT ALPN protocol support
@@ -374,13 +386,13 @@ cargo make ci-verify
 
 ```bash
 # Development
-cargo make build          # Build the project  
+cargo make build          # Build the project
 cargo make build-release  # Build optimized release version
 cargo make test           # Run all tests
 cargo make fmt            # Format code
 cargo make clippy         # Run linter
 
-# CI/CD  
+# CI/CD
 cargo make ci-verify      # Run ALL CI checks (must pass before push)
 cargo make pre-commit     # Run before committing (fmt + clippy + test)
 
@@ -418,6 +430,7 @@ cargo test --test connection_pool_performance
 This project follows modern Rust async patterns:
 
 ### Design Principles
+
 - **Direct async methods** for all operations (no indirection)
 - **Shared state** via `Arc<RwLock<T>>` (no message passing)
 - **Zero-copy operations** where possible
