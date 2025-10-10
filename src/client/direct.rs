@@ -24,25 +24,17 @@ use crate::protocol::v5::properties::Properties;
 use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::session::subscription::Subscription;
 use crate::session::SessionState;
-#[cfg(feature = "udp")]
-use crate::transport::dtls::{DtlsReadHalf, DtlsWriteHalf};
 use crate::transport::tls::{TlsReadHalf, TlsWriteHalf};
-#[cfg(feature = "udp")]
-use crate::transport::udp::{UdpReadHalf, UdpWriteHalf};
 use crate::transport::websocket::{WebSocketReadHandle, WebSocketWriteHandle};
 use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};
 use crate::QoS;
 
-/// Unified reader type that can handle TCP, TLS, WebSocket, UDP, and DTLS
+/// Unified reader type that can handle TCP, TLS, and WebSocket
 pub enum UnifiedReader {
     Tcp(OwnedReadHalf),
     Tls(TlsReadHalf),
     WebSocket(WebSocketReadHandle),
-    #[cfg(feature = "udp")]
-    Udp(UdpReadHalf),
-    #[cfg(feature = "udp")]
-    Dtls(DtlsReadHalf),
 }
 
 impl PacketReader for UnifiedReader {
@@ -51,23 +43,15 @@ impl PacketReader for UnifiedReader {
             Self::Tcp(reader) => reader.read_packet().await,
             Self::Tls(reader) => reader.read_packet().await,
             Self::WebSocket(reader) => reader.read_packet().await,
-            #[cfg(feature = "udp")]
-            Self::Udp(reader) => reader.read_packet().await,
-            #[cfg(feature = "udp")]
-            Self::Dtls(reader) => reader.read_packet().await,
         }
     }
 }
 
-/// Unified writer type that can handle TCP, TLS, WebSocket, UDP, and DTLS
+/// Unified writer type that can handle TCP, TLS, and WebSocket
 pub enum UnifiedWriter {
     Tcp(OwnedWriteHalf),
     Tls(TlsWriteHalf),
     WebSocket(WebSocketWriteHandle),
-    #[cfg(feature = "udp")]
-    Udp(UdpWriteHalf),
-    #[cfg(feature = "udp")]
-    Dtls(DtlsWriteHalf),
 }
 
 impl PacketWriter for UnifiedWriter {
@@ -76,10 +60,6 @@ impl PacketWriter for UnifiedWriter {
             Self::Tcp(writer) => writer.write_packet(packet).await,
             Self::Tls(writer) => writer.write_packet(packet).await,
             Self::WebSocket(writer) => writer.write_packet(packet).await,
-            #[cfg(feature = "udp")]
-            Self::Udp(writer) => writer.write_packet(packet).await,
-            #[cfg(feature = "udp")]
-            Self::Dtls(writer) => writer.write_packet(packet).await,
         }
     }
 }
@@ -245,16 +225,6 @@ impl DirectClientInner {
                     TransportType::WebSocket(ws) => {
                         let (r, w) = (*ws).into_split()?;
                         (UnifiedReader::WebSocket(r), UnifiedWriter::WebSocket(w))
-                    }
-                    #[cfg(feature = "udp")]
-                    TransportType::Udp(udp) => {
-                        let (r, w) = udp.into_split()?;
-                        (UnifiedReader::Udp(r), UnifiedWriter::Udp(w))
-                    }
-                    #[cfg(feature = "udp")]
-                    TransportType::Dtls(dtls) => {
-                        let (r, w) = (*dtls).into_split()?;
-                        (UnifiedReader::Dtls(r), UnifiedWriter::Dtls(w))
                     }
                 };
 

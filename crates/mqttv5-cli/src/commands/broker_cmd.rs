@@ -59,22 +59,6 @@ pub struct BrokerCommand {
     #[arg(long, default_value = "/mqtt")]
     pub ws_path: String,
 
-    /// UDP bind address (e.g., 0.0.0.0:1884)
-    #[arg(long)]
-    pub udp_host: Option<String>,
-
-    /// DTLS bind address (e.g., 0.0.0.0:8884)
-    #[arg(long)]
-    pub dtls_host: Option<String>,
-
-    /// DTLS certificate file path (PEM format)
-    #[arg(long)]
-    pub dtls_cert: Option<PathBuf>,
-
-    /// DTLS private key file path (PEM format)
-    #[arg(long)]
-    pub dtls_key: Option<PathBuf>,
-
     /// Storage directory for persistent data
     #[arg(long, default_value = "./mqtt_storage")]
     pub storage_dir: PathBuf,
@@ -181,26 +165,6 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
             ws_tls_cfg.path
         );
     }
-    if let Some(ref udp_cfg) = config.udp_config {
-        println!(
-            "  📦 UDP: {}",
-            udp_cfg
-                .bind_addresses
-                .first()
-                .map(|a| a.to_string())
-                .unwrap_or_default()
-        );
-    }
-    if let Some(ref dtls_cfg) = config.dtls_config {
-        println!(
-            "  🔐 DTLS: {}",
-            dtls_cfg
-                .bind_addresses
-                .first()
-                .map(|a| a.to_string())
-                .unwrap_or_default()
-        );
-    }
     println!("  👥 Max clients: {}", cmd.max_clients);
     println!("  📝 Press Ctrl+C to stop");
 
@@ -239,7 +203,7 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
 
 async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConfig> {
     use mqtt5::broker::config::{
-        AuthConfig, AuthMethod, StorageConfig, TlsConfig, UdpConfig, WebSocketConfig,
+        AuthConfig, AuthMethod, StorageConfig, TlsConfig, WebSocketConfig,
     };
 
     let mut config = BrokerConfig::new();
@@ -394,53 +358,6 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
                 "Both --tls-cert and --tls-key must be provided when using --ws-tls-host"
             );
         }
-    }
-
-    // Configure UDP
-    if let Some(udp_host) = &cmd.udp_host {
-        let udp_addr: std::net::SocketAddr = udp_host
-            .parse()
-            .with_context(|| format!("Invalid UDP bind address: {udp_host}"))?;
-
-        let mut udp_config = UdpConfig::new();
-        udp_config.bind_addresses = vec![udp_addr];
-        config = config.with_udp(udp_config);
-        info!("UDP enabled on {}", udp_host);
-    }
-
-    // Configure DTLS
-    if let Some(dtls_host) = &cmd.dtls_host {
-        if let (Some(cert), Some(key)) = (&cmd.dtls_cert, &cmd.dtls_key) {
-            // Check if certificate files exist
-            if !cert.exists() {
-                anyhow::bail!("DTLS certificate file not found: {}", cert.display());
-            }
-            if !key.exists() {
-                anyhow::bail!("DTLS key file not found: {}", key.display());
-            }
-
-            let dtls_addr: std::net::SocketAddr = dtls_host
-                .parse()
-                .with_context(|| format!("Invalid DTLS bind address: {dtls_host}"))?;
-
-            let dtls_config = mqtt5::broker::config::DtlsConfig {
-                bind_addresses: vec![dtls_addr],
-                mtu: 1500,
-                psk_identity: None,
-                psk_key: None,
-                cert_file: Some(cert.clone()),
-                key_file: Some(key.clone()),
-                ca_file: None,
-            };
-            config = config.with_dtls(dtls_config);
-            info!("DTLS enabled on {}", dtls_host);
-        } else {
-            anyhow::bail!(
-                "Both --dtls-cert and --dtls-key must be provided when using --dtls-host"
-            );
-        }
-    } else if cmd.dtls_cert.is_some() || cmd.dtls_key.is_some() {
-        anyhow::bail!("--dtls-host must be provided when using --dtls-cert or --dtls-key");
     }
 
     // Configure storage

@@ -96,74 +96,6 @@ async fn test_cli_tls_transport() {
     }
 }
 
-/// Test UDP transport (mqtt-udp://)
-#[tokio::test]
-async fn test_cli_udp_transport() {
-    ensure_cli_built();
-
-    // UDP transport requires a UDP-capable broker
-    // For now, just test that the URL scheme is recognized
-    let result = tokio::process::Command::new(CLI_BINARY)
-        .args([
-            "pub",
-            "--url",
-            "mqtt-udp://localhost:1883",
-            "--topic",
-            "test/udp",
-            "--message",
-            "udp_test",
-            "--non-interactive",
-        ])
-        .output()
-        .await
-        .expect("Failed to run pub");
-
-    let stderr = String::from_utf8_lossy(&result.stderr);
-
-    // Check if it attempted UDP connection
-    if stderr.contains("Connection refused") || stderr.contains("UDP") {
-        println!("✅ UDP transport (mqtt-udp://) is recognized");
-    } else if result.status.success() {
-        println!("✅ UDP transport (mqtt-udp://) works");
-    } else {
-        println!("UDP transport test result: {stderr}");
-    }
-}
-
-/// Test DTLS transport (mqtts-dtls://)
-#[tokio::test]
-async fn test_cli_dtls_transport() {
-    ensure_cli_built();
-
-    // DTLS transport requires a DTLS-capable broker
-    // For now, just test that the URL scheme is recognized
-    let result = tokio::process::Command::new(CLI_BINARY)
-        .args([
-            "pub",
-            "--url",
-            "mqtts-dtls://localhost:8883",
-            "--topic",
-            "test/dtls",
-            "--message",
-            "dtls_test",
-            "--non-interactive",
-        ])
-        .output()
-        .await
-        .expect("Failed to run pub");
-
-    let stderr = String::from_utf8_lossy(&result.stderr);
-
-    // Check if it attempted DTLS connection
-    if stderr.contains("DTLS") || stderr.contains("Connection refused") {
-        println!("✅ DTLS transport (mqtts-dtls://) is recognized");
-    } else if result.status.success() {
-        println!("✅ DTLS transport (mqtts-dtls://) works");
-    } else {
-        println!("DTLS transport test result: {stderr}");
-    }
-}
-
 /// Test URL parsing with custom ports
 #[tokio::test]
 async fn test_cli_url_custom_ports() {
@@ -238,14 +170,6 @@ async fn test_cli_transport_help() {
         help_text.contains("mqtt://"),
         "Should mention TCP transport"
     );
-    assert!(
-        help_text.contains("mqtt-udp://"),
-        "Should mention UDP transport"
-    );
-    assert!(
-        help_text.contains("mqtts-dtls://"),
-        "Should mention DTLS transport"
-    );
 
-    println!("✅ All transport types documented in help");
+    println!("✅ Transport types documented in help");
 }

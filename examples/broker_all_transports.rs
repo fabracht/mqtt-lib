@@ -4,11 +4,7 @@
 //! - Plain TCP connections (port 1883)
 //! - TLS connections (port 8883)
 //! - WebSocket connections (port 8080)
-//! - UDP connections (port 1884) - requires "udp" feature
-//! - DTLS connections (port 8884) - requires "udp" feature
 
-#[cfg(feature = "udp")]
-use mqtt5::broker::config::{DtlsConfig, UdpConfig};
 use mqtt5::broker::config::{TlsConfig, WebSocketConfig};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use std::path::PathBuf;
@@ -30,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .try_init();
 
     // Create broker configuration with all transport types
-    let mut config = BrokerConfig::default()
+    let config = BrokerConfig::default()
         .with_bind_address(([0, 0, 0, 0], 1883))
         .with_tls(
             TlsConfig::new(
@@ -47,17 +43,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_tls(false),
         );
 
-    #[cfg(feature = "udp")]
-    {
-        config = config
-            .with_udp(
-                UdpConfig::new()
-                    .with_bind_address(([0, 0, 0, 0], 1884))
-                    .with_mtu(1472),
-            )
-            .with_dtls(DtlsConfig::new().with_bind_address(([0, 0, 0, 0], 8884)));
-    }
-
     // Create and run the broker
     let mut broker = MqttBroker::with_config(config).await?;
 
@@ -65,11 +50,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("  Plain TCP:  mqtt://localhost:1883");
     info!("  TLS:        mqtts://localhost:8883");
     info!("  WebSocket:  ws://localhost:8080/mqtt");
-    #[cfg(feature = "udp")]
-    {
-        info!("  UDP:        mqtt-udp://localhost:1884");
-        info!("  DTLS:       mqtts-dtls://localhost:8884");
-    }
     info!("Press Ctrl+C to stop");
 
     // Run until shutdown signal

@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use hex;
 use mqtt5::{ConnectOptions, MqttClient, QoS, WillMessage};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -14,7 +13,7 @@ pub struct SubCommand {
     #[arg(long, short)]
     pub topic: Option<String>,
 
-    /// MQTT broker URL (e.g., mqtt://localhost:1883, mqtt-udp://host:1883, mqtts-dtls://host:8883)
+    /// MQTT broker URL (e.g., mqtt://localhost:1883, mqtts://host:8883)
     #[arg(long, short = 'U', conflicts_with_all = &["host", "port"])]
     pub url: Option<String>,
 
@@ -208,27 +207,12 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         info!("Insecure TLS mode enabled (certificate verification disabled)");
     }
 
-    // Configure TLS/DTLS if using secure connection
-    if broker_url.starts_with("mqtts-dtls://")
-        || broker_url.starts_with("ssl://")
+    // Configure TLS if using secure connection
+    if broker_url.starts_with("ssl://")
         || broker_url.starts_with("mqtts://")
     {
-        // Configure with PSK if provided
-        if let (Some(identity), Some(key_hex)) = (&cmd.psk_identity, &cmd.psk_key) {
-            let psk_key =
-                hex::decode(key_hex).context("Invalid PSK key format - must be hex encoded")?;
-            client
-                .set_dtls_config(
-                    None,
-                    None,
-                    None,
-                    Some(identity.as_bytes().to_vec()),
-                    Some(psk_key),
-                )
-                .await;
-        }
-        // Or configure with certificates if provided
-        else if cmd.cert.is_some() || cmd.key.is_some() || cmd.ca_cert.is_some() {
+        // Configure with certificates if provided
+        if cmd.cert.is_some() || cmd.key.is_some() || cmd.ca_cert.is_some() {
             let cert_pem =
                 if let Some(cert_path) = &cmd.cert {
                     Some(std::fs::read(cert_path).with_context(|| {
@@ -253,16 +237,6 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
                 } else {
                     None
                 };
-
-            client
-                .set_dtls_config(
-                    cert_pem.clone(),
-                    key_pem.clone(),
-                    ca_pem.clone(),
-                    None,
-                    None,
-                )
-                .await;
 
             client.set_tls_config(cert_pem, key_pem, ca_pem).await;
         }
