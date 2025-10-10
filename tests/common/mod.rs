@@ -2,9 +2,7 @@
 
 pub mod cli_helpers;
 
-use mqtt5::{
-    ConnectOptions, MessageProperties, MqttClient, PublishOptions, PublishProperties, QoS,
-};
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, PublishProperties, QoS};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -22,8 +20,10 @@ use tokio::task::JoinHandle;
 static TLS_PORT_COUNTER: AtomicU16 = AtomicU16::new(0);
 
 /// Test broker instance with cleanup
+#[derive(Debug)]
 pub struct TestBroker {
     address: String,
+    #[allow(dead_code)]
     handle: JoinHandle<()>,
 }
 
@@ -114,6 +114,114 @@ impl TestBroker {
         });
 
         // Give broker time to start
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self { address, handle }
+    }
+
+    /// Start a test broker with WebSocket support on a random port
+    #[allow(dead_code)]
+    pub async fn start_with_websocket() -> Self {
+        use mqtt5::broker::config::{
+            BrokerConfig, StorageBackend, StorageConfig, WebSocketConfig,
+        };
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let ws_port = 20000 + TLS_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let ws_config = WebSocketConfig::new()
+            .with_bind_addresses(vec![format!("127.0.0.1:{ws_port}")
+                .parse::<std::net::SocketAddr>()
+                .unwrap()])
+            .with_path("/mqtt".to_string());
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_storage(storage_config)
+            .with_websocket(ws_config);
+
+        let mut broker = MqttBroker::with_config(config)
+            .await
+            .expect("Failed to create test broker with WebSocket");
+
+        let address = format!("ws://127.0.0.1:{ws_port}/mqtt");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self { address, handle }
+    }
+
+    /// Start a test broker with authentication on a random port
+    #[allow(dead_code)]
+    pub async fn start_with_authentication() -> Self {
+        use mqtt5::broker::config::{
+            AuthConfig, AuthMethod, BrokerConfig, StorageBackend, StorageConfig,
+        };
+        use std::path::PathBuf;
+        use std::process::Command;
+
+        let password_file = PathBuf::from("test_passwords.txt");
+
+        let _ = std::fs::remove_file(&password_file);
+
+        let status = Command::new("./target/release/mqttv5")
+            .args([
+                "passwd",
+                "-c",
+                "-b",
+                "testpass",
+                "testuser",
+                password_file.to_str().unwrap(),
+            ])
+            .status()
+            .expect("Failed to create password file");
+
+        assert!(status.success(), "Failed to create password file");
+
+        for _ in 0..10 {
+            if password_file.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let auth_config = AuthConfig {
+            allow_anonymous: false,
+            password_file: Some(password_file.clone()),
+            auth_method: AuthMethod::Password,
+            auth_data: Some(std::fs::read(&password_file).expect("Failed to read password file")),
+        };
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_storage(storage_config)
+            .with_auth(auth_config);
+
+        let mut broker = MqttBroker::with_config(config)
+            .await
+            .expect("Failed to create test broker with authentication");
+
+        let addr = broker.local_addr().expect("Failed to get broker address");
+        let address = format!("mqtt://{addr}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         Self { address, handle }
@@ -411,25 +519,21 @@ pub async fn cleanup_clients(clients: Vec<MqttClient>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_message_collector() {
-        let collector = MessageCollector::new();
+        let collector = super::MessageCollector::new();
 
-        // Simulate receiving messages
         let callback = collector.callback();
         let message = mqtt5::types::Message {
             topic: "test/topic".to_string(),
             payload: b"test".to_vec(),
-            qos: QoS::AtMostOnce,
+            qos: mqtt5::QoS::AtMostOnce,
             retain: false,
-            properties: MessageProperties::default(),
+            properties: mqtt5::MessageProperties::default(),
         };
         callback(message);
 
-        // Wait a bit for async processing
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         assert_eq!(collector.count().await, 1);
         let messages = collector.get_messages().await;

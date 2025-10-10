@@ -8,7 +8,7 @@ mod commands;
 #[command(about = "Superior MQTT v5.0 CLI - unified client and broker tool")]
 #[command(version)]
 #[command(
-    long_about = "A unified CLI tool that replaces mosquitto_pub, mosquitto_sub, and mosquitto with superior input ergonomics and smart defaults."
+    long_about = "A unified CLI tool for MQTT v5.0 with superior input ergonomics and smart defaults."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -25,13 +25,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Publish messages to MQTT topics (replaces mosquitto_pub)
+    /// Publish messages to MQTT topics
     Pub(commands::pub_cmd::PubCommand),
-    /// Subscribe to MQTT topics (replaces mosquitto_sub)
+    /// Subscribe to MQTT topics
     Sub(commands::sub_cmd::SubCommand),
-    /// Start MQTT broker (replaces mosquitto daemon)
+    /// Start MQTT broker
     Broker(commands::broker_cmd::BrokerCommand),
-    /// Manage password file for broker authentication (replaces mosquitto_passwd)
+    /// Manage password file for broker authentication
     Passwd(commands::passwd_cmd::PasswdCommand),
 }
 

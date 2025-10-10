@@ -176,8 +176,6 @@ async fn test_tls_with_alpn() {
     )
     .await;
 
-    // Note: This might fail if mosquitto doesn't support ALPN, but that's ok
-    // We're testing that the ALPN configuration works correctly
     match result {
         Ok(Ok(_)) => {
             // Connected successfully with ALPN

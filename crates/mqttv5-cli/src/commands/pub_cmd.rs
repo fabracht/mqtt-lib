@@ -286,7 +286,7 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
         .context("Failed to connect to MQTT broker")?;
 
     if result.session_present {
-        info!("Resumed existing session");
+        println!("✓ Resumed existing session");
     }
 
     // Publish message

@@ -19,8 +19,8 @@ pub struct BrokerCommand {
     #[arg(long, default_value = "10000")]
     pub max_clients: usize,
 
-    /// Enable anonymous access (no authentication required)
-    #[arg(long)]
+    /// Allow anonymous access (no authentication required) - enabled by default
+    #[arg(long, default_value_t = true)]
     pub allow_anonymous: bool,
 
     /// Password file path (format: username:password per line)
@@ -257,8 +257,6 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
             "Authentication enabled with password file: {:?}",
             password_file
         );
-    } else if !cmd.allow_anonymous {
-        anyhow::bail!("--auth-password-file is required when anonymous access is disabled");
     }
 
     // Configure TLS

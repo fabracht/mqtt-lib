@@ -1636,15 +1636,17 @@ impl MqttClient {
     ///
     /// Returns an error if the operation fails
     fn split_host_port(address: &str, default_port: u16) -> Result<(&str, u16)> {
-        if let Some(colon_pos) = address.rfind(':') {
-            let host = &address[..colon_pos];
-            let port_str = &address[colon_pos + 1..];
+        let address_without_path = address.split('/').next().unwrap_or(address);
+
+        if let Some(colon_pos) = address_without_path.rfind(':') {
+            let host = &address_without_path[..colon_pos];
+            let port_str = &address_without_path[colon_pos + 1..];
             let port = port_str
                 .parse::<u16>()
                 .map_err(|_| MqttError::ConnectionError(format!("Invalid port: {port_str}")))?;
             Ok((host, port))
         } else {
-            Ok((address, default_port))
+            Ok((address_without_path, default_port))
         }
     }
 

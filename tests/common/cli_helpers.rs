@@ -7,7 +7,7 @@ use tokio::time::timeout;
 
 const CLI_BINARY: &str = "target/release/mqttv5";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CliResult {
     pub stdout: String,
     pub stderr: String,
@@ -207,6 +207,50 @@ pub async fn verify_session_persistence(broker_url: &str, client_id: &str) -> Re
     // Check for session resumption message
     Ok(result2.stdout_contains("Resumed existing session")
         || result2.stdout_contains("Session present: true"))
+}
+
+pub async fn trigger_abnormal_disconnect_with_will(
+    broker_url: &str,
+    will_topic: &str,
+    will_message: &str,
+    extra_args: &[&str],
+) -> CliResult {
+    ensure_cli_built();
+
+    let mut args = vec![
+        "pub".to_string(),
+        "--url".to_string(),
+        broker_url.to_string(),
+        "--topic".to_string(),
+        "test/alive".to_string(),
+        "--message".to_string(),
+        "online".to_string(),
+        "--will-topic".to_string(),
+        will_topic.to_string(),
+        "--will-message".to_string(),
+        will_message.to_string(),
+        "--non-interactive".to_string(),
+        "--keep-alive-after-publish".to_string(),
+    ];
+
+    for arg in extra_args {
+        args.push(arg.to_string());
+    }
+
+    let mut pub_process = Command::new(CLI_BINARY)
+        .args(&args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to start publisher");
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let _ = pub_process.kill();
+
+    let output = pub_process.wait_with_output().expect("Failed to wait for process");
+    CliResult::from_output(&output)
 }
 
 pub async fn verify_will_delivery(
