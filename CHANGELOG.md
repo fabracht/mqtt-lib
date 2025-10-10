@@ -8,27 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **UDP Transport Implementation** - Complete MQTT over UDP with intelligent optimization
-  - Two-layer architecture: Reliability layer (always enabled) + Fragmentation layer (intelligent)
-  - QUIC-inspired reliability with sequence numbers, ACKs, and retransmission
-  - Smart fragmentation: Small packets (≤MTU-6) pass through without headers, large packets get headers
-  - Automatic MQTT packet type detection for optimized reassembly
-  - Connection-oriented UDP with proper session management
-- **DTLS Transport Support** - Secure UDP transport with DTLS
-  - Full DTLS 1.2 support with certificate validation
-  - Integration with existing TLS certificate infrastructure
-  - Support for both client and broker implementations
+- **Enhanced Developer Experience** - Improved cargo-make workflow
+  - Added comprehensive `cargo make help` command with organized menu
+  - Categorized commands: Build, Test, Code Quality, CI/CD, Documentation, Security
+  - Clear descriptions and emoji icons for better discoverability
 - **Comprehensive CLI Testing Suite** - Full test coverage for CLI functionality
   - End-to-end tests verifying actual MQTT message delivery
   - Feature tests covering all MQTT v5.0 CLI parameters
-  - Transport tests for TCP, TLS, UDP, and DTLS support
+  - Transport tests for TCP, TLS, and WebSocket support
   - Performance and throughput testing with real broker integration
 - **Enhanced CLI MQTT v5.0 Support** - Complete feature parity with library
-  - Added session management options (--no-clean-start, --session-expiry)
+  - Session management options (--no-clean-start, --session-expiry)
   - Will message support for both pub and sub commands
   - Enhanced authentication options (--username, --password)
   - Custom keep-alive intervals and connection options
-  - UDP and DTLS URL support (mqtt-udp://, mqtts-dtls://)
+
+### Changed
+- **Dependency Updates** - Updated to latest stable versions
+  - `tokio-tungstenite` updated from 0.27 to 0.28
+  - `dialoguer` updated from 0.11 to 0.12
+
+### Removed
+- **UDP/DTLS Transport** - Removed incomplete UDP and DTLS implementation
+  - Removed UDP transport with fragmentation and reliability layers
+  - Removed DTLS secure transport implementation
+  - Removed mqtt-udp:// and mqtts-dtls:// URL scheme support
+  - Removed all UDP/DTLS CLI options and test infrastructure
+  - Simplified codebase to focus on proven transports: TCP, TLS, WebSocket
+  - Removed webrtc-dtls and webrtc-util dependencies
 
 ### Fixed
 - **Mosquitto Compatibility (Issue #14)** - Fixed MaximumQoS property handling
@@ -40,9 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added hidden --keep-alive-after-publish flag for proper will message testing
   - Will messages now properly trigger when CLI process is terminated
   - Test infrastructure validates actual will message delivery
-- **Test Storage Isolation** - Fixed parallel test failures in UDP tests
-  - Each test now uses isolated temporary directory for storage
-  - Prevents file system conflicts during parallel test execution
+- **Repository Cleanup** - Improved .gitignore configuration
+  - Removed CLI_TESTING_GUIDE.md from version control
+  - File remains available locally but is now properly ignored
 
 ## [0.4.1] - 2025-08-05
 

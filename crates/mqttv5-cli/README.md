@@ -14,7 +14,7 @@ A unified MQTT v5.0 CLI tool that replaces mosquitto_pub, mosquitto_sub, and mos
 - **Full MQTT v5.0**: Complete protocol support including all v5.0 features
 - **Advanced Session Management**: Clean start, session expiry, and persistence
 - **Will Message Support**: Last will and testament with delay and QoS options
-- **Multi-Transport**: TCP, TLS, WebSocket, UDP, and DTLS support
+- **Multi-Transport**: TCP, TLS, and WebSocket support
 - **Comprehensive Testing**: Thoroughly tested CLI with real broker integration
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 
@@ -107,12 +107,9 @@ mqttv5 sub -t "secure/data" --username user1 --password secret \
 mqttv5 pub -t "test/topic" -m "data" --keep-alive 120 \
   --url "mqtts://secure-broker:8883"
 
-# UDP transport with automatic reliability
-mqttv5 pub --url "mqtt-udp://broker:1884" -t "test/udp" -m "UDP message"
-mqttv5 sub --url "mqtt-udp://broker:1884" -t "test/+"
-
-# DTLS (secure UDP) transport
-mqttv5 pub --url "mqtts-dtls://secure-broker:8884" -t "secure/data" -m "DTLS secured"
+# WebSocket transport
+mqttv5 pub --url "ws://broker:8080/mqtt" -t "test/websocket" -m "WebSocket message"
+mqttv5 sub --url "wss://secure-broker:8443/mqtt" -t "test/+"
 ```
 
 ## Environment Variables
