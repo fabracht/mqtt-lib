@@ -249,7 +249,9 @@ pub async fn trigger_abnormal_disconnect_with_will(
 
     let _ = pub_process.kill();
 
-    let output = pub_process.wait_with_output().expect("Failed to wait for process");
+    let output = pub_process
+        .wait_with_output()
+        .expect("Failed to wait for process");
     CliResult::from_output(&output)
 }
 

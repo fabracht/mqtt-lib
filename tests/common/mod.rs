@@ -122,9 +122,7 @@ impl TestBroker {
     /// Start a test broker with WebSocket support on a random port
     #[allow(dead_code)]
     pub async fn start_with_websocket() -> Self {
-        use mqtt5::broker::config::{
-            BrokerConfig, StorageBackend, StorageConfig, WebSocketConfig,
-        };
+        use mqtt5::broker::config::{BrokerConfig, StorageBackend, StorageConfig, WebSocketConfig};
 
         let storage_config = StorageConfig {
             backend: StorageBackend::Memory,

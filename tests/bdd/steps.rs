@@ -1,8 +1,10 @@
-use cucumber::{given, when, then};
+use cucumber::{given, then, when};
 use std::time::Duration;
 
 use super::world::BddWorld;
-use crate::common::cli_helpers::{run_cli_pub, run_cli_sub_async, trigger_abnormal_disconnect_with_will};
+use crate::common::cli_helpers::{
+    run_cli_pub, run_cli_sub_async, trigger_abnormal_disconnect_with_will,
+};
 use crate::common::TestBroker;
 
 #[given("a broker is running")]
@@ -49,24 +51,13 @@ async fn publish_message(world: &mut BddWorld, message: String, topic: String) {
     }
 
     let args_refs = args.to_vec();
-    let result = run_cli_pub(
-        world.broker_url(),
-        &topic,
-        &message,
-        &args_refs,
-    )
-    .await;
+    let result = run_cli_pub(world.broker_url(), &topic, &message, &args_refs).await;
 
     world.last_pub_result = Some(result);
 }
 
 #[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" with QoS (\d+)$"#)]
-async fn publish_message_with_qos(
-    world: &mut BddWorld,
-    message: String,
-    topic: String,
-    qos: u8,
-) {
+async fn publish_message_with_qos(world: &mut BddWorld, message: String, topic: String, qos: u8) {
     world.qos = qos;
     publish_message(world, message, topic).await;
     world.qos = 0;
@@ -325,7 +316,9 @@ async fn publish_with_client_id_and_clean_start(
     world.last_pub_result = Some(result);
 }
 
-#[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" with client-id "([^"]*)" without clean-start$"#)]
+#[when(
+    regex = r#"^I publish "([^"]*)" to "([^"]*)" with client-id "([^"]*)" without clean-start$"#
+)]
 async fn publish_with_client_id_without_clean_start(
     world: &mut BddWorld,
     message: String,
@@ -343,7 +336,9 @@ async fn publish_with_client_id_without_clean_start(
     world.last_pub_result = Some(result);
 }
 
-#[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" with client-id "([^"]*)" and session-expiry (\d+)$"#)]
+#[when(
+    regex = r#"^I publish "([^"]*)" to "([^"]*)" with client-id "([^"]*)" and session-expiry (\d+)$"#
+)]
 async fn publish_with_session_expiry(
     world: &mut BddWorld,
     message: String,
@@ -357,18 +352,15 @@ async fn publish_with_session_expiry(
         world.broker_url(),
         &topic,
         &message,
-        &[
-            "--client-id",
-            &client_id,
-            "--session-expiry",
-            &expiry_str,
-        ],
+        &["--client-id", &client_id, "--session-expiry", &expiry_str],
     )
     .await;
     world.last_pub_result = Some(result);
 }
 
-#[when(regex = r#"^I subscribe to "([^"]*)" with QoS (\d+) and client-id "([^"]*)" expecting (\d+) messages?$"#)]
+#[when(
+    regex = r#"^I subscribe to "([^"]*)" with QoS (\d+) and client-id "([^"]*)" expecting (\d+) messages?$"#
+)]
 async fn subscribe_with_qos_and_client_id(
     world: &mut BddWorld,
     topic: String,
@@ -392,13 +384,9 @@ async fn subscribe_with_qos_and_client_id(
 
 #[when(regex = r#"^I publish with will message "([^"]*)" on topic "([^"]*)"$"#)]
 async fn publish_with_will_message(world: &mut BddWorld, will_message: String, will_topic: String) {
-    let result = trigger_abnormal_disconnect_with_will(
-        world.broker_url(),
-        &will_topic,
-        &will_message,
-        &[],
-    )
-    .await;
+    let result =
+        trigger_abnormal_disconnect_with_will(world.broker_url(), &will_topic, &will_message, &[])
+            .await;
     world.last_pub_result = Some(result);
 }
 
@@ -440,13 +428,7 @@ async fn publish_with_will_message_and_qos(
 
 #[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" using TLS$"#)]
 async fn publish_using_tls(world: &mut BddWorld, message: String, topic: String) {
-    let result = run_cli_pub(
-        world.broker_url(),
-        &topic,
-        &message,
-        &["--insecure"],
-    )
-    .await;
+    let result = run_cli_pub(world.broker_url(), &topic, &message, &["--insecure"]).await;
     world.last_pub_result = Some(result);
 }
 
@@ -458,25 +440,21 @@ async fn subscribe_using_tls(world: &mut BddWorld, topic: String, count: u32) {
 }
 
 #[when(regex = r#"^I subscribe to "([^"]*)" with QoS (\d+) expecting (\d+) messages? using TLS$"#)]
-async fn subscribe_with_qos_using_tls(
-    world: &mut BddWorld,
-    topic: String,
-    qos: u8,
-    count: u32,
-) {
+async fn subscribe_with_qos_using_tls(world: &mut BddWorld, topic: String, qos: u8, count: u32) {
     let qos_arg = qos.to_string();
-    let handle = run_cli_sub_async(world.broker_url(), &topic, count, &["--insecure", "--qos", &qos_arg]).await;
+    let handle = run_cli_sub_async(
+        world.broker_url(),
+        &topic,
+        count,
+        &["--insecure", "--qos", &qos_arg],
+    )
+    .await;
     world.pending_sub_handles.insert(topic.clone(), handle);
     tokio::time::sleep(Duration::from_millis(500)).await;
 }
 
 #[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" with QoS (\d+) using TLS$"#)]
-async fn publish_with_qos_using_tls(
-    world: &mut BddWorld,
-    message: String,
-    topic: String,
-    qos: u8,
-) {
+async fn publish_with_qos_using_tls(world: &mut BddWorld, message: String, topic: String, qos: u8) {
     world.qos = qos;
     publish_using_tls(world, message, topic).await;
     world.qos = 0;
@@ -492,13 +470,7 @@ async fn start_broker_with_websocket(world: &mut BddWorld) {
 
 #[when(regex = r#"^I publish "([^"]*)" to "([^"]*)" using WebSocket$"#)]
 async fn publish_using_websocket(world: &mut BddWorld, message: String, topic: String) {
-    let result = run_cli_pub(
-        world.broker_url(),
-        &topic,
-        &message,
-        &[],
-    )
-    .await;
+    let result = run_cli_pub(world.broker_url(), &topic, &message, &[]).await;
     world.last_pub_result = Some(result);
 }
 
@@ -509,7 +481,9 @@ async fn subscribe_using_websocket(world: &mut BddWorld, topic: String, count: u
     tokio::time::sleep(Duration::from_millis(500)).await;
 }
 
-#[when(regex = r#"^I subscribe to "([^"]*)" with QoS (\d+) expecting (\d+) messages? using WebSocket$"#)]
+#[when(
+    regex = r#"^I subscribe to "([^"]*)" with QoS (\d+) expecting (\d+) messages? using WebSocket$"#
+)]
 async fn subscribe_with_qos_using_websocket(
     world: &mut BddWorld,
     topic: String,

@@ -1,5 +1,5 @@
-mod common;
 mod bdd;
+mod common;
 
 use bdd::BddWorld;
 use cucumber::World;
