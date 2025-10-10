@@ -69,7 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Superior user experience with smart prompting for missing arguments
   - Input validation with helpful error messages and corrections
   - Both long and short flags for improved ergonomics
-  - Docker containerization for production deployment
   - Complete self-reliance - no external MQTT tools needed
 - **Complete MQTT v5.0 Broker Implementation**
   - Production-ready broker with full MQTT v5.0 compliance

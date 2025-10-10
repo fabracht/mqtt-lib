@@ -70,39 +70,32 @@ This directory contains comprehensive integration tests for the MQTT v5.0 client
 ## Running the Tests
 
 ### Prerequisites
-1. Docker and Docker Compose installed
-2. Rust toolchain (stable)
-3. Port 1883 available for Mosquitto
+1. Rust toolchain (stable)
+2. Test certificates generated (`./scripts/generate_test_certs.sh`)
 
 ### Running All Integration Tests
 ```bash
-./run_integration_tests.sh
+cargo test
 ```
 
 ### Running Individual Test Files
 ```bash
-# Start the broker
-docker-compose up -d mosquitto
-
-# Run specific test (use raw cargo for specific tests)
+# Run specific test file
 cargo test --test integration_complete_flow
 
-# Stop the broker
-docker-compose down
+# Run with debug output
+RUST_LOG=debug cargo test --test integration_complete_flow -- --nocapture
 ```
 
 ### Running Specific Tests
 ```bash
-# Use raw cargo for specific tests with filters
+# Run specific test by name
 cargo test --test integration_complete_flow test_complete_mqtt_flow
 ```
 
 ## Test Configuration
 
-The tests use a Mosquitto broker configured in `docker-compose.yml` with:
-- Standard MQTT port: 1883
-- TLS port: 8883
-- Configuration files in `comparative_benchmarks/test_configs/`
+Tests use the built-in `TestBroker` which spawns a broker instance programmatically. No external broker required.
 
 ## Writing New Tests
 
@@ -118,22 +111,13 @@ When adding new integration tests:
 
 ### Common Issues
 
-1. **Port already in use**: Ensure port 1883 is not used by another service
-2. **Docker not running**: Start Docker Desktop/daemon
-3. **Permission denied**: Check file permissions and Docker permissions
-4. **Tests timeout**: Increase timeout values or check broker connectivity
+1. **Port already in use**: Tests use random ports to avoid conflicts
+2. **Tests timeout**: Increase timeout values in test code if needed
+3. **Certificate errors**: Run `./scripts/generate_test_certs.sh` to regenerate test certificates
 
 ### Debug Output
 
 Run tests with debug output:
 ```bash
-# Use raw cargo for specific test debugging
 RUST_LOG=debug cargo test --test integration_complete_flow -- --nocapture
-```
-
-### Broker Logs
-
-View Mosquitto logs:
-```bash
-docker-compose logs mosquitto
 ```

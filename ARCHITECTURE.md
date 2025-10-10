@@ -30,7 +30,7 @@ We use direct async/await patterns because:
 
    - `read_packet()` - async method that waits for next packet
    - `write_packet()` - async method that sends a packet
-   - Implemented for TCP, TLS, WebSocket, UDP (with reliability layer), DTLS
+   - Implemented for TCP, TLS, WebSocket
 
 3. **Session State**: Shared state management
 
@@ -38,13 +38,11 @@ We use direct async/await patterns because:
    - Accessed directly by client methods
    - Direct state access pattern
 
-4. **TLS/DTLS Configuration**: Secure transport setup
+4. **TLS Configuration**: Secure transport setup
 
    - Stored TLS config (Arc<RwLock<Option<TlsConfig>>>) for client certificates and CA certs
-   - Stored DTLS config (Arc<RwLock<Option<DtlsConfig>>>) for secure UDP
    - `set_tls_config()` method for CA-only verification or mutual TLS (mTLS)
-   - `set_dtls_config()` method for PSK or certificate-based DTLS
-   - Config applied automatically when connecting to mqtts:// or mqtts-dtls:// URLs
+   - Config applied automatically when connecting to mqtts:// URLs
 
 5. **Background Tasks**: Specific focused tasks
    - Packet reader: Continuously reads packets
@@ -84,8 +82,6 @@ The MQTT broker follows the same architectural principles as the client - direct
    - TCP listener: Direct `accept()` loop
    - TLS listener: TLS wrapper around TCP with rustls
    - WebSocket listener: HTTP upgrade handling with tokio-tungstenite
-   - UDP handler: Packet-based with session management
-   - DTLS handler: Secure UDP with webrtc-dtls
    - Each spawns client handlers directly
 
 3. **ClientHandler**: Per-client connection handler
@@ -181,59 +177,13 @@ Both client and broker share:
 
 2. **Transport Abstraction**:
 
-   - Same TCP/TLS/WebSocket/UDP/DTLS code
+   - Same TCP/TLS/WebSocket code
    - Unified connection handling via TransportType enum
    - Shared TLS configuration with rustls
-   - UDP reliability layer with automatic retransmission
-   - UDP fragmentation for packets exceeding MTU
-   - DTLS support via webrtc-dtls with PSK and certificate auth
 
 3. **Architectural Principles**:
    - Direct async/await throughout
    - Shared error handling patterns
-
-## UDP/DTLS Transport Architecture
-
-The UDP/DTLS transport implementation provides reliable MQTT messaging over UDP with optional encryption:
-
-### UDP Transport Components
-
-1. **Reliability Layer** (`transport/udp_reliability.rs`):
-
-   - Implements reliable delivery over unreliable UDP
-   - Automatic retransmission with configurable timeouts
-   - Sequence numbering and acknowledgment tracking
-   - Out-of-order packet handling
-
-2. **Fragmentation Layer** (`transport/udp_fragmentation.rs`):
-
-   - Handles packets exceeding UDP MTU (typically 1472 bytes)
-   - Automatic fragmentation and reassembly
-   - Fragment sequencing and reassembly tracking
-   - Configurable MTU size
-
-3. **Session Management** (`broker/udp_session.rs`):
-
-   - Maps UDP socket addresses to MQTT client sessions
-   - Maintains state for each UDP client
-   - Handles session expiry and cleanup
-   - Per-client packet buffering
-
-4. **DTLS Handler** (`broker/dtls_handler.rs`, `transport/dtls.rs`):
-   - Secure UDP using DTLS (via webrtc-dtls)
-   - Pre-Shared Key (PSK) authentication
-   - Certificate-based authentication
-   - Seamless integration with UDP reliability layer
-
-### URL Schemes
-
-- `mqtt-udp://host:port` - Unencrypted UDP with reliability
-- `mqtts-dtls://host:port` - Encrypted UDP with DTLS
-
-### Use Cases
-
-- IoT devices with intermittent connectivity
-- Scenarios where connection setup overhead should be minimized
 
 ## Testing Architecture
 

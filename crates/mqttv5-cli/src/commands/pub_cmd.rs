@@ -90,29 +90,21 @@ pub struct PubCommand {
     #[arg(long)]
     pub will_retain: bool,
 
-    /// DTLS/TLS certificate file (PEM format) for secure connections
+    /// TLS certificate file (PEM format) for secure connections
     #[arg(long)]
     pub cert: Option<PathBuf>,
 
-    /// DTLS/TLS private key file (PEM format) for secure connections
+    /// TLS private key file (PEM format) for secure connections
     #[arg(long)]
     pub key: Option<PathBuf>,
 
-    /// DTLS/TLS CA certificate file (PEM format) for server verification
+    /// TLS CA certificate file (PEM format) for server verification
     #[arg(long)]
     pub ca_cert: Option<PathBuf>,
 
     /// Skip certificate verification for TLS connections (insecure, for testing only)
     #[arg(long)]
     pub insecure: bool,
-
-    /// DTLS PSK identity (for pre-shared key authentication)
-    #[arg(long)]
-    pub psk_identity: Option<String>,
-
-    /// DTLS PSK key in hex format (for pre-shared key authentication)
-    #[arg(long)]
-    pub psk_key: Option<String>,
 
     /// Will delay interval in seconds
     #[arg(long)]
