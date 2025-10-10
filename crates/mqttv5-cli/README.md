@@ -1,22 +1,21 @@
-# mqttv5 - Superior MQTT v5.0 Command Line Interface
+# mqttv5 - MQTT v5.0 Command Line Interface
 
 [![Crates.io](https://img.shields.io/crates/v/mqttv5-cli.svg)](https://crates.io/crates/mqttv5-cli)
 [![Downloads](https://img.shields.io/crates/d/mqttv5-cli.svg)](https://crates.io/crates/mqttv5-cli)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/fabriciobracht/mqtt-lib#license)
 
-A unified MQTT v5.0 CLI tool that replaces mosquitto_pub, mosquitto_sub, and mosquitto with superior ergonomics and user experience.
+A unified MQTT v5.0 CLI tool with pub, sub, and broker commands.
 
 ## Features
 
-- **Unified Interface**: Single binary with pub, sub, and broker subcommands
-- **Smart Prompting**: Interactive prompts for missing arguments
-- **Superior Error Messages**: Helpful validation with correction suggestions
-- **Full MQTT v5.0**: Complete protocol support including all v5.0 features
-- **Advanced Session Management**: Clean start, session expiry, and persistence
-- **Will Message Support**: Last will and testament with delay and QoS options
-- **Multi-Transport**: TCP, TLS, and WebSocket support
-- **Comprehensive Testing**: Thoroughly tested CLI with real broker integration
-- **Cross-Platform**: Works on Linux, macOS, and Windows
+- Unified interface: Single binary with pub, sub, and broker subcommands
+- Smart prompting: Interactive prompts for missing arguments
+- Input validation: Helpful error messages with correction suggestions
+- Full MQTT v5.0: Complete protocol support
+- Session management: Clean start, session expiry, and persistence
+- Will message support: Last will and testament with delay and QoS options
+- Multi-transport: TCP, TLS, and WebSocket support
+- Cross-platform: Works on Linux, macOS, and Windows
 
 ## Installation
 
@@ -68,13 +67,13 @@ mqttv5 broker --host 0.0.0.0:1883
 mqttv5 broker
 ```
 
-## Key Advantages over mosquitto
+## CLI Design
 
-1. **Better Error Messages**: Clear, actionable error messages with suggestions
-2. **Smart Defaults**: Intelligent prompting for missing required arguments
-3. **Unified Tool**: One binary replaces mosquitto_pub, mosquitto_sub, and mosquitto
-4. **Modern CLI Design**: Consistent flags and intuitive interface
-5. **Full v5.0 Support**: All MQTT v5.0 features including properties and reason codes
+- Clear, actionable error messages with suggestions
+- Intelligent prompting for missing required arguments
+- Unified tool: One binary for all MQTT operations
+- Consistent flags and intuitive interface
+- Full MQTT v5.0 support including properties and reason codes
 
 ## Examples
 

@@ -38,11 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed webrtc-dtls and webrtc-util dependencies
 
 ### Fixed
-- **Mosquitto Compatibility (Issue #14)** - Fixed MaximumQoS property handling
+- **MaximumQoS Property Handling (Issue #14)** - Fixed MQTT v5.0 spec compliance
   - Broker now correctly omits MaximumQoS property when QoS 2 is supported (per MQTT v5.0 spec 3.2.2.3.4)
   - MaximumQoS property value MUST be 0 or 1, never 2
   - Client now reads and enforces server's MaximumQoS limit
-  - Fixes mosquitto_pub connection failures with "Failed to decode PUBLISH properties"
+  - Fixes compatibility with other MQTT v5.0 clients
 - **Will Message Testing** - Fixed CLI will message tests that were timing out
   - Added hidden --keep-alive-after-publish flag for proper will message testing
   - Will messages now properly trigger when CLI process is terminated
@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2025-08-04
 
 ### Added
-- **Unified mqttv5 CLI Tool** - Complete mosquitto replacement
+- **Unified mqttv5 CLI Tool** - Complete MQTT CLI implementation
   - Single binary with pub, sub, and broker subcommands
   - Superior user experience with smart prompting for missing arguments
   - Input validation with helpful error messages and corrections
@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Platform Transformation**: Project evolved from client library to complete MQTT v5.0 platform
-- **Complete Mosquitto Replacement**: All documentation and examples now use mqttv5 CLI
+- **Unified CLI**: All documentation and examples now use mqttv5 CLI
 - **Comprehensive Documentation Overhaul**:
   - Restructured docs/ with separate client/ and broker/ sections
   - Added complete broker configuration reference
@@ -101,7 +101,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Unimplemented AuthMethod::External references from documentation
-- All mosquitto dependencies - replaced with our own mqttv5 CLI
 
 ## [0.2.0] - 2025-07-30
 
@@ -218,6 +217,6 @@ Four comprehensive examples demonstrating real-world usage patterns:
 ---
 
 **Note**: This project was originally created as a showcase for the BeBytes derive macro capabilities,
-demonstrating high-performance serialization in real-world MQTT applications. It has evolved into
-a full-featured, production-ready MQTT v5.0 platform with both client and broker implementations,
-complete with a unified CLI tool that replaces mosquitto.
+demonstrating serialization in real-world MQTT applications. It has evolved into
+a full-featured MQTT v5.0 platform with both client and broker implementations,
+complete with a unified CLI tool.
