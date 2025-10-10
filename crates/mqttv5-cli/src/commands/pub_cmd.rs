@@ -246,9 +246,7 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     }
 
     // Configure TLS if using secure connection
-    if broker_url.starts_with("ssl://")
-        || broker_url.starts_with("mqtts://")
-    {
+    if broker_url.starts_with("ssl://") || broker_url.starts_with("mqtts://") {
         // Configure with certificates if provided
         if cmd.cert.is_some() || cmd.key.is_some() || cmd.ca_cert.is_some() {
             let cert_pem =
