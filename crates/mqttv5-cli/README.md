@@ -15,7 +15,7 @@ A unified MQTT v5.0 CLI tool with pub, sub, and broker commands.
 - Session management: Clean start, session expiry, and persistence
 - Will message support: Last will and testament with delay and QoS options
 - Multi-transport: TCP, TLS, and WebSocket support
-- Cross-platform: Works on Linux, macOS, and Windows
+- Cross-platform: Should work on Linux, macOS, and Windows
 
 ## Installation
 
@@ -78,21 +78,25 @@ mqttv5 broker
 ## Examples
 
 ### Publishing sensor data
+
 ```bash
 mqttv5 pub -t "home/living-room/temperature" -m "22.5" --qos 1
 ```
 
 ### Monitoring all home sensors
+
 ```bash
 mqttv5 sub -t "home/+/+" --verbose
 ```
 
 ### Testing with retained messages
+
 ```bash
 mqttv5 pub -t "config/device1" -m '{"enabled": true}' --retain
 ```
 
 ### Advanced MQTT v5.0 Features
+
 ```bash
 # Will messages for device monitoring
 mqttv5 pub -t "sensors/data" -m "active" \
