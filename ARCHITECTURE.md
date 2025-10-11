@@ -47,8 +47,14 @@ We use direct async/await patterns because:
 5. **Background Tasks**: Specific focused tasks
    - Packet reader: Continuously reads packets
    - Keep-alive: Sends pings at intervals
-   - Reconnection: Handles connection recovery
+   - Reconnection: Handles connection recovery with exponential backoff
    - Each is a simple async function
+
+6. **Automatic Reconnection**: Opt-in connection recovery
+   - Disabled by default (`ReconnectConfig::enabled = false`)
+   - Exponential backoff with configurable delays
+   - Automatic subscription restoration based on `session_present` flag
+   - Library handles reconnection transparently when enabled
 
 ### Data Flow
 
@@ -130,7 +136,6 @@ The MQTT broker follows the same architectural principles as the client - direct
      - `PasswordAuthProvider` - File-based username/password with bcrypt
      - `CertificateAuthProvider` - Client certificate validation
      - `ComprehensiveAuthProvider` - Combines multiple auth methods
-   - Password file format compatible with mosquitto
    - Bcrypt password hashing for secure storage
    - CLI `passwd` command for password management
 
@@ -187,13 +192,8 @@ Both client and broker share:
 
 ## Testing Architecture
 
-1. **Unit Tests**:
+1. **Unit Tests**: Direct testing of components with simple async patterns
 
-   - Direct testing of components
-   - Simple async patterns
+2. **Integration Tests**: Full client-broker communication with Turmoil network simulation
 
-2. **Integration Tests**:
-
-   - Full client-broker communication
-   - Network simulation with Turmoil
-   - Property-based testing
+3. **BDD Tests**: Cucumber tests in `tests/bdd/` validate CLI workflows and reconnection scenarios

@@ -11,56 +11,89 @@ use ulid::Ulid;
 /// Default test broker address
 pub const TEST_BROKER: &str = "mqtt://127.0.0.1:1883";
 
+use mqtt5::broker::config::BrokerConfig;
 use mqtt5::broker::server::MqttBroker;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU16, Ordering};
 use tokio::task::JoinHandle;
 
-// Global port counter for TLS tests to avoid conflicts
-#[allow(dead_code)]
 static TLS_PORT_COUNTER: AtomicU16 = AtomicU16::new(0);
 
-/// Test broker instance with cleanup
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct TestBroker {
     address: String,
-    #[allow(dead_code)]
-    handle: JoinHandle<()>,
+    port: u16,
+    config: BrokerConfig,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl TestBroker {
-    /// Start a test broker on a random port
     #[allow(dead_code)]
     pub async fn start() -> Self {
         use mqtt5::broker::config::{BrokerConfig, StorageBackend, StorageConfig};
 
-        // Create broker config with in-memory storage (persistence enabled but in-memory)
         let storage_config = StorageConfig {
-            backend: StorageBackend::Memory, // Use memory instead of files
-            enable_persistence: true,        // Keep persistence for session tests
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
             ..Default::default()
         };
 
         let config = BrokerConfig::default()
-            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
             .with_storage(storage_config);
 
-        // Create broker with config
-        let mut broker = MqttBroker::with_config(config)
+        let mut broker = MqttBroker::with_config(config.clone())
             .await
             .expect("Failed to create test broker");
 
         let addr = broker.local_addr().expect("Failed to get broker address");
+        let port = addr.port();
         let address = format!("mqtt://{addr}");
 
-        // Start broker in background
         let handle = tokio::spawn(async move {
             let _ = broker.run().await;
         });
 
-        // Give broker time to start
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        Self { address, handle }
+        Self {
+            address,
+            port,
+            config,
+            handle: Some(handle),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn stop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    #[allow(dead_code)]
+    pub async fn restart(&mut self) {
+        self.stop().await;
+
+        let mut config = self.config.clone();
+        config = config.with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap());
+
+        let mut broker = MqttBroker::with_config(config)
+            .await
+            .expect("Failed to restart test broker");
+
+        let addr = broker.local_addr().expect("Failed to get broker address");
+        self.port = addr.port();
+        self.address = format!("mqtt://{addr}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        self.handle = Some(handle);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
     /// Start a test broker with TLS support on a random port
@@ -71,55 +104,51 @@ impl TestBroker {
         };
         use std::path::PathBuf;
 
-        // Initialize the crypto provider for rustls (required for TLS)
         let _ = rustls::crypto::ring::default_provider().install_default();
 
-        // Create broker config with in-memory storage
         let storage_config = StorageConfig {
             backend: StorageBackend::Memory,
             enable_persistence: true,
             ..Default::default()
         };
 
-        // Configure TLS - use an atomic counter to ensure unique ports
         let tls_port = 20000 + TLS_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
         let tls_config = BrokerTlsConfig::new(
             PathBuf::from("test_certs/server.pem"),
             PathBuf::from("test_certs/server.key"),
         )
-        // Don't set CA file to avoid requiring client certs
         .with_require_client_cert(false)
         .with_bind_address(
             format!("127.0.0.1:{tls_port}")
-                .parse::<std::net::SocketAddr>()
+                .parse::<SocketAddr>()
                 .unwrap(),
         );
 
         let config = BrokerConfig::default()
-            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
             .with_storage(storage_config)
             .with_tls(tls_config);
 
-        // Create broker with config
-        let mut broker = MqttBroker::with_config(config)
+        let mut broker = MqttBroker::with_config(config.clone())
             .await
             .expect("Failed to create test broker with TLS");
 
-        // Use the TLS port we configured
         let address = format!("mqtts://127.0.0.1:{tls_port}");
 
-        // Start broker in background
         let handle = tokio::spawn(async move {
             let _ = broker.run().await;
         });
 
-        // Give broker time to start
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        Self { address, handle }
+        Self {
+            address,
+            port: tls_port,
+            config,
+            handle: Some(handle),
+        }
     }
 
-    /// Start a test broker with WebSocket support on a random port
     #[allow(dead_code)]
     pub async fn start_with_websocket() -> Self {
         use mqtt5::broker::config::{BrokerConfig, StorageBackend, StorageConfig, WebSocketConfig};
@@ -132,17 +161,15 @@ impl TestBroker {
 
         let ws_port = 20000 + TLS_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
         let ws_config = WebSocketConfig::new()
-            .with_bind_addresses(vec![format!("127.0.0.1:{ws_port}")
-                .parse::<std::net::SocketAddr>()
-                .unwrap()])
+            .with_bind_addresses(vec![format!("127.0.0.1:{ws_port}").parse().unwrap()])
             .with_path("/mqtt".to_string());
 
         let config = BrokerConfig::default()
-            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
             .with_storage(storage_config)
             .with_websocket(ws_config);
 
-        let mut broker = MqttBroker::with_config(config)
+        let mut broker = MqttBroker::with_config(config.clone())
             .await
             .expect("Failed to create test broker with WebSocket");
 
@@ -154,10 +181,14 @@ impl TestBroker {
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        Self { address, handle }
+        Self {
+            address,
+            port: ws_port,
+            config,
+            handle: Some(handle),
+        }
     }
 
-    /// Start a test broker with authentication on a random port
     #[allow(dead_code)]
     pub async fn start_with_authentication() -> Self {
         use mqtt5::broker::config::{
@@ -205,15 +236,16 @@ impl TestBroker {
         };
 
         let config = BrokerConfig::default()
-            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
             .with_storage(storage_config)
             .with_auth(auth_config);
 
-        let mut broker = MqttBroker::with_config(config)
+        let mut broker = MqttBroker::with_config(config.clone())
             .await
             .expect("Failed to create test broker with authentication");
 
         let addr = broker.local_addr().expect("Failed to get broker address");
+        let port = addr.port();
         let address = format!("mqtt://{addr}");
 
         let handle = tokio::spawn(async move {
@@ -222,7 +254,12 @@ impl TestBroker {
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        Self { address, handle }
+        Self {
+            address,
+            port,
+            config,
+            handle: Some(handle),
+        }
     }
 
     /// Get the broker address
@@ -234,7 +271,9 @@ impl TestBroker {
 
 impl Drop for TestBroker {
     fn drop(&mut self) {
-        self.handle.abort();
+        if let Some(handle) = &self.handle {
+            handle.abort();
+        }
     }
 }
 

@@ -14,6 +14,7 @@ A unified MQTT v5.0 CLI tool with pub, sub, and broker commands.
 - Full MQTT v5.0: Complete protocol support
 - Session management: Clean start, session expiry, and persistence
 - Will message support: Last will and testament with delay and QoS options
+- Automatic reconnection: Opt-in reconnection with exponential backoff
 - Multi-transport: TCP, TLS, and WebSocket support
 - Cross-platform: Should work on Linux, macOS, and Windows
 
@@ -52,6 +53,9 @@ mqttv5 sub -t "test/topic" --count 5
 
 # Session persistence and QoS
 mqttv5 sub -t "data/#" --qos 2 --no-clean-start --session-expiry 3600
+
+# Auto-reconnect on disconnect (opt-in)
+mqttv5 sub -t "sensors/+" --auto-reconnect
 ```
 
 ### Running a Broker
@@ -74,6 +78,15 @@ mqttv5 broker
 - Unified tool: One binary for all MQTT operations
 - Consistent flags and intuitive interface
 - Full MQTT v5.0 support including properties and reason codes
+
+### Connection Behavior
+
+By default, the CLI exits immediately when the broker disconnects. This prevents duplicate topic takeover issues when clients reconnect with the same client ID.
+
+Use `--auto-reconnect` to enable automatic reconnection with exponential backoff. When enabled:
+- The library handles reconnection automatically
+- Subscriptions are restored based on session state
+- The client continues running until Ctrl+C or target message count reached
 
 ## Examples
 

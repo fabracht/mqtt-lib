@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt5::{ConnectionEvent, ConnectOptions, MqttClient, PublishOptions, QoS, WillMessage};
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, PublishOptions, QoS, WillMessage};
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
