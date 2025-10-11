@@ -103,11 +103,11 @@ fn test_multiple_clients_connection() {
 
     // Add multiple client hosts
     for i in 1..=3 {
-        let client_name = format!("client{}", i);
+        let client_name = format!("client{i}");
         sim.host(client_name, move || async move {
             tokio::time::sleep(Duration::from_millis(200)).await;
 
-            let config = TurmoilClientConfig::new(&format!("test-client-{}", i));
+            let config = TurmoilClientConfig::new(&format!("test-client-{i}"));
             let client = TurmoilClient::new(&config);
 
             client

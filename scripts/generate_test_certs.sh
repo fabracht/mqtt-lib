@@ -28,8 +28,8 @@ openssl req -new -x509 -days "$DAYS_VALID" -key "$CERT_DIR/ca.key" -out "$CERT_D
     -subj "/C=$COUNTRY/ST=$STATE/L=$CITY/O=$ORG/CN=$CN_CA" \
     -sha256
 
-# Generate client private key
-openssl genrsa -out "$CERT_DIR/client.key" 2048
+# Generate client private key (ECDSA P-256 for DTLS compatibility) in PKCS#8 format
+openssl ecparam -genkey -name prime256v1 | openssl pkcs8 -topk8 -nocrypt -out "$CERT_DIR/client.key"
 
 # Generate client certificate request
 openssl req -new -key "$CERT_DIR/client.key" -out "$CERT_DIR/client.csr" \
@@ -48,8 +48,8 @@ openssl x509 -req -days "$DAYS_VALID" -in "$CERT_DIR/client.csr" \
     -CAcreateserial -out "$CERT_DIR/client.pem" \
     -sha256 -extfile "$CERT_DIR/client_ext.cnf"
 
-# Generate server private key
-openssl genrsa -out "$CERT_DIR/server.key" 2048
+# Generate server private key (ECDSA P-256 for DTLS compatibility) in PKCS#8 format
+openssl ecparam -genkey -name prime256v1 | openssl pkcs8 -topk8 -nocrypt -out "$CERT_DIR/server.key"
 
 # Generate server certificate request
 openssl req -new -key "$CERT_DIR/server.key" -out "$CERT_DIR/server.csr" \
@@ -57,6 +57,9 @@ openssl req -new -key "$CERT_DIR/server.key" -out "$CERT_DIR/server.csr" \
 
 # Create extensions file for server certificate with SAN
 cat > "$CERT_DIR/server_ext.cnf" <<EOF
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
 subjectAltName = DNS:localhost,IP:127.0.0.1
 EOF
 

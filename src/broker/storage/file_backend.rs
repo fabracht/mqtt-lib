@@ -87,6 +87,13 @@ impl FileBackend {
 
     /// Write data to file atomically
     async fn write_file_atomic<T: serde::Serialize>(&self, path: PathBuf, data: &T) -> Result<()> {
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| MqttError::Io(format!("Failed to create parent directory: {}", e)))?;
+        }
+
         let temp_path = path.with_extension("tmp");
 
         // Write to temporary file first

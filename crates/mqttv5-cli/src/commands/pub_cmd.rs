@@ -1,10 +1,13 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt5::{MqttClient, PublishOptions, QoS};
+use mqtt5::{ConnectOptions, ConnectionEvent, MqttClient, PublishOptions, QoS, WillMessage};
 use std::fs;
 use std::io::{self, Read};
-use tracing::{debug, info};
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::signal;
+use tracing::{debug, info, warn};
 
 #[derive(Args)]
 pub struct PubCommand {
@@ -23,6 +26,10 @@ pub struct PubCommand {
     /// Read message from stdin
     #[arg(long)]
     pub stdin: bool,
+
+    /// MQTT broker URL (e.g., mqtt://localhost:1883, mqtts://host:8883)
+    #[arg(long, short = 'U', conflicts_with_all = &["host", "port"])]
+    pub url: Option<String>,
 
     /// MQTT broker host
     #[arg(long, short = 'H', default_value = "localhost")]
@@ -55,6 +62,62 @@ pub struct PubCommand {
     /// Skip prompts and use defaults/fail if required args missing
     #[arg(long)]
     pub non_interactive: bool,
+
+    /// Don't clean start (resume existing session)
+    #[arg(long = "no-clean-start")]
+    pub no_clean_start: bool,
+
+    /// Session expiry interval in seconds (0 = expire on disconnect)
+    #[arg(long)]
+    pub session_expiry: Option<u32>,
+
+    /// Keep alive interval in seconds
+    #[arg(long, short = 'k', default_value = "60")]
+    pub keep_alive: u16,
+
+    /// Will topic (last will and testament)
+    #[arg(long)]
+    pub will_topic: Option<String>,
+
+    /// Will message payload
+    #[arg(long)]
+    pub will_message: Option<String>,
+
+    /// Will QoS level (0, 1, or 2)
+    #[arg(long, value_parser = parse_qos)]
+    pub will_qos: Option<QoS>,
+
+    /// Will retain flag
+    #[arg(long)]
+    pub will_retain: bool,
+
+    /// TLS certificate file (PEM format) for secure connections
+    #[arg(long)]
+    pub cert: Option<PathBuf>,
+
+    /// TLS private key file (PEM format) for secure connections
+    #[arg(long)]
+    pub key: Option<PathBuf>,
+
+    /// TLS CA certificate file (PEM format) for server verification
+    #[arg(long)]
+    pub ca_cert: Option<PathBuf>,
+
+    /// Skip certificate verification for TLS connections (insecure, for testing only)
+    #[arg(long)]
+    pub insecure: bool,
+
+    /// Will delay interval in seconds
+    #[arg(long)]
+    pub will_delay: Option<u32>,
+
+    /// Keep connection alive after publishing (for testing will messages)
+    #[arg(long, hide = true)]
+    pub keep_alive_after_publish: bool,
+
+    /// Enable automatic reconnection when broker disconnects
+    #[arg(long)]
+    pub auto_reconnect: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -70,8 +133,7 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     // Smart prompting for missing required arguments
     if cmd.topic.is_none() && !cmd.non_interactive {
         let topic = Input::<String>::new()
-            .with_prompt("MQTT topic")
-            .with_initial_text("sensors/")
+            .with_prompt("MQTT topic (e.g., sensors/temperature, home/status)")
             .interact()
             .context("Failed to get topic input")?;
         cmd.topic = Some(topic);
@@ -130,7 +192,9 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     };
 
     // Build broker URL
-    let broker_url = format!("mqtt://{}:{}", cmd.host, cmd.port);
+    let broker_url = cmd
+        .url
+        .unwrap_or_else(|| format!("mqtt://{}:{}", cmd.host, cmd.port));
     debug!("Connecting to broker: {}", broker_url);
 
     // Create client
@@ -139,12 +203,92 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
         .unwrap_or_else(|| format!("mqttv5-pub-{}", rand::rng().random::<u32>()));
     let client = MqttClient::new(&client_id);
 
+    // Build connection options
+    let mut options = ConnectOptions::new(client_id.clone())
+        .with_clean_start(!cmd.no_clean_start)
+        .with_keep_alive(Duration::from_secs(cmd.keep_alive.into()));
+
+    if cmd.auto_reconnect {
+        options = options.with_automatic_reconnect(true);
+    }
+
+    // Add session expiry if specified
+    if let Some(expiry) = cmd.session_expiry {
+        options = options.with_session_expiry_interval(expiry);
+    }
+
+    // Add authentication if provided
+    if let (Some(username), Some(password)) = (cmd.username.clone(), cmd.password.clone()) {
+        options = options.with_credentials(username, password.into_bytes());
+    } else if let Some(username) = cmd.username.clone() {
+        options = options.with_credentials(username, Vec::new());
+    }
+
+    // Add will message if specified
+    if let Some(topic) = cmd.will_topic.clone() {
+        let payload = cmd.will_message.clone().unwrap_or_default();
+        let mut will = WillMessage::new(topic, payload.into_bytes()).with_retain(cmd.will_retain);
+
+        if let Some(qos) = cmd.will_qos {
+            will = will.with_qos(qos);
+        }
+
+        if let Some(delay) = cmd.will_delay {
+            will.properties.will_delay_interval = Some(delay);
+        }
+
+        options = options.with_will(will);
+    }
+
+    // Configure insecure TLS mode if requested
+    if cmd.insecure {
+        client.set_insecure_tls(true).await;
+        info!("Insecure TLS mode enabled (certificate verification disabled)");
+    }
+
+    // Configure TLS if using secure connection
+    if broker_url.starts_with("ssl://") || broker_url.starts_with("mqtts://") {
+        // Configure with certificates if provided
+        if cmd.cert.is_some() || cmd.key.is_some() || cmd.ca_cert.is_some() {
+            let cert_pem =
+                if let Some(cert_path) = &cmd.cert {
+                    Some(std::fs::read(cert_path).with_context(|| {
+                        format!("Failed to read certificate file: {cert_path:?}")
+                    })?)
+                } else {
+                    None
+                };
+            let key_pem = if let Some(key_path) = &cmd.key {
+                Some(
+                    std::fs::read(key_path)
+                        .with_context(|| format!("Failed to read key file: {key_path:?}"))?,
+                )
+            } else {
+                None
+            };
+            let ca_pem =
+                if let Some(ca_path) = &cmd.ca_cert {
+                    Some(std::fs::read(ca_path).with_context(|| {
+                        format!("Failed to read CA certificate file: {ca_path:?}")
+                    })?)
+                } else {
+                    None
+                };
+
+            client.set_tls_config(cert_pem, key_pem, ca_pem).await;
+        }
+    }
+
     // Connect
     info!("Connecting to {}...", broker_url);
-    client
-        .connect(&broker_url)
+    let result = client
+        .connect_with_options(&broker_url, options)
         .await
         .context("Failed to connect to MQTT broker")?;
+
+    if result.session_present {
+        println!("✓ Resumed existing session");
+    }
 
     // Publish message
     info!("Publishing to topic '{}'...", topic);
@@ -177,6 +321,43 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     println!("✓ Published message to '{}' (QoS {})", topic, qos as u8);
     if cmd.retain {
         println!("  Message retained on broker");
+    }
+
+    // Keep connection alive if requested (for testing will messages)
+    if cmd.keep_alive_after_publish {
+        info!("Keeping connection alive (--keep-alive-after-publish)");
+
+        if cmd.auto_reconnect {
+            client
+                .on_connection_event(move |event| match event {
+                    ConnectionEvent::Connected { session_present } => {
+                        if session_present {
+                            info!("✓ Reconnected (session present)");
+                        } else {
+                            info!("✓ Reconnected (new session)");
+                        }
+                    }
+                    ConnectionEvent::Disconnected { .. } => {
+                        warn!("⚠ Disconnected from broker, attempting reconnection...");
+                    }
+                    ConnectionEvent::Reconnecting { attempt } => {
+                        info!("Reconnecting (attempt {})...", attempt);
+                    }
+                    ConnectionEvent::ReconnectFailed { error } => {
+                        warn!("⚠ Reconnection failed: {}", error);
+                    }
+                })
+                .await?;
+        }
+
+        match signal::ctrl_c().await {
+            Ok(()) => {
+                println!("\n✓ Received Ctrl+C, disconnecting...");
+            }
+            Err(err) => {
+                anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+            }
+        }
     }
 
     // Disconnect

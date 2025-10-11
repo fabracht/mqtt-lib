@@ -26,19 +26,29 @@ pub trait PacketIo: Transport {
 
             // Read first byte (packet type and flags)
             let mut byte = [0u8; 1];
+            tracing::trace!("Attempting to read first byte of packet");
             let n = self.read(&mut byte).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                tracing::debug!("Connection closed - received 0 bytes when reading packet header");
+                return Err(MqttError::ClientClosed);
             }
+            tracing::trace!(
+                "Read first byte: 0x{:02x} (packet_type={}, flags={})",
+                byte[0],
+                (byte[0] >> 4) & 0x0f,
+                byte[0] & 0x0f
+            );
             header_buf.put_u8(byte[0]);
 
             // Read remaining length (variable length encoding)
             loop {
                 let n = self.read(&mut byte).await?;
                 if n == 0 {
-                    return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                    tracing::debug!("Connection closed while reading remaining length");
+                    return Err(MqttError::ClientClosed);
                 }
                 header_buf.put_u8(byte[0]);
+                tracing::trace!("Read remaining length byte: 0x{:02x}", byte[0]);
 
                 if (byte[0] & crate::constants::masks::CONTINUATION_BIT) == 0 {
                     break;
@@ -53,7 +63,14 @@ pub trait PacketIo: Transport {
 
             // Parse the complete fixed header
             let mut header_buf = header_buf.freeze();
+            tracing::trace!("Fixed header bytes: {:02x?}", header_buf.as_ref());
             let fixed_header = FixedHeader::decode(&mut header_buf)?;
+            tracing::debug!(
+                "Decoded fixed header: packet_type={:?}, flags=0x{:02x}, remaining_length={}",
+                fixed_header.packet_type,
+                fixed_header.flags,
+                fixed_header.remaining_length
+            );
 
             if fixed_header.remaining_length > 10000 {
                 tracing::debug!(
@@ -69,9 +86,7 @@ pub trait PacketIo: Transport {
             while bytes_read < payload.len() {
                 let n = self.read(&mut payload[bytes_read..]).await?;
                 if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed while reading packet".to_string(),
-                    ));
+                    return Err(MqttError::ClientClosed);
                 }
                 bytes_read += n;
             }
@@ -83,7 +98,16 @@ pub trait PacketIo: Transport {
                 tracing::trace!(payload_len = payload.len(), "Decoding PUBACK packet");
             }
 
-            Packet::decode_from_body(fixed_header.packet_type, &fixed_header, &mut payload_buf)
+            let packet = Packet::decode_from_body(
+                fixed_header.packet_type,
+                &fixed_header,
+                &mut payload_buf,
+            )?;
+            tracing::debug!(
+                "Successfully decoded packet: {:?}",
+                fixed_header.packet_type
+            );
+            Ok(packet)
         }
     }
 
@@ -160,7 +184,7 @@ impl PacketReader for OwnedReadHalf {
         let mut byte = [0u8; 1];
         let n = self.read(&mut byte).await?;
         if n == 0 {
-            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+            return Err(MqttError::ClientClosed);
         }
         header_buf.put_u8(byte[0]);
 
@@ -168,7 +192,7 @@ impl PacketReader for OwnedReadHalf {
         loop {
             let n = self.read(&mut byte).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                return Err(MqttError::ClientClosed);
             }
             header_buf.put_u8(byte[0]);
 
@@ -193,9 +217,7 @@ impl PacketReader for OwnedReadHalf {
         while bytes_read < payload.len() {
             let n = self.read(&mut payload[bytes_read..]).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError(
-                    "Connection closed while reading packet".to_string(),
-                ));
+                return Err(MqttError::ClientClosed);
             }
             bytes_read += n;
         }
@@ -207,7 +229,7 @@ impl PacketReader for OwnedReadHalf {
 }
 
 /// Helper function to encode any packet to a buffer
-fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
+pub fn encode_packet_to_buffer(packet: &Packet, buf: &mut BytesMut) -> Result<()> {
     match packet {
         Packet::Connect(p) => {
             encode_packet(buf, PacketType::Connect, 0, |buf| p.encode_body(buf))?;
@@ -276,7 +298,7 @@ impl PacketReader for TlsReadHalf {
         let mut byte = [0u8; 1];
         let n = self.read(&mut byte).await?;
         if n == 0 {
-            return Err(MqttError::ConnectionError("Connection closed".to_string()));
+            return Err(MqttError::ClientClosed);
         }
         header_buf.put_u8(byte[0]);
 
@@ -284,7 +306,7 @@ impl PacketReader for TlsReadHalf {
         loop {
             let n = self.read(&mut byte).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError("Connection closed".to_string()));
+                return Err(MqttError::ClientClosed);
             }
             header_buf.put_u8(byte[0]);
 
@@ -309,9 +331,7 @@ impl PacketReader for TlsReadHalf {
         while bytes_read < payload.len() {
             let n = self.read(&mut payload[bytes_read..]).await?;
             if n == 0 {
-                return Err(MqttError::ConnectionError(
-                    "Connection closed while reading packet".to_string(),
-                ));
+                return Err(MqttError::ClientClosed);
             }
             bytes_read += n;
         }

@@ -109,7 +109,7 @@ async fn test_cache_size_management() {
 
     // Add more than max cache size
     for i in 0..20 {
-        let packet = PublishPacket::new(format!("topic/{}", i), b"data", QoS::AtMostOnce);
+        let packet = PublishPacket::new(format!("topic/{i}"), b"data", QoS::AtMostOnce);
         assert!(loop_prevention.check_message(&packet).await);
     }
 
@@ -147,7 +147,7 @@ async fn test_concurrent_access() {
     for i in 0..10 {
         let loop_prevention_clone = loop_prevention.clone();
         let handle = tokio::spawn(async move {
-            let packet = PublishPacket::new(format!("concurrent/{}", i), b"data", QoS::AtMostOnce);
+            let packet = PublishPacket::new(format!("concurrent/{i}"), b"data", QoS::AtMostOnce);
 
             // Each unique message should pass once
             assert!(loop_prevention_clone.check_message(&packet).await);

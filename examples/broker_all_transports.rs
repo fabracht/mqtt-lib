@@ -12,18 +12,28 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize crypto provider for TLS
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install crypto provider");
+
     // Initialize logging
-    tracing_subscriber::fmt::init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into()),
+        )
+        .try_init();
 
     // Create broker configuration with all transport types
     let config = BrokerConfig::default()
         .with_bind_address(([0, 0, 0, 0], 1883))
         .with_tls(
             TlsConfig::new(
-                PathBuf::from("certs/server.crt"),
-                PathBuf::from("certs/server.key"),
+                PathBuf::from("test_certs/server.pem"),
+                PathBuf::from("test_certs/server.key"),
             )
-            .with_ca_file(PathBuf::from("certs/ca.crt"))
+            .with_ca_file(PathBuf::from("test_certs/ca.pem"))
             .with_bind_address(([0, 0, 0, 0], 8883)),
         )
         .with_websocket(
@@ -37,16 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut broker = MqttBroker::with_config(config).await?;
 
     info!("MQTT broker started with all transport types");
-    info!("  Plain TCP: mqtt://localhost:1883");
-    info!("  TLS: mqtts://localhost:8883");
-    info!("  WebSocket: ws://localhost:8080/mqtt");
+    info!("  Plain TCP:  mqtt://localhost:1883");
+    info!("  TLS:        mqtts://localhost:8883");
+    info!("  WebSocket:  ws://localhost:8080/mqtt");
     info!("Press Ctrl+C to stop");
 
     // Run until shutdown signal
     tokio::select! {
         result = broker.run() => {
             if let Err(e) = result {
-                eprintln!("Broker error: {}", e);
+                eprintln!("Broker error: {e}");
             }
         }
         _ = tokio::signal::ctrl_c() => {

@@ -25,6 +25,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
@@ -45,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(tokio::spawn(async move {
             let mut broker = broker;
             if let Err(e) = broker.run().await {
-                eprintln!("❌ Broker error: {}", e);
+                eprintln!("❌ Broker error: {e}");
             }
         }))
     } else {

@@ -81,7 +81,7 @@ fn test_concurrent_tasks() {
             let counter_clone = counter.clone();
             let handle = tokio::spawn(async move {
                 // Each task waits a different amount of time
-                tokio::time::sleep(Duration::from_millis(100 * i as u64)).await;
+                tokio::time::sleep(Duration::from_millis(u64::try_from(100 * i).unwrap())).await;
 
                 // Increment counter
                 counter_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

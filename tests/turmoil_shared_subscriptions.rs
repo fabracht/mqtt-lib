@@ -1,7 +1,7 @@
 //! Shared subscription tests using Turmoil
 //!
 //! These tests verify the shared subscription functionality using
-//! the existing MessageRouter directly, which we know works.
+//! the existing `MessageRouter` directly, which we know works.
 
 #[cfg(feature = "turmoil-testing")]
 use mqtt5::broker::router::MessageRouter;
@@ -33,9 +33,18 @@ fn test_shared_subscriptions_in_turmoil() {
         let (tx3, mut rx3) = mpsc::channel(100);
 
         // Register workers
-        router.register_client("worker1".to_string(), tx1).await;
-        router.register_client("worker2".to_string(), tx2).await;
-        router.register_client("worker3".to_string(), tx3).await;
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+        router
+            .register_client("worker1".to_string(), tx1, dtx1)
+            .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+        router
+            .register_client("worker2".to_string(), tx2, dtx2)
+            .await;
+        let (dtx3, _drx3) = tokio::sync::oneshot::channel();
+        router
+            .register_client("worker3".to_string(), tx3, dtx3)
+            .await;
 
         // All workers subscribe to same shared subscription
         router
@@ -69,7 +78,7 @@ fn test_shared_subscriptions_in_turmoil() {
         for i in 0..9 {
             let publish = PublishPacket::new(
                 format!("tasks/job{}", i % 3),
-                format!("Task {}", i).as_bytes(),
+                format!("Task {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
             router.route_message(&publish).await;

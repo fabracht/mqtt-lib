@@ -1,9 +1,8 @@
 //! Common test utilities and scenarios
 
-use mqtt5::{
-    ConnectOptions, MessageProperties, MqttClient, PublishOptions, PublishProperties, QoS,
-};
-use std::sync::atomic::{AtomicU32, Ordering};
+pub mod cli_helpers;
+
+use mqtt5::{ConnectOptions, MqttClient, PublishOptions, PublishProperties, QoS};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -11,6 +10,272 @@ use ulid::Ulid;
 
 /// Default test broker address
 pub const TEST_BROKER: &str = "mqtt://127.0.0.1:1883";
+
+use mqtt5::broker::config::BrokerConfig;
+use mqtt5::broker::server::MqttBroker;
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU16, Ordering};
+use tokio::task::JoinHandle;
+
+static TLS_PORT_COUNTER: AtomicU16 = AtomicU16::new(0);
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct TestBroker {
+    address: String,
+    port: u16,
+    config: BrokerConfig,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl TestBroker {
+    #[allow(dead_code)]
+    pub async fn start() -> Self {
+        use mqtt5::broker::config::{BrokerConfig, StorageBackend, StorageConfig};
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .with_storage(storage_config);
+
+        let mut broker = MqttBroker::with_config(config.clone())
+            .await
+            .expect("Failed to create test broker");
+
+        let addr = broker.local_addr().expect("Failed to get broker address");
+        let port = addr.port();
+        let address = format!("mqtt://{addr}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self {
+            address,
+            port,
+            config,
+            handle: Some(handle),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn stop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    #[allow(dead_code)]
+    pub async fn restart(&mut self) {
+        self.stop().await;
+
+        let mut config = self.config.clone();
+        config = config.with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap());
+
+        let mut broker = MqttBroker::with_config(config)
+            .await
+            .expect("Failed to restart test broker");
+
+        let addr = broker.local_addr().expect("Failed to get broker address");
+        self.port = addr.port();
+        self.address = format!("mqtt://{addr}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        self.handle = Some(handle);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    /// Start a test broker with TLS support on a random port
+    #[allow(dead_code)]
+    pub async fn start_with_tls() -> Self {
+        use mqtt5::broker::config::{
+            BrokerConfig, StorageBackend, StorageConfig, TlsConfig as BrokerTlsConfig,
+        };
+        use std::path::PathBuf;
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let tls_port = 20000 + TLS_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let tls_config = BrokerTlsConfig::new(
+            PathBuf::from("test_certs/server.pem"),
+            PathBuf::from("test_certs/server.key"),
+        )
+        .with_require_client_cert(false)
+        .with_bind_address(
+            format!("127.0.0.1:{tls_port}")
+                .parse::<SocketAddr>()
+                .unwrap(),
+        );
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .with_storage(storage_config)
+            .with_tls(tls_config);
+
+        let mut broker = MqttBroker::with_config(config.clone())
+            .await
+            .expect("Failed to create test broker with TLS");
+
+        let address = format!("mqtts://127.0.0.1:{tls_port}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self {
+            address,
+            port: tls_port,
+            config,
+            handle: Some(handle),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn start_with_websocket() -> Self {
+        use mqtt5::broker::config::{BrokerConfig, StorageBackend, StorageConfig, WebSocketConfig};
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let ws_port = 20000 + TLS_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let ws_config = WebSocketConfig::new()
+            .with_bind_addresses(vec![format!("127.0.0.1:{ws_port}").parse().unwrap()])
+            .with_path("/mqtt".to_string());
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .with_storage(storage_config)
+            .with_websocket(ws_config);
+
+        let mut broker = MqttBroker::with_config(config.clone())
+            .await
+            .expect("Failed to create test broker with WebSocket");
+
+        let address = format!("ws://127.0.0.1:{ws_port}/mqtt");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self {
+            address,
+            port: ws_port,
+            config,
+            handle: Some(handle),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn start_with_authentication() -> Self {
+        use mqtt5::broker::config::{
+            AuthConfig, AuthMethod, BrokerConfig, StorageBackend, StorageConfig,
+        };
+        use std::path::PathBuf;
+        use std::process::Command;
+
+        let password_file = PathBuf::from("test_passwords.txt");
+
+        let _ = std::fs::remove_file(&password_file);
+
+        let status = Command::new("./target/release/mqttv5")
+            .args([
+                "passwd",
+                "-c",
+                "-b",
+                "testpass",
+                "testuser",
+                password_file.to_str().unwrap(),
+            ])
+            .status()
+            .expect("Failed to create password file");
+
+        assert!(status.success(), "Failed to create password file");
+
+        for _ in 0..10 {
+            if password_file.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let auth_config = AuthConfig {
+            allow_anonymous: false,
+            password_file: Some(password_file.clone()),
+            auth_method: AuthMethod::Password,
+            auth_data: Some(std::fs::read(&password_file).expect("Failed to read password file")),
+        };
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .with_storage(storage_config)
+            .with_auth(auth_config);
+
+        let mut broker = MqttBroker::with_config(config.clone())
+            .await
+            .expect("Failed to create test broker with authentication");
+
+        let addr = broker.local_addr().expect("Failed to get broker address");
+        let port = addr.port();
+        let address = format!("mqtt://{addr}");
+
+        let handle = tokio::spawn(async move {
+            let _ = broker.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        Self {
+            address,
+            port,
+            config,
+            handle: Some(handle),
+        }
+    }
+
+    /// Get the broker address
+    #[allow(dead_code)]
+    pub fn address(&self) -> &str {
+        &self.address
+    }
+}
+
+impl Drop for TestBroker {
+    fn drop(&mut self) {
+        if let Some(handle) = &self.handle {
+            handle.abort();
+        }
+    }
+}
 
 /// Default timeout for test operations
 #[allow(dead_code)]
@@ -23,9 +288,14 @@ pub fn test_client_id(test_name: &str) -> String {
 
 /// Create a connected test client with default settings
 pub async fn create_test_client(name: &str) -> MqttClient {
+    create_test_client_with_broker(name, TEST_BROKER).await
+}
+
+/// Create a connected test client with specific broker address
+pub async fn create_test_client_with_broker(name: &str, broker_addr: &str) -> MqttClient {
     let client = MqttClient::new(test_client_id(name));
     client
-        .connect(TEST_BROKER)
+        .connect(broker_addr)
         .await
         .expect("Failed to connect");
     client
@@ -110,49 +380,6 @@ impl MessageCollector {
     /// Get message count
     pub async fn count(&self) -> usize {
         self.messages.read().await.len()
-    }
-}
-
-/// Counter for tracking events
-pub struct EventCounter {
-    count: Arc<AtomicU32>,
-}
-
-impl EventCounter {
-    pub fn new() -> Self {
-        Self {
-            count: Arc::new(AtomicU32::new(0)),
-        }
-    }
-
-    /// Get a callback that increments the counter
-    pub fn callback(&self) -> impl Fn(mqtt5::types::Message) + Send + Sync + 'static {
-        let count = self.count.clone();
-        move |_| {
-            count.fetch_add(1, Ordering::SeqCst);
-        }
-    }
-
-    /// Get current count
-    pub fn get(&self) -> u32 {
-        self.count.load(Ordering::SeqCst)
-    }
-
-    /// Reset counter to zero
-    pub fn reset(&self) {
-        self.count.store(0, Ordering::SeqCst);
-    }
-
-    /// Wait for count to reach target
-    pub async fn wait_for(&self, target: u32, timeout: Duration) -> bool {
-        let start = tokio::time::Instant::now();
-        while start.elapsed() < timeout {
-            if self.get() >= target {
-                return true;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        false
     }
 }
 
@@ -329,50 +556,24 @@ pub async fn cleanup_clients(clients: Vec<MqttClient>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_message_collector() {
-        let collector = MessageCollector::new();
+        let collector = super::MessageCollector::new();
 
-        // Simulate receiving messages
         let callback = collector.callback();
         let message = mqtt5::types::Message {
             topic: "test/topic".to_string(),
             payload: b"test".to_vec(),
-            qos: QoS::AtMostOnce,
+            qos: mqtt5::QoS::AtMostOnce,
             retain: false,
-            properties: MessageProperties::default(),
+            properties: mqtt5::MessageProperties::default(),
         };
         callback(message);
 
-        // Wait a bit for async processing
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         assert_eq!(collector.count().await, 1);
         let messages = collector.get_messages().await;
         assert_eq!(messages[0].topic, "test/topic");
-    }
-
-    #[tokio::test]
-    async fn test_event_counter() {
-        let counter = EventCounter::new();
-        assert_eq!(counter.get(), 0);
-
-        let callback = counter.callback();
-        // Simulate events
-        for _ in 0..5 {
-            callback(mqtt5::types::Message {
-                topic: "test".to_string(),
-                payload: vec![],
-                qos: QoS::AtMostOnce,
-                retain: false,
-                properties: MessageProperties::default(),
-            });
-        }
-
-        assert_eq!(counter.get(), 5);
-        counter.reset();
-        assert_eq!(counter.get(), 0);
     }
 }

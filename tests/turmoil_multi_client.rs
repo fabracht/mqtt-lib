@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 
 #[cfg(feature = "turmoil-testing")]
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_multi_client_message_routing() {
     let mut sim = turmoil::Builder::new()
         .simulation_duration(Duration::from_secs(15))
@@ -37,8 +38,13 @@ fn test_multi_client_message_routing() {
         let (tx1, rx1) = mpsc::channel(100);
         clients.insert("temp_monitor", tx1);
         receivers.insert("temp_monitor", rx1);
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
         router
-            .register_client("temp_monitor".to_string(), clients["temp_monitor"].clone())
+            .register_client(
+                "temp_monitor".to_string(),
+                clients["temp_monitor"].clone(),
+                dtx1,
+            )
             .await;
         router
             .subscribe(
@@ -53,10 +59,12 @@ fn test_multi_client_message_routing() {
         let (tx2, rx2) = mpsc::channel(100);
         clients.insert("humidity_monitor", tx2);
         receivers.insert("humidity_monitor", rx2);
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
         router
             .register_client(
                 "humidity_monitor".to_string(),
                 clients["humidity_monitor"].clone(),
+                dtx2,
             )
             .await;
         router
@@ -72,8 +80,13 @@ fn test_multi_client_message_routing() {
         let (tx3, rx3) = mpsc::channel(100);
         clients.insert("all_monitor", tx3);
         receivers.insert("all_monitor", rx3);
+        let (dtx3, _drx3) = tokio::sync::oneshot::channel();
         router
-            .register_client("all_monitor".to_string(), clients["all_monitor"].clone())
+            .register_client(
+                "all_monitor".to_string(),
+                clients["all_monitor"].clone(),
+                dtx3,
+            )
             .await;
         router
             .subscribe(
@@ -88,10 +101,12 @@ fn test_multi_client_message_routing() {
         let (tx4, rx4) = mpsc::channel(100);
         clients.insert("room1_monitor", tx4);
         receivers.insert("room1_monitor", rx4);
+        let (dtx4, _drx4) = tokio::sync::oneshot::channel();
         router
             .register_client(
                 "room1_monitor".to_string(),
                 clients["room1_monitor"].clone(),
+                dtx4,
             )
             .await;
         router
@@ -115,7 +130,7 @@ fn test_multi_client_message_routing() {
 
         for (topic, payload) in &messages {
             let publish =
-                PublishPacket::new(topic.to_string(), payload.as_bytes(), QoS::AtMostOnce);
+                PublishPacket::new((*topic).to_string(), payload.as_bytes(), QoS::AtMostOnce);
             router.route_message(&publish).await;
         }
 
@@ -181,8 +196,9 @@ fn test_client_subscription_changes() {
 
         // Create a client
         let (tx, mut rx) = mpsc::channel(100);
+        let (dtx, _drx) = tokio::sync::oneshot::channel();
         router
-            .register_client("dynamic_client".to_string(), tx)
+            .register_client("dynamic_client".to_string(), tx, dtx)
             .await;
 
         // Initial subscription
@@ -263,8 +279,14 @@ fn test_message_ordering_with_multiple_clients() {
         let (tx1, mut rx1) = mpsc::channel(100);
         let (tx2, mut rx2) = mpsc::channel(100);
 
-        router.register_client("client1".to_string(), tx1).await;
-        router.register_client("client2".to_string(), tx2).await;
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+        router
+            .register_client("client1".to_string(), tx1, dtx1)
+            .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+        router
+            .register_client("client2".to_string(), tx2, dtx2)
+            .await;
 
         router
             .subscribe(
@@ -288,7 +310,7 @@ fn test_message_ordering_with_multiple_clients() {
         for i in 0..5 {
             let msg = PublishPacket::new(
                 "sequence/test".to_string(),
-                format!("Message {}", i).as_bytes(),
+                format!("Message {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
             router.route_message(&msg).await;
@@ -316,8 +338,8 @@ fn test_message_ordering_with_multiple_clients() {
 
         // Verify ordering
         for i in 0..5 {
-            assert_eq!(client1_messages[i], format!("Message {}", i));
-            assert_eq!(client2_messages[i], format!("Message {}", i));
+            assert_eq!(client1_messages[i], format!("Message {i}"));
+            assert_eq!(client2_messages[i], format!("Message {i}"));
         }
 
         Ok::<(), Box<dyn std::error::Error>>(())

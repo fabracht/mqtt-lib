@@ -30,7 +30,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::{interval, timeout};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, warn};
 
 /// Handles a single client connection
 pub struct ClientHandler {
@@ -50,6 +50,8 @@ pub struct ClientHandler {
     publish_tx: mpsc::Sender<PublishPacket>,
     inflight_publishes: HashMap<u16, PublishPacket>,
     session: Option<ClientSession>,
+    next_packet_id: u16,
+    normal_disconnect: bool,
 }
 
 impl ClientHandler {
@@ -85,6 +87,8 @@ impl ClientHandler {
             publish_tx,
             inflight_publishes: HashMap::new(),
             session: None,
+            next_packet_id: 1,
+            normal_disconnect: false,
         }
     }
 
@@ -97,9 +101,19 @@ impl ClientHandler {
     /// # Panics
     ///
     /// Panics if `client_id` is None after successful connection
+    #[allow(clippy::too_many_lines)]
     pub async fn run(mut self) -> Result<()> {
         // Wait for CONNECT packet
+        tracing::debug!(
+            "Client handler started for {} ({})",
+            self.client_addr,
+            self.transport.transport_type()
+        );
         let connect_timeout = Duration::from_secs(10);
+        tracing::trace!(
+            "Waiting for CONNECT packet with {}s timeout",
+            connect_timeout.as_secs()
+        );
         match timeout(connect_timeout, self.wait_for_connect()).await {
             Ok(Ok(())) => {
                 // Successfully connected
@@ -125,8 +139,10 @@ impl ClientHandler {
                 // Log connection errors at appropriate level based on error type
                 if e.to_string().contains("Connection closed") {
                     info!("Client disconnected during connect phase: {}", e);
+                    tracing::debug!("Connection closed error details: {:?}", e);
                 } else {
                     warn!("Connect error: {}", e);
+                    tracing::debug!("Connect error details: {:?}", e);
                 }
                 return Err(e);
             }
@@ -136,21 +152,56 @@ impl ClientHandler {
             }
         }
 
+        // Create disconnect channel for session takeover handling
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::oneshot::channel();
+
         // Register with router
         let client_id = self.client_id.as_ref().unwrap().clone();
         self.router
-            .register_client(client_id.clone(), self.publish_tx.clone())
+            .register_client(client_id.clone(), self.publish_tx.clone(), disconnect_tx)
             .await;
 
-        // Start keep-alive timer
-        let mut keep_alive_interval = interval(self.keep_alive);
-        keep_alive_interval.reset();
-
         // Handle packets until disconnect
-        let result = self.handle_packets(&mut keep_alive_interval).await;
+        let (result, session_taken_over) = if self.keep_alive.is_zero() {
+            // No keepalive checking when keepalive is disabled
+            match self.handle_packets_no_keepalive(&mut disconnect_rx).await {
+                Ok(taken_over) => (Ok(()), taken_over),
+                Err(e) => (Err(e), false),
+            }
+        } else {
+            // Start keep-alive timer
+            let mut keep_alive_interval = interval(self.keep_alive);
+            keep_alive_interval.reset();
+            match self
+                .handle_packets(&mut keep_alive_interval, &mut disconnect_rx)
+                .await
+            {
+                Ok(taken_over) => (Ok(()), taken_over),
+                Err(e) => (Err(e), false),
+            }
+        };
 
-        // Cleanup
-        self.router.unregister_client(&client_id).await;
+        // Check if we should preserve the session
+        let preserve_session = if let Some(ref session) = self.session {
+            session.expiry_interval != Some(0)
+        } else {
+            false
+        };
+
+        // Only unregister client if not taken over
+        if !session_taken_over {
+            info!("Unregistering client {} (not taken over)", client_id);
+            if !preserve_session {
+                self.router.unregister_client(&client_id).await;
+            } else {
+                self.router.disconnect_client(&client_id).await;
+            }
+        } else {
+            info!(
+                "Skipping unregister for client {} (session taken over)",
+                client_id
+            );
+        }
 
         // Unregister connection from resource monitor
         self.resource_monitor
@@ -180,6 +231,11 @@ impl ClientHandler {
             }
         }
 
+        // Handle will message if this was an abnormal disconnect
+        if !self.normal_disconnect {
+            self.publish_will_message(&client_id).await;
+        }
+
         info!("Client {} disconnected", client_id);
 
         result
@@ -197,11 +253,54 @@ impl ClientHandler {
         }
     }
 
+    /// Handles incoming packets without keepalive checking
+    async fn handle_packets_no_keepalive(
+        &mut self,
+        disconnect_rx: &mut tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<bool> {
+        loop {
+            tokio::select! {
+                // Read incoming packets
+                packet_result = self.transport.read_packet() => {
+                    match packet_result {
+                        Ok(packet) => {
+                            self.handle_packet(packet).await?;
+                        }
+                        Err(e) if e.is_normal_disconnect() => {
+                            debug!("Client disconnected");
+                            return Ok(false);
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
+
+                // Send outgoing publishes
+                publish_opt = self.publish_rx.recv() => {
+                    if let Some(publish) = publish_opt {
+                        self.send_publish(publish).await?;
+                    } else {
+                        warn!("Publish channel closed unexpectedly");
+                        return Ok(false);
+                    }
+                }
+
+                // Session takeover
+                _ = &mut *disconnect_rx => {
+                    info!("Session taken over by another client");
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
     /// Handles incoming packets
     async fn handle_packets(
         &mut self,
         keep_alive_interval: &mut tokio::time::Interval,
-    ) -> Result<()> {
+        disconnect_rx: &mut tokio::sync::oneshot::Receiver<()>,
+    ) -> Result<bool> {
         let mut last_packet_time = tokio::time::Instant::now();
 
         loop {
@@ -213,20 +312,24 @@ impl ClientHandler {
                             last_packet_time = tokio::time::Instant::now();
                             self.handle_packet(packet).await?;
                         }
-                        Err(MqttError::Io(e)) if e.contains("stream has been shut down") => {
+                        Err(e) if e.is_normal_disconnect() => {
                             debug!("Client disconnected");
-                            return Ok(());
+                            return Ok(false);
                         }
                         Err(e) => {
-                            error!("Read error: {}", e);
                             return Err(e);
                         }
                     }
                 }
 
                 // Send outgoing publishes
-                Some(publish) = self.publish_rx.recv() => {
-                    self.send_publish(publish).await?;
+                publish_opt = self.publish_rx.recv() => {
+                    if let Some(publish) = publish_opt {
+                        self.send_publish(publish).await?;
+                    } else {
+                        warn!("Publish channel closed unexpectedly in handle_packets");
+                        return Ok(false);
+                    }
                 }
 
                 // Keep-alive check
@@ -238,12 +341,18 @@ impl ClientHandler {
                     }
                 }
 
+                // Session takeover
+                _ = &mut *disconnect_rx => {
+                    info!("Session taken over by another client");
+                    return Ok(true);
+                }
+
                 // Shutdown signal
                 _ = self.shutdown_rx.recv() => {
                     debug!("Shutdown signal received");
                     let disconnect = DisconnectPacket::new(ReasonCode::ServerShuttingDown);
                     let _ = self.transport.write_packet(Packet::Disconnect(disconnect)).await;
-                    return Ok(());
+                    return Ok(false);
                 }
             }
         }
@@ -251,8 +360,6 @@ impl ClientHandler {
 
     /// Handles a single packet
     async fn handle_packet(&mut self, packet: Packet) -> Result<()> {
-        trace!("Received packet: {:?}", packet);
-
         match packet {
             Packet::Connect(_) => {
                 // Duplicate CONNECT
@@ -284,13 +391,50 @@ impl ClientHandler {
         }
     }
 
+    async fn validate_protocol_version(&mut self, protocol_version: u8) -> Result<()> {
+        if protocol_version != 5 {
+            info!(
+                protocol_version,
+                addr = %self.client_addr,
+                "Rejecting connection: unsupported protocol version (only MQTT v5.0 supported)"
+            );
+            let connack = if protocol_version == 4 {
+                ConnAckPacket::new_v311(false, ReasonCode::UnsupportedProtocolVersion)
+            } else {
+                ConnAckPacket::new(false, ReasonCode::UnsupportedProtocolVersion)
+            };
+            self.transport
+                .write_packet(Packet::ConnAck(connack))
+                .await?;
+            return Err(MqttError::UnsupportedProtocolVersion);
+        }
+        Ok(())
+    }
+
     /// Handles CONNECT packet
-    async fn handle_connect(&mut self, connect: ConnectPacket) -> Result<()> {
+    async fn handle_connect(&mut self, mut connect: ConnectPacket) -> Result<()> {
         debug!(
             client_id = %connect.client_id,
             addr = %self.client_addr,
+            protocol_version = connect.protocol_version,
+            clean_start = connect.clean_start,
+            keep_alive = connect.keep_alive,
             "Processing CONNECT packet"
         );
+
+        self.validate_protocol_version(connect.protocol_version)
+            .await?;
+
+        // Handle empty client ID for MQTT v5
+        let mut assigned_client_id = None;
+        if connect.client_id.is_empty() {
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static COUNTER: AtomicU32 = AtomicU32::new(0);
+            let generated_id = format!("auto-{}", COUNTER.fetch_add(1, Ordering::SeqCst));
+            debug!("Generated client ID '{}' for empty client ID", generated_id);
+            connect.client_id.clone_from(&generated_id);
+            assigned_client_id = Some(generated_id);
+        }
 
         // Authenticate
         let auth_result = self
@@ -316,49 +460,18 @@ impl ClientHandler {
         self.keep_alive = Duration::from_secs(u64::from(connect.keep_alive));
 
         // Handle session
-        let mut session_present = false;
-        if let Some(ref storage) = self.storage {
-            // Get or create session
-            let existing_session = storage.get_session(&connect.client_id).await?;
-
-            if connect.clean_start || existing_session.is_none() {
-                // Create new session
-                let session = ClientSession::new(
-                    connect.client_id.clone(),
-                    true, // persistent
-                    None, // TODO: Extract session expiry from properties
-                );
-                storage.store_session(session.clone()).await?;
-                self.session = Some(session);
-            } else if let Some(mut session) = existing_session {
-                // Existing session found
-                session_present = true;
-
-                // Restore subscriptions
-                for (topic_filter, qos) in &session.subscriptions {
-                    self.router
-                        .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None)
-                        .await;
-                }
-
-                // Update last seen
-                session.touch();
-                storage.store_session(session.clone()).await?;
-                self.session = Some(session);
-
-                // Deliver queued messages
-                let queued_messages = storage.get_queued_messages(&connect.client_id).await?;
-                for msg in queued_messages {
-                    let publish = msg.to_publish_packet();
-                    self.publish_tx.try_send(publish).ok();
-                }
-                // Clear delivered messages
-                storage.remove_queued_messages(&connect.client_id).await?;
-            }
-        }
+        let session_present = self.handle_session(&connect).await?;
 
         // Send CONNACK
         let mut connack = ConnAckPacket::new(session_present, ReasonCode::Success);
+
+        // If we assigned a client ID, include it in the CONNACK properties
+        if let Some(ref assigned_id) = assigned_client_id {
+            debug!("Setting assigned client ID in CONNACK: {}", assigned_id);
+            connack
+                .properties
+                .set_assigned_client_identifier(assigned_id.clone());
+        }
 
         // Set broker properties using setter methods
         connack
@@ -379,7 +492,13 @@ impl ClientHandler {
         connack
             .properties
             .set_shared_subscription_available(self.config.shared_subscription_available);
-        connack.properties.set_maximum_qos(self.config.maximum_qos);
+
+        // Only send MaximumQoS if less than 2 (per MQTT v5 spec 3.2.2.3.4)
+        // MaximumQoS property value MUST be 0 or 1, never 2
+        // If absent, client assumes QoS 2 is supported
+        if self.config.maximum_qos < 2 {
+            connack.properties.set_maximum_qos(self.config.maximum_qos);
+        }
 
         if let Some(keep_alive) = self.config.server_keep_alive {
             connack
@@ -390,9 +509,21 @@ impl ClientHandler {
         debug!(
             client_id = %connect.client_id,
             session_present = session_present,
+            assigned_client_id = ?assigned_client_id,
             "Sending CONNACK"
         );
-        self.transport.write_packet(Packet::ConnAck(connack)).await
+        tracing::trace!("CONNACK properties: {:?}", connack.properties);
+        self.transport
+            .write_packet(Packet::ConnAck(connack))
+            .await?;
+        tracing::debug!("CONNACK sent successfully");
+
+        // Deliver queued messages if session is present
+        if session_present {
+            self.deliver_queued_messages(&connect.client_id).await?;
+        }
+
+        Ok(())
     }
 
     /// Handles SUBSCRIBE packet
@@ -614,11 +745,190 @@ impl ClientHandler {
         self.transport.write_packet(Packet::PingResp).await
     }
 
+    /// Handles session creation or restoration
+    async fn handle_session(&mut self, connect: &ConnectPacket) -> Result<bool> {
+        let mut session_present = false;
+        if let Some(storage) = self.storage.clone() {
+            // Get or create session
+            let existing_session = storage.get_session(&connect.client_id).await?;
+
+            if connect.clean_start || existing_session.is_none() {
+                self.create_new_session(connect, &storage).await?;
+            } else if let Some(session) = existing_session {
+                session_present = true;
+                self.restore_existing_session(connect, session, &storage)
+                    .await?;
+            }
+        }
+        Ok(session_present)
+    }
+
+    /// Creates a new session for the client
+    async fn create_new_session(
+        &mut self,
+        connect: &ConnectPacket,
+        storage: &Arc<DynamicStorage>,
+    ) -> Result<()> {
+        // Extract session expiry interval from properties
+        let session_expiry = connect.properties.get_session_expiry_interval();
+
+        // Extract will message if present
+        let will_message = connect.will.clone();
+        if let Some(ref will) = will_message {
+            debug!(
+                "Will message present with delay: {:?}",
+                will.properties.will_delay_interval
+            );
+        }
+
+        let session = ClientSession::new_with_will(
+            connect.client_id.clone(),
+            true, // persistent
+            session_expiry,
+            will_message,
+        );
+        debug!(
+            "Created new session with will_delay_interval: {:?}",
+            session.will_delay_interval
+        );
+        storage.store_session(session.clone()).await?;
+        self.session = Some(session);
+        Ok(())
+    }
+
+    /// Restores an existing session for the client
+    async fn restore_existing_session(
+        &mut self,
+        connect: &ConnectPacket,
+        mut session: ClientSession,
+        storage: &Arc<DynamicStorage>,
+    ) -> Result<()> {
+        // Restore subscriptions
+        for (topic_filter, qos) in &session.subscriptions {
+            self.router
+                .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None)
+                .await;
+        }
+
+        // Update will message from new connection (replaces any existing will)
+        session.will_message.clone_from(&connect.will);
+        session.will_delay_interval = connect
+            .will
+            .as_ref()
+            .and_then(|w| w.properties.will_delay_interval);
+
+        // Update last seen
+        session.touch();
+        storage.store_session(session.clone()).await?;
+        self.session = Some(session);
+        Ok(())
+    }
+
+    /// Publishes will message on abnormal disconnect
+    async fn publish_will_message(&self, client_id: &str) {
+        if let Some(ref session) = self.session {
+            if let Some(ref will) = session.will_message {
+                debug!("Publishing will message for client {}", client_id);
+
+                // Create publish packet from will message
+                let mut publish =
+                    PublishPacket::new(will.topic.clone(), will.payload.clone(), will.qos);
+                publish.retain = will.retain;
+
+                // Handle will delay interval
+                if let Some(delay) = session.will_delay_interval {
+                    debug!("Using will delay from session: {} seconds", delay);
+                    if delay > 0 {
+                        debug!("Spawning task to publish will after {} seconds", delay);
+                        // Spawn task to publish will after delay
+                        let router = Arc::clone(&self.router);
+                        let publish_clone = publish.clone();
+                        let client_id_clone = client_id.to_string();
+                        tokio::spawn(async move {
+                            debug!(
+                                "Task started: waiting {} seconds before publishing will for {}",
+                                delay, client_id_clone
+                            );
+                            tokio::time::sleep(Duration::from_secs(u64::from(delay))).await;
+                            debug!(
+                                "Task completed: publishing delayed will message for {}",
+                                client_id_clone
+                            );
+                            router.route_message(&publish_clone).await;
+                        });
+                        debug!("Spawned delayed will task for {}", client_id);
+                    } else {
+                        debug!("Publishing will immediately (delay = 0)");
+                        // Publish immediately
+                        self.router.route_message(&publish).await;
+                    }
+                } else {
+                    debug!("Publishing will immediately (no delay specified)");
+                    // No delay specified, publish immediately
+                    self.router.route_message(&publish).await;
+                }
+            }
+        }
+    }
+
     /// Handles DISCONNECT packet
-    #[allow(clippy::unused_self)]
     fn handle_disconnect(&mut self, _disconnect: DisconnectPacket) -> Result<()> {
+        // Mark as normal disconnect (client sent DISCONNECT packet)
+        self.normal_disconnect = true;
+
+        // Clear will message since this is a normal disconnect
+        if let Some(ref mut session) = self.session {
+            session.will_message = None;
+            session.will_delay_interval = None;
+        }
+
         // Client initiated disconnect
         Err(MqttError::ClientClosed)
+    }
+
+    /// Generate next packet ID
+    fn next_packet_id(&mut self) -> u16 {
+        let id = self.next_packet_id;
+        self.next_packet_id = if self.next_packet_id == u16::MAX {
+            1
+        } else {
+            self.next_packet_id + 1
+        };
+        id
+    }
+
+    /// Deliver queued messages to reconnected client
+    async fn deliver_queued_messages(&mut self, client_id: &str) -> Result<()> {
+        // Get messages and clear them from storage
+        let queued_messages = if let Some(ref storage) = self.storage {
+            let messages = storage.get_queued_messages(client_id).await?;
+            storage.remove_queued_messages(client_id).await?;
+            messages
+        } else {
+            Vec::new()
+        };
+
+        if !queued_messages.is_empty() {
+            info!(
+                "Delivering {} queued messages to {}",
+                queued_messages.len(),
+                client_id
+            );
+
+            // Convert messages and generate packet IDs
+            for msg in queued_messages {
+                let mut publish = msg.to_publish_packet();
+                // Generate packet ID for QoS > 0
+                if publish.qos != QoS::AtMostOnce && publish.packet_id.is_none() {
+                    publish.packet_id = Some(self.next_packet_id());
+                }
+                if let Err(e) = self.publish_tx.try_send(publish) {
+                    warn!("Failed to deliver queued message to {}: {:?}", client_id, e);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Sends a publish to the client

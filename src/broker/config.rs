@@ -13,8 +13,8 @@ use std::time::Duration;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct BrokerConfig {
-    /// TCP listener address
-    pub bind_address: SocketAddr,
+    /// TCP listener addresses (supports multiple addresses for dual-stack IPv4/IPv6)
+    pub bind_addresses: Vec<SocketAddr>,
 
     /// Maximum number of concurrent clients
     pub max_clients: usize,
@@ -58,6 +58,9 @@ pub struct BrokerConfig {
     /// WebSocket configuration
     pub websocket_config: Option<WebSocketConfig>,
 
+    /// WebSocket TLS configuration
+    pub websocket_tls_config: Option<WebSocketConfig>,
+
     /// Storage configuration
     pub storage_config: StorageConfig,
 }
@@ -65,7 +68,10 @@ pub struct BrokerConfig {
 impl Default for BrokerConfig {
     fn default() -> Self {
         Self {
-            bind_address: "0.0.0.0:1883".parse().unwrap(),
+            bind_addresses: vec![
+                "0.0.0.0:1883".parse().unwrap(),
+                "[::]:1883".parse().unwrap(),
+            ],
             max_clients: 10000,
             session_expiry_interval: Duration::from_secs(3600), // 1 hour
             max_packet_size: 268_435_456,                       // 256 MB
@@ -80,6 +86,7 @@ impl Default for BrokerConfig {
             auth_config: AuthConfig::default(),
             tls_config: None,
             websocket_config: None,
+            websocket_tls_config: None,
             storage_config: StorageConfig::default(),
         }
     }
@@ -92,10 +99,24 @@ impl BrokerConfig {
         Self::default()
     }
 
-    /// Sets the bind address
+    /// Sets the bind addresses (replaces all existing addresses)
+    #[must_use]
+    pub fn with_bind_addresses(mut self, addrs: Vec<SocketAddr>) -> Self {
+        self.bind_addresses = addrs;
+        self
+    }
+
+    /// Adds a bind address to the list
+    #[must_use]
+    pub fn add_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
+        self.bind_addresses.push(addr.into());
+        self
+    }
+
+    /// Sets a single bind address (replaces all existing addresses)
     #[must_use]
     pub fn with_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
-        self.bind_address = addr.into();
+        self.bind_addresses = vec![addr.into()];
         self
     }
 
@@ -152,6 +173,13 @@ impl BrokerConfig {
     #[must_use]
     pub fn with_websocket(mut self, ws: WebSocketConfig) -> Self {
         self.websocket_config = Some(ws);
+        self
+    }
+
+    /// Sets the WebSocket TLS configuration
+    #[must_use]
+    pub fn with_websocket_tls(mut self, ws_tls: WebSocketConfig) -> Self {
+        self.websocket_tls_config = Some(ws_tls);
         self
     }
 
@@ -243,20 +271,24 @@ pub struct TlsConfig {
     /// Whether to require client certificates
     pub require_client_cert: bool,
 
-    /// TLS listener address (if different from main address)
-    pub bind_address: Option<SocketAddr>,
+    /// TLS listener addresses (supports multiple addresses for dual-stack)
+    pub bind_addresses: Vec<SocketAddr>,
 }
 
 impl TlsConfig {
     /// Creates a new TLS configuration
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn new(cert_file: PathBuf, key_file: PathBuf) -> Self {
         Self {
             cert_file,
             key_file,
             ca_file: None,
             require_client_cert: false,
-            bind_address: None,
+            bind_addresses: vec![
+                "0.0.0.0:8883".parse().expect("valid IPv4 address"),
+                "[::]:8883".parse().expect("valid IPv6 address"),
+            ],
         }
     }
 
@@ -274,10 +306,24 @@ impl TlsConfig {
         self
     }
 
-    /// Sets the TLS bind address
+    /// Sets the TLS bind addresses (replaces all existing)
+    #[must_use]
+    pub fn with_bind_addresses(mut self, addrs: Vec<SocketAddr>) -> Self {
+        self.bind_addresses = addrs;
+        self
+    }
+
+    /// Adds a TLS bind address
+    #[must_use]
+    pub fn add_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
+        self.bind_addresses.push(addr.into());
+        self
+    }
+
+    /// Sets a single bind address (replaces all existing)
     #[must_use]
     pub fn with_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
-        self.bind_address = Some(addr.into());
+        self.bind_addresses = vec![addr.into()];
         self
     }
 }
@@ -285,8 +331,8 @@ impl TlsConfig {
 /// WebSocket configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSocketConfig {
-    /// WebSocket listener address
-    pub bind_address: SocketAddr,
+    /// WebSocket listener addresses (supports multiple addresses for dual-stack)
+    pub bind_addresses: Vec<SocketAddr>,
 
     /// Path for WebSocket connections
     pub path: String,
@@ -301,7 +347,10 @@ pub struct WebSocketConfig {
 impl Default for WebSocketConfig {
     fn default() -> Self {
         Self {
-            bind_address: "0.0.0.0:8080".parse().unwrap(),
+            bind_addresses: vec![
+                "0.0.0.0:8080".parse().unwrap(),
+                "[::]:8080".parse().unwrap(),
+            ],
             path: "/mqtt".to_string(),
             subprotocol: "mqtt".to_string(),
             use_tls: false,
@@ -316,10 +365,24 @@ impl WebSocketConfig {
         Self::default()
     }
 
-    /// Sets the bind address
+    /// Sets the bind addresses (replaces all existing)
+    #[must_use]
+    pub fn with_bind_addresses(mut self, addrs: Vec<SocketAddr>) -> Self {
+        self.bind_addresses = addrs;
+        self
+    }
+
+    /// Adds a bind address
+    #[must_use]
+    pub fn add_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
+        self.bind_addresses.push(addr.into());
+        self
+    }
+
+    /// Sets a single bind address (replaces all existing)
     #[must_use]
     pub fn with_bind_address(mut self, addr: impl Into<SocketAddr>) -> Self {
-        self.bind_address = addr.into();
+        self.bind_addresses = vec![addr.into()];
         self
     }
 
@@ -417,7 +480,9 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = BrokerConfig::default();
-        assert_eq!(config.bind_address.to_string(), "0.0.0.0:1883");
+        assert_eq!(config.bind_addresses.len(), 2);
+        assert_eq!(config.bind_addresses[0].to_string(), "0.0.0.0:1883");
+        assert_eq!(config.bind_addresses[1].to_string(), "[::]:1883");
         assert_eq!(config.max_clients, 10000);
         assert_eq!(config.maximum_qos, 2);
         assert!(config.retain_available);
@@ -431,7 +496,8 @@ mod tests {
             .with_maximum_qos(1)
             .with_retain_available(false);
 
-        assert_eq!(config.bind_address.to_string(), "127.0.0.1:1884");
+        assert_eq!(config.bind_addresses.len(), 1);
+        assert_eq!(config.bind_addresses[0].to_string(), "127.0.0.1:1884");
         assert_eq!(config.max_clients, 5000);
         assert_eq!(config.maximum_qos, 1);
         assert!(!config.retain_available);
@@ -473,7 +539,8 @@ mod tests {
             .with_path("/ws")
             .with_tls(true);
 
-        assert_eq!(ws.bind_address.to_string(), "0.0.0.0:8443");
+        assert_eq!(ws.bind_addresses.len(), 1);
+        assert_eq!(ws.bind_addresses[0].to_string(), "0.0.0.0:8443");
         assert_eq!(ws.path, "/ws");
         assert!(ws.use_tls);
     }

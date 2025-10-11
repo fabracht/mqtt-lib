@@ -1,3 +1,5 @@
+mod common;
+use common::TestBroker;
 use mqtt5::{MqttClient, PublishOptions, QoS};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -6,28 +8,14 @@ use tokio::time::timeout;
 
 #[tokio::test]
 async fn test_retained_message_delivery() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
-
-    // Start a simple broker
-    let broker = mqtt5::broker::MqttBroker::bind("127.0.0.1:21883").await?;
-
-    // Run broker in background
-    tokio::spawn(async move {
-        let mut broker = broker;
-        broker.run().await.ok();
-    });
-
-    // Give broker time to start
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    // Start test broker
+    let broker = TestBroker::start().await;
 
     println!("Step 1: Publishing retained message...");
 
     // Publisher publishes a retained message
     let publisher = MqttClient::new("publisher");
-    publisher.connect("mqtt://127.0.0.1:21883").await?;
+    publisher.connect(broker.address()).await?;
 
     let options = PublishOptions {
         retain: true,
@@ -55,7 +43,7 @@ async fn test_retained_message_delivery() -> Result<(), Box<dyn std::error::Erro
 
     // New subscriber connects and subscribes
     let subscriber = MqttClient::new("subscriber");
-    subscriber.connect("mqtt://127.0.0.1:21883").await?;
+    subscriber.connect(broker.address()).await?;
 
     let received = Arc::new(AtomicBool::new(false));
     let received_clone = received.clone();
@@ -82,7 +70,7 @@ async fn test_retained_message_delivery() -> Result<(), Box<dyn std::error::Erro
     .await;
 
     match result {
-        Ok(_) => println!("\n✅ SUCCESS: Retained message was delivered to new subscriber!"),
+        Ok(()) => println!("\n✅ SUCCESS: Retained message was delivered to new subscriber!"),
         Err(_) => println!("\n❌ FAILED: Retained message was NOT delivered to new subscriber"),
     }
 

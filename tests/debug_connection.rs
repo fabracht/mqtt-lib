@@ -1,13 +1,18 @@
+mod common;
+use common::TestBroker;
 use mqtt5::MqttClient;
 use std::time::Duration;
 
 #[tokio::test]
 async fn test_simple_connection_and_subscribe() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     println!("Creating client...");
     let client = MqttClient::new("debug-client");
 
-    println!("Connecting to 127.0.0.1:1883...");
-    match client.connect("mqtt://127.0.0.1:1883").await {
+    println!("Connecting to {}...", broker.address());
+    match client.connect(broker.address()).await {
         Ok(()) => println!("Connected successfully"),
         Err(e) => {
             eprintln!("Failed to connect: {e:?}");

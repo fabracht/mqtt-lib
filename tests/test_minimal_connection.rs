@@ -1,12 +1,17 @@
+mod common;
+use common::TestBroker;
 use mqtt5::MqttClient;
 
 #[tokio::test]
 async fn test_minimal_connection() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     println!("Creating client...");
     let client = MqttClient::new("test-minimal-client");
 
-    println!("Connecting to mqtt://127.0.0.1:1883...");
-    match client.connect("mqtt://127.0.0.1:1883").await {
+    println!("Connecting to {}...", broker.address());
+    match client.connect(broker.address()).await {
         Ok(()) => {
             println!("Connected successfully!");
             assert!(client.is_connected().await);

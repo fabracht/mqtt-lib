@@ -50,12 +50,12 @@ impl BridgeManager {
         let bridge = Arc::new(BridgeConnection::new(config, self.router.clone())?);
 
         // Start the bridge
-        bridge.start().await?;
+        Box::pin(bridge.start()).await?;
 
         // Spawn bridge task
         let bridge_clone = bridge.clone();
         let task = tokio::spawn(async move {
-            if let Err(e) = bridge_clone.run().await {
+            if let Err(e) = Box::pin(bridge_clone.run()).await {
                 error!("Bridge task error: {}", e);
             }
         });
@@ -174,7 +174,7 @@ impl BridgeManager {
         }
 
         // Add new bridge with updated config
-        self.add_bridge(config).await
+        Box::pin(self.add_bridge(config)).await
     }
 }
 
@@ -186,15 +186,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_bridge_manager_lifecycle() {
+        use crate::broker::config::{BrokerConfig, StorageBackend, StorageConfig};
         use crate::broker::server::MqttBroker;
 
         let router = Arc::new(MessageRouter::new());
         let manager = BridgeManager::new(router);
 
-        // Start our own MQTT broker for testing
-        let mut broker = MqttBroker::bind("127.0.0.1:0")
+        // Start our own MQTT broker for testing with in-memory storage
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_storage(storage_config);
+
+        let mut broker = MqttBroker::with_config(config)
             .await
-            .expect("Failed to start broker");
+            .expect("Failed to create broker");
         let broker_addr = broker.local_addr().expect("Failed to get broker address");
 
         // Run broker in background
@@ -211,7 +223,7 @@ mod tests {
         );
 
         // Add bridge
-        assert!(manager.add_bridge(config.clone()).await.is_ok());
+        assert!(Box::pin(manager.add_bridge(config.clone())).await.is_ok());
 
         // Check bridge exists
         let bridges = manager.list_bridges().await;
@@ -219,7 +231,7 @@ mod tests {
         assert!(bridges.contains(&"test-bridge".to_string()));
 
         // Try to add duplicate
-        assert!(manager.add_bridge(config).await.is_err());
+        assert!(Box::pin(manager.add_bridge(config)).await.is_err());
 
         // Clean up
         broker_handle.abort();

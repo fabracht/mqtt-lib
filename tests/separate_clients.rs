@@ -1,3 +1,6 @@
+mod common;
+use common::TestBroker;
+
 use mqtt5::{MqttClient, QoS, SubscribeOptions};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -6,12 +9,15 @@ use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_basic_pub_sub_separation() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let publisher = MqttClient::new("test-publisher");
     let subscriber = MqttClient::new("test-subscriber");
 
     // Connect both clients
-    publisher.connect("mqtt://localhost:1883").await.unwrap();
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    publisher.connect(broker.address()).await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -48,16 +54,19 @@ async fn test_basic_pub_sub_separation() {
 
 #[tokio::test]
 async fn test_multiple_publishers_one_subscriber() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let pub1 = MqttClient::new("multi-pub-1");
     let pub2 = MqttClient::new("multi-pub-2");
     let pub3 = MqttClient::new("multi-pub-3");
     let subscriber = MqttClient::new("multi-sub");
 
     // Connect all clients
-    pub1.connect("mqtt://localhost:1883").await.unwrap();
-    pub2.connect("mqtt://localhost:1883").await.unwrap();
-    pub3.connect("mqtt://localhost:1883").await.unwrap();
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    pub1.connect(broker.address()).await.unwrap();
+    pub2.connect(broker.address()).await.unwrap();
+    pub3.connect(broker.address()).await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let messages = Arc::new(std::sync::Mutex::new(Vec::new()));
     let messages_clone = messages.clone();
@@ -104,16 +113,19 @@ async fn test_multiple_publishers_one_subscriber() {
 
 #[tokio::test]
 async fn test_one_publisher_multiple_subscribers() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let publisher = MqttClient::new("one-pub");
     let sub1 = MqttClient::new("multi-sub-1");
     let sub2 = MqttClient::new("multi-sub-2");
     let sub3 = MqttClient::new("multi-sub-3");
 
     // Connect all
-    publisher.connect("mqtt://localhost:1883").await.unwrap();
-    sub1.connect("mqtt://localhost:1883").await.unwrap();
-    sub2.connect("mqtt://localhost:1883").await.unwrap();
-    sub3.connect("mqtt://localhost:1883").await.unwrap();
+    publisher.connect(broker.address()).await.unwrap();
+    sub1.connect(broker.address()).await.unwrap();
+    sub2.connect(broker.address()).await.unwrap();
+    sub3.connect(broker.address()).await.unwrap();
 
     let count1 = Arc::new(AtomicU32::new(0));
     let count2 = Arc::new(AtomicU32::new(0));
@@ -165,11 +177,14 @@ async fn test_one_publisher_multiple_subscribers() {
 
 #[tokio::test]
 async fn test_qos_levels_separate_clients() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let publisher = MqttClient::new("qos-pub");
     let subscriber = MqttClient::new("qos-sub");
 
-    publisher.connect("mqtt://localhost:1883").await.unwrap();
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    publisher.connect(broker.address()).await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let qos_messages = Arc::new(std::sync::Mutex::new(Vec::new()));
     let qos_messages_clone = qos_messages.clone();
@@ -226,13 +241,16 @@ async fn test_qos_levels_separate_clients() {
 
 #[tokio::test]
 async fn test_wildcard_subscriptions_separate_clients() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let pub1 = MqttClient::new("wild-pub-1");
     let pub2 = MqttClient::new("wild-pub-2");
     let subscriber = MqttClient::new("wild-sub");
 
-    pub1.connect("mqtt://localhost:1883").await.unwrap();
-    pub2.connect("mqtt://localhost:1883").await.unwrap();
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    pub1.connect(broker.address()).await.unwrap();
+    pub2.connect(broker.address()).await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let topics_received = Arc::new(std::sync::Mutex::new(Vec::new()));
     let topics_clone = topics_received.clone();
@@ -282,10 +300,13 @@ async fn test_wildcard_subscriptions_separate_clients() {
 
 #[tokio::test]
 async fn test_retained_messages_separate_clients() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let publisher = MqttClient::new("retain-pub");
 
     // Publish retained message and disconnect
-    publisher.connect("mqtt://localhost:1883").await.unwrap();
+    publisher.connect(broker.address()).await.unwrap();
     publisher
         .publish_retain("test/retained/separate", "Retained message")
         .await
@@ -297,7 +318,7 @@ async fn test_retained_messages_separate_clients() {
 
     // New subscriber should receive retained message
     let subscriber = MqttClient::new("retain-sub");
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let retained_received = Arc::new(AtomicU32::new(0));
     let retained_clone = retained_received.clone();
@@ -330,8 +351,11 @@ async fn test_retained_messages_separate_clients() {
 
 #[tokio::test]
 async fn test_concurrent_publishers() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let subscriber = MqttClient::new("concurrent-sub");
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let counter = Arc::new(AtomicU32::new(0));
     let counter_clone = counter.clone();
@@ -347,11 +371,13 @@ async fn test_concurrent_publishers() {
 
     // Spawn multiple publishers concurrently
     let mut handles = Vec::new();
+    let broker_addr = broker.address().to_string();
 
     for i in 0..10 {
+        let addr = broker_addr.clone();
         let handle = tokio::spawn(async move {
             let publisher = MqttClient::new(format!("concurrent-pub-{i}"));
-            publisher.connect("mqtt://localhost:1883").await.unwrap();
+            publisher.connect(&addr).await.unwrap();
 
             // Each publisher sends 10 messages
             for j in 0..10 {
@@ -386,12 +412,15 @@ async fn test_concurrent_publishers() {
 
 #[tokio::test]
 async fn test_publisher_subscriber_isolation() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     // Test that a client can both publish and subscribe without interference
     let client1 = MqttClient::new("iso-client-1");
     let client2 = MqttClient::new("iso-client-2");
 
-    client1.connect("mqtt://localhost:1883").await.unwrap();
-    client2.connect("mqtt://localhost:1883").await.unwrap();
+    client1.connect(broker.address()).await.unwrap();
+    client2.connect(broker.address()).await.unwrap();
 
     let client1_received = Arc::new(AtomicU32::new(0));
     let client2_received = Arc::new(AtomicU32::new(0));
@@ -439,8 +468,11 @@ async fn test_publisher_subscriber_isolation() {
 
 #[tokio::test]
 async fn test_late_subscriber() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     let publisher = MqttClient::new("late-pub");
-    publisher.connect("mqtt://localhost:1883").await.unwrap();
+    publisher.connect(broker.address()).await.unwrap();
 
     // Publish messages before subscriber connects
     for i in 0..5 {
@@ -455,7 +487,7 @@ async fn test_late_subscriber() {
 
     // Now connect subscriber
     let subscriber = MqttClient::new("late-sub");
-    subscriber.connect("mqtt://localhost:1883").await.unwrap();
+    subscriber.connect(broker.address()).await.unwrap();
 
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
@@ -490,13 +522,16 @@ async fn test_late_subscriber() {
 
 #[tokio::test]
 async fn test_publish_subscribe_timing() {
+    // Start test broker
+    let broker = TestBroker::start().await;
+
     // Test subscribe-first scenario
     {
         let publisher = MqttClient::new("timing-pub-subfirst");
         let subscriber = MqttClient::new("timing-sub-subfirst");
 
-        publisher.connect("mqtt://localhost:1883").await.unwrap();
-        subscriber.connect("mqtt://localhost:1883").await.unwrap();
+        publisher.connect(broker.address()).await.unwrap();
+        subscriber.connect(broker.address()).await.unwrap();
 
         let received = Arc::new(AtomicU32::new(0));
         let received_clone = received.clone();
@@ -535,8 +570,8 @@ async fn test_publish_subscribe_timing() {
         let publisher = MqttClient::new("timing-pub-pubfirst");
         let subscriber = MqttClient::new("timing-sub-pubfirst");
 
-        publisher.connect("mqtt://localhost:1883").await.unwrap();
-        subscriber.connect("mqtt://localhost:1883").await.unwrap();
+        publisher.connect(broker.address()).await.unwrap();
+        subscriber.connect(broker.address()).await.unwrap();
 
         let received = Arc::new(AtomicU32::new(0));
         let received_clone = received.clone();

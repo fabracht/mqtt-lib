@@ -59,6 +59,10 @@ pub struct ClientSession {
     pub created_at: SystemTime,
     /// Last activity time
     pub last_seen: SystemTime,
+    /// Will message to publish on abnormal disconnect
+    pub will_message: Option<crate::types::WillMessage>,
+    /// Will delay interval in seconds (extracted for convenience)
+    pub will_delay_interval: Option<u32>,
 }
 
 /// Queued message for offline client
@@ -399,6 +403,31 @@ impl ClientSession {
             subscriptions: HashMap::new(),
             created_at: now,
             last_seen: now,
+            will_message: None,
+            will_delay_interval: None,
+        }
+    }
+
+    /// Create new client session with will message
+    pub fn new_with_will(
+        client_id: String,
+        persistent: bool,
+        expiry_interval: Option<u32>,
+        will_message: Option<crate::types::WillMessage>,
+    ) -> Self {
+        let now = SystemTime::now();
+        let will_delay = will_message
+            .as_ref()
+            .and_then(|w| w.properties.will_delay_interval);
+        Self {
+            client_id,
+            persistent,
+            expiry_interval,
+            subscriptions: HashMap::new(),
+            created_at: now,
+            last_seen: now,
+            will_message,
+            will_delay_interval: will_delay,
         }
     }
 

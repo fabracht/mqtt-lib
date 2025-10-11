@@ -5,7 +5,7 @@ use crate::packet::connect::ConnectPacket;
 use crate::packet::publish::PublishPacket;
 use crate::packet::suback::{SubAckPacket, SubAckReasonCode};
 use crate::packet::subscribe::{SubscribePacket, SubscriptionOptions, TopicFilter};
-use crate::packet::{MqttPacket, Packet};
+use crate::packet::Packet;
 use crate::protocol::v5::properties::Properties;
 use crate::protocol::v5::reason_codes::ReasonCode;
 use crate::session::limits::{ExpiringMessage, LimitsManager};
@@ -153,27 +153,7 @@ pub fn create_test_subscribe(topics: Vec<(&str, QoS)>) -> Packet {
 /// Returns `MqttError` if packet encoding fails
 pub fn encode_packet(packet: &Packet) -> std::result::Result<Vec<u8>, crate::error::MqttError> {
     let mut buf = BytesMut::with_capacity(crate::constants::buffer::DEFAULT_CAPACITY);
-
-    // Use the packet's own encode method which handles fixed header + body
-    match packet {
-        Packet::Connect(p) => p.encode(&mut buf)?,
-        Packet::ConnAck(p) => p.encode(&mut buf)?,
-        Packet::Publish(p) => p.encode(&mut buf)?,
-        Packet::Subscribe(p) => p.encode(&mut buf)?,
-        Packet::SubAck(p) => p.encode(&mut buf)?,
-        Packet::PingReq => {
-            buf.extend_from_slice(&crate::constants::packets::PINGREQ_BYTES);
-        }
-        Packet::PingResp => {
-            buf.extend_from_slice(&crate::constants::packets::PINGRESP_BYTES);
-        }
-        _ => {
-            return Err(crate::error::MqttError::ProtocolError(
-                "Unsupported packet type in test".to_string(),
-            ))
-        }
-    }
-
+    crate::transport::packet_io::encode_packet_to_buffer(packet, &mut buf)?;
     Ok(buf.to_vec())
 }
 

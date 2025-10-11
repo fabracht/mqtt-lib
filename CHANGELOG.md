@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Enhanced Developer Experience** - Improved cargo-make workflow
+  - Added comprehensive `cargo make help` command with organized menu
+  - Categorized commands: Build, Test, Code Quality, CI/CD, Documentation, Security
+  - Clear descriptions and emoji icons for better discoverability
+- **Comprehensive CLI Testing Suite** - Full test coverage for CLI functionality
+  - End-to-end tests verifying actual MQTT message delivery
+  - Feature tests covering all MQTT v5.0 CLI parameters
+  - Transport tests for TCP, TLS, and WebSocket support
+  - Performance and throughput testing with real broker integration
+- **Enhanced CLI MQTT v5.0 Support** - Complete feature parity with library
+  - Session management options (--no-clean-start, --session-expiry)
+  - Will message support for both pub and sub commands
+  - Enhanced authentication options (--username, --password)
+  - Custom keep-alive intervals and connection options
+
+### Changed
+- **Dependency Updates** - Updated to latest stable versions
+  - `tokio-tungstenite` updated from 0.27 to 0.28
+  - `dialoguer` updated from 0.11 to 0.12
+
+### Removed
+- **UDP/DTLS Transport** - Removed incomplete UDP and DTLS implementation
+  - Removed UDP transport with fragmentation and reliability layers
+  - Removed DTLS secure transport implementation
+  - Removed mqtt-udp:// and mqtts-dtls:// URL scheme support
+  - Removed all UDP/DTLS CLI options and test infrastructure
+  - Simplified codebase to focus on proven transports: TCP, TLS, WebSocket
+  - Removed webrtc-dtls and webrtc-util dependencies
+
+### Fixed
+- **MaximumQoS Property Handling (Issue #14)** - Fixed MQTT v5.0 spec compliance
+  - Broker now correctly omits MaximumQoS property when QoS 2 is supported (per MQTT v5.0 spec 3.2.2.3.4)
+  - MaximumQoS property value MUST be 0 or 1, never 2
+  - Client now reads and enforces server's MaximumQoS limit
+  - Fixes compatibility with other MQTT v5.0 clients
+- **Will Message Testing** - Fixed CLI will message tests that were timing out
+  - Added hidden --keep-alive-after-publish flag for proper will message testing
+  - Will messages now properly trigger when CLI process is terminated
+  - Test infrastructure validates actual will message delivery
+- **Repository Cleanup** - Improved .gitignore configuration
+  - Removed CLI_TESTING_GUIDE.md from version control
+  - File remains available locally but is now properly ignored
+
 ## [0.4.1] - 2025-08-05
 
 ### Fixed
@@ -18,12 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2025-08-04
 
 ### Added
-- **Unified mqttv5 CLI Tool** - Complete mosquitto replacement
+- **Unified mqttv5 CLI Tool** - Complete MQTT CLI implementation
   - Single binary with pub, sub, and broker subcommands
   - Superior user experience with smart prompting for missing arguments
   - Input validation with helpful error messages and corrections
   - Both long and short flags for improved ergonomics
-  - Docker containerization for production deployment
   - Complete self-reliance - no external MQTT tools needed
 - **Complete MQTT v5.0 Broker Implementation**
   - Production-ready broker with full MQTT v5.0 compliance
@@ -43,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Platform Transformation**: Project evolved from client library to complete MQTT v5.0 platform
-- **Complete Mosquitto Replacement**: All documentation and examples now use mqttv5 CLI
+- **Unified CLI**: All documentation and examples now use mqttv5 CLI
 - **Comprehensive Documentation Overhaul**:
   - Restructured docs/ with separate client/ and broker/ sections
   - Added complete broker configuration reference
@@ -55,7 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Unimplemented AuthMethod::External references from documentation
-- All mosquitto dependencies - replaced with our own mqttv5 CLI
 
 ## [0.2.0] - 2025-07-30
 
@@ -72,11 +116,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Session persistence (clean_start=false support)
   - Client-side message queuing for offline scenarios
   - Flow control respecting broker receive maximum limits
-- **Comprehensive IoT examples**:
-  - IoT device simulator with circuit breaker patterns
-  - Smart home hub with concurrent device management
-  - Industrial sensor network with failover logic
-  - Observability dashboard with real-time metrics collection
+- **Focused library examples**:
+  - Simple client and broker examples demonstrating core API
+  - Transport examples (TCP, TLS, WebSocket) showing configuration patterns
+  - Shared subscription and bridging examples for advanced features
 - **Testing infrastructure**:
   - Mock client trait for unit testing
   - Property-based testing with Proptest
@@ -115,11 +158,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tracing ^0.1` - Structured logging
 
 ### Examples
-Four comprehensive examples demonstrating real-world usage patterns:
-1. **IoT Device Simulator** - Error handling, circuit breakers, retry logic
-2. **Smart Home Hub** - Concurrent device management, mTLS authentication
-3. **Industrial Sensor Network** - Enterprise security, custom CA, failover
-4. **Observability Dashboard** - Metrics collection, HTTP endpoints, monitoring
+Eight focused examples demonstrating library capabilities:
+1. **simple_client** - Basic client API usage with callbacks and publishing
+2. **simple_broker** - Minimal broker setup and configuration
+3. **broker_with_tls** - Secure TLS/SSL transport configuration
+4. **broker_with_websocket** - WebSocket transport for browser clients
+5. **broker_all_transports** - Multi-transport broker (TCP/TLS/WebSocket)
+6. **broker_bridge_demo** - Broker-to-broker bridging configuration
+7. **broker_with_monitoring** - $SYS topics and resource monitoring
+8. **shared_subscription_demo** - Load balancing with shared subscriptions
 
 ## [0.3.0] - 2025-08-01
 
@@ -172,6 +219,6 @@ Four comprehensive examples demonstrating real-world usage patterns:
 ---
 
 **Note**: This project was originally created as a showcase for the BeBytes derive macro capabilities,
-demonstrating high-performance serialization in real-world MQTT applications. It has evolved into
-a full-featured, production-ready MQTT v5.0 platform with both client and broker implementations,
-complete with a unified CLI tool that replaces mosquitto.
+demonstrating serialization in real-world MQTT applications. It has evolved into
+a full-featured MQTT v5.0 platform with both client and broker implementations,
+complete with a unified CLI tool.

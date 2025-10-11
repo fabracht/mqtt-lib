@@ -205,7 +205,7 @@ impl ConnectOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WillMessage {
     pub topic: String,
     pub payload: Vec<u8>,
@@ -252,7 +252,7 @@ pub struct ConnectProperties {
     pub authentication_data: Option<Vec<u8>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct WillProperties {
     pub will_delay_interval: Option<u32>,
     pub payload_format_indicator: Option<bool>,

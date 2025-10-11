@@ -10,6 +10,11 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize crypto provider for TLS
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install crypto provider");
+
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -37,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::select! {
         result = broker.run() => {
             if let Err(e) = result {
-                eprintln!("Broker error: {}", e);
+                eprintln!("Broker error: {e}");
             }
         }
         _ = tokio::signal::ctrl_c() => {

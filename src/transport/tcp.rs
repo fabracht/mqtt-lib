@@ -133,17 +133,18 @@ impl Transport for TcpTransport {
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match &mut self.stream {
-            Some(stream) => {
-                let n = stream.read(buf).await?;
-                if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed by remote".to_string(),
-                    ));
-                }
-                Ok(n)
+        if let Some(stream) = &mut self.stream {
+            tracing::trace!("TCP read attempt, buffer size: {}", buf.len());
+            let n = stream.read(buf).await?;
+            if n == 0 {
+                tracing::debug!("TCP connection closed by remote (EOF)");
+                return Err(MqttError::ConnectionClosedByPeer);
             }
-            None => Err(MqttError::NotConnected),
+            tracing::trace!("TCP read {} bytes: {:02x?}", n, &buf[..n.min(32)]);
+            Ok(n)
+        } else {
+            tracing::error!("TCP read attempted on unconnected stream");
+            Err(MqttError::NotConnected)
         }
     }
 
@@ -229,15 +230,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_connect_real_broker() {
+        use crate::broker::config::{BrokerConfig, StorageBackend, StorageConfig};
         use crate::broker::server::MqttBroker;
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
 
-        // Start our own MQTT broker on a random port
-        let mut broker = MqttBroker::bind("127.0.0.1:0")
+        // Start our own MQTT broker on a random port with in-memory storage
+
+        let storage_config = StorageConfig {
+            backend: StorageBackend::Memory,
+            enable_persistence: true,
+            ..Default::default()
+        };
+
+        let config = BrokerConfig::default()
+            .with_bind_address("127.0.0.1:0".parse::<std::net::SocketAddr>().unwrap())
+            .with_storage(storage_config);
+
+        let mut broker = MqttBroker::with_config(config)
             .await
-            .expect("Failed to start broker");
+            .expect("Failed to create broker");
         let broker_addr = broker.local_addr().expect("Failed to get broker address");
         info!(broker_addr = %broker_addr, "Test broker bound to address");
 

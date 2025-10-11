@@ -66,15 +66,21 @@ impl WebSocketServerConfig {
 }
 
 /// Wrapper for WebSocket streams that implements AsyncRead/AsyncWrite
-pub struct WebSocketStreamWrapper {
-    inner: WebSocketStream<TcpStream>,
+pub struct WebSocketStreamWrapper<S = TcpStream>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    inner: WebSocketStream<S>,
     read_buffer: Vec<u8>,
     read_pos: usize,
 }
 
-impl WebSocketStreamWrapper {
+impl<S> WebSocketStreamWrapper<S>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     /// Creates a new WebSocket stream wrapper
-    pub fn new(stream: WebSocketStream<TcpStream>) -> Self {
+    pub fn new(stream: WebSocketStream<S>) -> Self {
         Self {
             inner: stream,
             read_buffer: Vec::new(),
@@ -82,8 +88,11 @@ impl WebSocketStreamWrapper {
         }
     }
 
-    /// Gets the peer address
-    pub fn peer_addr(&self) -> Result<SocketAddr> {
+    /// Gets the peer address (only works for TcpStream)
+    pub fn peer_addr(&self) -> Result<SocketAddr>
+    where
+        S: std::ops::Deref<Target = TcpStream>,
+    {
         self.inner
             .get_ref()
             .peer_addr()
@@ -100,11 +109,14 @@ impl WebSocketStreamWrapper {
 /// # Panics
 ///
 /// Panics if the subprotocol string cannot be parsed as an HTTP header value
-pub async fn accept_websocket_connection(
-    tcp_stream: TcpStream,
+pub async fn accept_websocket_connection<S>(
+    stream: S,
     config: &WebSocketServerConfig,
     peer_addr: SocketAddr,
-) -> Result<WebSocketStreamWrapper> {
+) -> Result<WebSocketStreamWrapper<S>>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     debug!("Starting WebSocket handshake with {}", peer_addr);
 
     // Create callback to handle WebSocket handshake
@@ -146,7 +158,7 @@ pub async fn accept_websocket_connection(
             }
         };
 
-    match accept_hdr_async(tcp_stream, callback).await {
+    match accept_hdr_async(stream, callback).await {
         Ok(ws_stream) => {
             debug!("WebSocket handshake completed with {}", peer_addr);
             Ok(WebSocketStreamWrapper::new(ws_stream))
@@ -161,7 +173,10 @@ pub async fn accept_websocket_connection(
 }
 
 // Implement AsyncRead and AsyncWrite for WebSocketStreamWrapper
-impl AsyncRead for WebSocketStreamWrapper {
+impl<S> AsyncRead for WebSocketStreamWrapper<S>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     fn poll_read(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -220,7 +235,10 @@ impl AsyncRead for WebSocketStreamWrapper {
     }
 }
 
-impl AsyncWrite for WebSocketStreamWrapper {
+impl<S> AsyncWrite for WebSocketStreamWrapper<S>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     fn poll_write(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

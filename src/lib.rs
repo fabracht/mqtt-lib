@@ -127,22 +127,24 @@
 //! ### Advanced Broker with Multi-Transport
 //!
 //! ```rust,no_run
-//! use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+//! use mqtt5::broker::{BrokerConfig, MqttBroker};
+//! use mqtt5::broker::config::{TlsConfig, WebSocketConfig};
+//! use std::net::SocketAddr;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let config = BrokerConfig::default()
 //!         // TCP on port 1883
-//!         .with_bind_address("0.0.0.0:1883".parse()?)
+//!         .with_bind_address("0.0.0.0:1883".parse::<SocketAddr>()?)
 //!         // TLS on port 8883
 //!         .with_tls(
 //!             TlsConfig::new("certs/server.crt".into(), "certs/server.key".into())
-//!                 .with_bind_address("0.0.0.0:8883".parse()?)
+//!                 .with_bind_address("0.0.0.0:8883".parse::<SocketAddr>()?)
 //!         )
 //!         // WebSocket on port 8080
 //!         .with_websocket(
 //!             WebSocketConfig::default()
-//!                 .with_bind_address("0.0.0.0:8080".parse()?)
+//!                 .with_bind_address("0.0.0.0:8080".parse::<SocketAddr>()?)
 //!                 .with_path("/mqtt")
 //!         );
 //!

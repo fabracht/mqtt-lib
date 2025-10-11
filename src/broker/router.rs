@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 /// Client subscription information
 #[derive(Debug, Clone)]
@@ -43,10 +43,12 @@ pub struct MessageRouter {
 }
 
 /// Information about a connected client
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ClientInfo {
     /// Channel to send messages to this client
     pub sender: tokio::sync::mpsc::Sender<PublishPacket>,
+    /// Channel to signal disconnection (for session takeover)
+    pub disconnect_tx: tokio::sync::oneshot::Sender<()>,
 }
 
 impl MessageRouter {
@@ -97,18 +99,39 @@ impl MessageRouter {
         Ok(())
     }
 
-    /// Registers a client connection
+    /// Registers a client connection, signals old client to disconnect if ID already exists
     pub async fn register_client(
         &self,
         client_id: String,
         sender: tokio::sync::mpsc::Sender<PublishPacket>,
+        new_disconnect_tx: tokio::sync::oneshot::Sender<()>,
     ) {
         let mut clients = self.clients.write().await;
-        clients.insert(client_id.clone(), ClientInfo { sender });
-        debug!("Registered client: {}", client_id);
+
+        // Remove old client if exists and signal disconnect
+        if let Some(old_client) = clients.remove(&client_id) {
+            info!("Client ID takeover: {}", client_id);
+            let _ = old_client.disconnect_tx.send(());
+        }
+
+        clients.insert(
+            client_id.clone(),
+            ClientInfo {
+                sender,
+                disconnect_tx: new_disconnect_tx,
+            },
+        );
+        info!("Registered client: {}", client_id);
     }
 
-    /// Unregisters a client connection
+    /// Disconnects a client but keeps subscriptions (for persistent sessions)
+    pub async fn disconnect_client(&self, client_id: &str) {
+        let mut clients = self.clients.write().await;
+        clients.remove(client_id);
+        debug!("Disconnected client (keeping subscriptions): {}", client_id);
+    }
+
+    /// Unregisters a client connection and removes all subscriptions
     pub async fn unregister_client(&self, client_id: &str) {
         let mut clients = self.clients.write().await;
         clients.remove(client_id);
@@ -136,6 +159,12 @@ impl MessageRouter {
         let (actual_filter, share_group) = Self::parse_shared_subscription(&topic_filter);
 
         let mut subscriptions = self.subscriptions.write().await;
+
+        let subs = subscriptions.entry(actual_filter.to_string()).or_default();
+
+        // Check if this client already has a subscription for this topic
+        let existing_pos = subs.iter().position(|s| s.client_id == client_id);
+
         let subscription = Subscription {
             client_id: client_id.clone(),
             qos,
@@ -143,10 +172,18 @@ impl MessageRouter {
             share_group: share_group.clone(),
         };
 
-        subscriptions
-            .entry(actual_filter.to_string())
-            .or_default()
-            .push(subscription);
+        if let Some(pos) = existing_pos {
+            // Update existing subscription
+            subs[pos] = subscription;
+            debug!(
+                "Client {} updated subscription to {}",
+                client_id, topic_filter
+            );
+        } else {
+            // Add new subscription
+            subs.push(subscription);
+            debug!("Client {} subscribed to {}", client_id, topic_filter);
+        }
 
         // Initialize share group counter if needed
         if let Some(group) = share_group {
@@ -155,8 +192,6 @@ impl MessageRouter {
                 .entry(group)
                 .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
         }
-
-        debug!("Client {} subscribed to {}", client_id, topic_filter);
     }
 
     /// Parses a shared subscription topic filter
@@ -385,9 +420,17 @@ impl MessageRouter {
                             sub.client_id, e
                         );
                     } else {
-                        debug!("Queued message for offline client {}", sub.client_id);
+                        info!(
+                            "Queued message for offline client {} on topic {}",
+                            sub.client_id, publish.topic_name
+                        );
                     }
                 }
+            } else {
+                debug!(
+                    "No storage configured, cannot queue message for offline client {}",
+                    sub.client_id
+                );
             }
         }
     }
@@ -433,7 +476,8 @@ mod tests {
         let router = MessageRouter::new();
         let (tx, _rx) = tokio::sync::mpsc::channel(100);
 
-        router.register_client("client1".to_string(), tx).await;
+        let (dtx, _drx) = tokio::sync::oneshot::channel();
+        router.register_client("client1".to_string(), tx, dtx).await;
         assert_eq!(router.client_count().await, 1);
 
         router.unregister_client("client1").await;
@@ -445,7 +489,8 @@ mod tests {
         let router = MessageRouter::new();
         let (tx, _rx) = tokio::sync::mpsc::channel(100);
 
-        router.register_client("client1".to_string(), tx).await;
+        let (dtx, _drx) = tokio::sync::oneshot::channel();
+        router.register_client("client1".to_string(), tx, dtx).await;
         router
             .subscribe(
                 "client1".to_string(),
@@ -469,8 +514,14 @@ mod tests {
         let (tx2, mut rx2) = tokio::sync::mpsc::channel(100);
 
         // Register clients
-        router.register_client("client1".to_string(), tx1).await;
-        router.register_client("client2".to_string(), tx2).await;
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+        router
+            .register_client("client1".to_string(), tx1, dtx1)
+            .await;
+        router
+            .register_client("client2".to_string(), tx2, dtx2)
+            .await;
 
         // Subscribe to different patterns
         router
@@ -553,9 +604,18 @@ mod tests {
         let (tx3, mut rx3) = tokio::sync::mpsc::channel(100);
 
         // Register three clients
-        router.register_client("client1".to_string(), tx1).await;
-        router.register_client("client2".to_string(), tx2).await;
-        router.register_client("client3".to_string(), tx3).await;
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+        router
+            .register_client("client1".to_string(), tx1, dtx1)
+            .await;
+        router
+            .register_client("client2".to_string(), tx2, dtx2)
+            .await;
+        let (dtx3, _drx3) = tokio::sync::oneshot::channel();
+        router
+            .register_client("client3".to_string(), tx3, dtx3)
+            .await;
 
         // All subscribe to same shared subscription
         router
@@ -618,9 +678,18 @@ mod tests {
         let (tx3, mut rx3) = tokio::sync::mpsc::channel(100);
 
         // Register clients
-        router.register_client("shared1".to_string(), tx1).await;
-        router.register_client("shared2".to_string(), tx2).await;
-        router.register_client("regular".to_string(), tx3).await;
+        let (dtx1, _drx1) = tokio::sync::oneshot::channel();
+        router
+            .register_client("shared1".to_string(), tx1, dtx1)
+            .await;
+        let (dtx2, _drx2) = tokio::sync::oneshot::channel();
+        router
+            .register_client("shared2".to_string(), tx2, dtx2)
+            .await;
+        let (dtx3, _drx3) = tokio::sync::oneshot::channel();
+        router
+            .register_client("regular".to_string(), tx3, dtx3)
+            .await;
 
         // Two clients with shared subscription
         router

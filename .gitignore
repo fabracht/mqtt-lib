@@ -4,6 +4,7 @@ Cargo.lock
 **/*.rs.bk
 *.pdb
 mutants.out*
+docs/
 
 # IDE and Editor
 .idea/
@@ -93,9 +94,12 @@ BROKER_COMPARISON.md
 *_VALIDATION_REPORT.md
 *_OPTIMIZATION_*.md
 *_TEST_FINDINGS.md
+*_TESTING_GUIDE.md
+*_REFACTORING.md
 CI_OPTIMIZATION_*.md
 PROPERTY_TEST_*.md
 GITHUB_SECURITY_*.md
+CLI_TESTING_GUIDE.md
 performance_report*.md
 benchmark_report*.md
 comparison_report*.md
@@ -177,3 +181,7 @@ test_certs/*.key
 test_certs/*.pem
 test_certs/*.csr
 test_certs/*.srl
+test_certs/mosquitto.conf
+test_certs/mosquitto_passwd.txt
+CAPABILITIES_VERIFICATION_GUIDE.md
+test_passwords.txt

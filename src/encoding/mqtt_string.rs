@@ -64,6 +64,80 @@ impl TryFrom<String> for MqttString {
     }
 }
 
+/// Encodes a UTF-8 string with a 2-byte length prefix (compatibility function)
+///
+/// This function provides compatibility with the old string module API.
+/// Prefer using `MqttString::create(string)?.to_be_bytes()` for new code.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The string contains null characters
+/// - The string length exceeds maximum string length
+pub fn encode_string<B: bytes::BufMut>(buf: &mut B, string: &str) -> Result<()> {
+    // Check for null characters
+    if string.contains('\0') {
+        return Err(MqttError::MalformedPacket(
+            "String contains null character".to_string(),
+        ));
+    }
+
+    let mqtt_string = MqttString::create(string)?;
+    let encoded = mqtt_string.to_be_bytes();
+    buf.put_slice(&encoded);
+    Ok(())
+}
+
+/// Decodes a UTF-8 string with a 2-byte length prefix (compatibility function)
+///
+/// This function provides compatibility with the old string module API.
+/// Prefer using `MqttString::try_from_be_bytes()` for new code.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Insufficient bytes in buffer
+/// - String is not valid UTF-8
+/// - String contains null characters
+pub fn decode_string<B: bytes::Buf>(buf: &mut B) -> Result<String> {
+    if buf.remaining() < 2 {
+        return Err(MqttError::MalformedPacket(
+            "Insufficient bytes for string length".to_string(),
+        ));
+    }
+
+    let len = buf.get_u16() as usize;
+
+    if buf.remaining() < len {
+        return Err(MqttError::MalformedPacket(format!(
+            "Insufficient bytes for string data: expected {}, got {}",
+            len,
+            buf.remaining()
+        )));
+    }
+
+    let mut bytes = vec![0u8; len];
+    buf.copy_to_slice(&mut bytes);
+
+    let string = String::from_utf8(bytes)
+        .map_err(|e| MqttError::MalformedPacket(format!("Invalid UTF-8: {e}")))?;
+
+    // Check for null characters
+    if string.contains('\0') {
+        return Err(MqttError::MalformedPacket(
+            "String contains null character".to_string(),
+        ));
+    }
+
+    Ok(string)
+}
+
+/// Calculates the encoded length of a string (compatibility function)
+#[must_use]
+pub fn string_len(string: &str) -> usize {
+    2 + string.len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

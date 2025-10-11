@@ -93,6 +93,25 @@ pub struct TlsConfig {
     pub alpn_protocols: Option<Vec<Vec<u8>>>,
 }
 
+impl Clone for TlsConfig {
+    fn clone(&self) -> Self {
+        Self {
+            addr: self.addr,
+            hostname: self.hostname.clone(),
+            connect_timeout: self.connect_timeout,
+            client_cert: self.client_cert.clone(),
+            client_key: self.client_key.as_ref().map(|key| {
+                PrivateKeyDer::try_from(key.secret_der().to_vec())
+                    .expect("Failed to clone private key")
+            }),
+            root_certs: self.root_certs.clone(),
+            use_system_roots: self.use_system_roots,
+            verify_server_cert: self.verify_server_cert,
+            alpn_protocols: self.alpn_protocols.clone(),
+        }
+    }
+}
+
 impl TlsConfig {
     /// Creates a new TLS configuration
     #[must_use]
@@ -452,10 +471,12 @@ impl TlsTransport {
                 .with_custom_certificate_verifier(Arc::new(NoVerification))
         };
 
-        // Configure client authentication if provided
         let mut config = if let (Some(cert), Some(key)) = (
-            self.config.client_cert.take(),
-            self.config.client_key.take(),
+            self.config.client_cert.clone(),
+            self.config.client_key.as_ref().map(|k| {
+                PrivateKeyDer::try_from(k.secret_der().to_vec())
+                    .expect("Failed to clone private key")
+            }),
         ) {
             config_builder
                 .with_client_auth_cert(cert, key)
@@ -517,9 +538,7 @@ impl Transport for TlsTransport {
             Some(stream) => {
                 let n = stream.read(buf).await?;
                 if n == 0 {
-                    return Err(MqttError::ConnectionError(
-                        "Connection closed by remote".to_string(),
-                    ));
+                    return Err(MqttError::ConnectionClosedByPeer);
                 }
                 Ok(n)
             }
@@ -611,6 +630,9 @@ mod tests {
         use crate::packet::connect::ConnectPacket;
         use crate::packet::MqttPacket;
         use crate::protocol::v5::properties::Properties;
+
+        // Initialize the crypto provider for tests
+        let _ = rustls::crypto::ring::default_provider().install_default();
 
         let mut config = TlsConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8884),

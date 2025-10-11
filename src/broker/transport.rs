@@ -15,14 +15,34 @@ use tokio::net::TcpStream;
 use super::tls_acceptor::TlsStreamWrapper;
 use super::websocket_server::WebSocketStreamWrapper;
 
+/// Trait for streams that can be used as WebSocket transport
+pub trait WebSocketTransport:
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Sync + Unpin
+{
+    /// Gets the peer address (if available)
+    fn peer_addr(&self) -> Result<SocketAddr>;
+}
+
+/// Blanket implementation for all types that implement the required traits
+impl<S> WebSocketTransport for WebSocketStreamWrapper<S>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Sync + Unpin,
+{
+    fn peer_addr(&self) -> Result<SocketAddr> {
+        Err(crate::error::MqttError::InvalidState(
+            "peer_addr not available for generic WebSocket stream".to_string(),
+        ))
+    }
+}
+
 /// Unified transport enum for different connection types
 pub enum BrokerTransport {
     /// Plain TCP connection
     Tcp(TcpStream),
     /// TLS-encrypted connection
     Tls(Box<TlsStreamWrapper>),
-    /// WebSocket connection
-    WebSocket(Box<WebSocketStreamWrapper>),
+    /// WebSocket connection (can be over TCP or TLS)
+    WebSocket(Box<dyn WebSocketTransport>),
 }
 
 impl BrokerTransport {
@@ -37,7 +57,10 @@ impl BrokerTransport {
     }
 
     /// Creates a new WebSocket transport
-    pub fn websocket(stream: WebSocketStreamWrapper) -> Self {
+    pub fn websocket<S>(stream: WebSocketStreamWrapper<S>) -> Self
+    where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Sync + Unpin + 'static,
+    {
         Self::WebSocket(Box::new(stream))
     }
 

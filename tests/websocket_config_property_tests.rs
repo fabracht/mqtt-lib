@@ -64,7 +64,7 @@ fn invalid_websocket_url() -> impl Strategy<Value = String> {
         Just("ws://localhost\x00:8080/mqtt".to_string()), // Null byte
         Just("ws://\x01localhost:8080/mqtt".to_string()), // Control character
         // Empty or too long
-        Just("".to_string()),
+        Just(String::new()),
         Just("x".repeat(2000)), // Very long URL
     ]
 }
@@ -155,9 +155,8 @@ proptest! {
         subprotocols in valid_subprotocols(),
         user_agent in prop::option::of("[A-Za-z0-9 ._/-]{1,50}")
     ) {
-        let mut config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(mut config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         // Apply all options
@@ -168,7 +167,7 @@ proptest! {
         }
 
         if !subprotocols.is_empty() {
-            let proto_refs: Vec<&str> = subprotocols.iter().map(|s| s.as_str()).collect();
+            let proto_refs: Vec<&str> = subprotocols.iter().map(std::string::String::as_str).collect();
             config = config.with_subprotocols(&proto_refs);
         }
 
@@ -195,9 +194,8 @@ proptest! {
 
     #[test]
     fn prop_websocket_tls_auto_config(url in valid_websocket_url()) {
-        let config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         if config.is_secure() {
@@ -227,9 +225,8 @@ proptest! {
 
     #[test]
     fn prop_websocket_transport_creation(url in valid_websocket_url()) {
-        let config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         let transport = WebSocketTransport::new(config);
@@ -250,9 +247,8 @@ proptest! {
         cert_data in prop::collection::vec(any::<u8>(), 50..500),
         key_data in prop::collection::vec(any::<u8>(), 50..500)
     ) {
-        let config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         let is_secure = config.is_secure();
@@ -285,9 +281,8 @@ proptest! {
         url in valid_websocket_url(),
         ca_data in prop::collection::vec(any::<u8>(), 50..500)
     ) {
-        let config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         let is_secure = config.is_secure();
@@ -316,9 +311,8 @@ proptest! {
         url in valid_websocket_url(),
         timeout in valid_timeout()
     ) {
-        let original_config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(original_config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         let original_timeout = original_config.timeout;
@@ -339,9 +333,8 @@ proptest! {
 
     #[test]
     fn prop_websocket_port_extraction_consistency(url in valid_websocket_url()) {
-        let config = match WebSocketConfig::new(&url) {
-            Ok(config) => config,
-            Err(_) => return Ok(()), // Skip invalid URLs
+        let Ok(config) = WebSocketConfig::new(&url) else {
+            return Ok(()); // Skip invalid URLs
         };
 
         let port = config.port();
@@ -373,7 +366,7 @@ mod edge_case_tests {
 
     #[tokio::test]
     async fn test_websocket_transport_connect_lifecycle() {
-        let config = WebSocketConfig::new("ws://127.0.0.1:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://127.0.0.1:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         // Initial state
@@ -396,7 +389,7 @@ mod edge_case_tests {
 
     #[tokio::test]
     async fn test_websocket_transport_operations_require_connection() {
-        let config = WebSocketConfig::new("ws://127.0.0.1:8080/mqtt").unwrap();
+        let config = WebSocketConfig::new("ws://127.0.0.1:59999/mqtt").unwrap();
         let mut transport = WebSocketTransport::new(config);
 
         // Operations should fail when not connected

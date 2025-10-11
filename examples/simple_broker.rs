@@ -35,7 +35,10 @@ use tracing::{error, info};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for logging
     tracing_subscriber::fmt()
-        .with_env_filter("mqtt5=info")
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("mqtt5=info")),
+        )
         .init();
 
     println!("🚀 MQTT v5.0 Simple Broker Example");
@@ -43,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create broker configuration
     let mut config = BrokerConfig {
-        bind_address: "127.0.0.1:1883".parse::<SocketAddr>()?,
+        bind_addresses: vec!["127.0.0.1:1883".parse::<SocketAddr>()?],
         max_clients: 1000,
         max_packet_size: 10 * 1024 * 1024,                  // 10MB
         session_expiry_interval: Duration::from_secs(3600), // 1 hour
@@ -60,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.auth_config.allow_anonymous = true;
 
     info!("📋 Broker Configuration:");
-    info!("   Address: {}", config.bind_address);
+    info!("   Address: {:?}", config.bind_addresses);
     info!("   Max clients: {}", config.max_clients);
     info!("   Max QoS: {}", config.maximum_qos);
     info!(

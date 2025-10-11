@@ -75,7 +75,10 @@ async fn test_bridge_message_routing() {
 
     // Register a test client to receive messages
     let (tx, mut rx) = mpsc::channel(10);
-    router.register_client("test-client".to_string(), tx).await;
+    let (dtx, _drx) = tokio::sync::oneshot::channel();
+    router
+        .register_client("test-client".to_string(), tx, dtx)
+        .await;
     router
         .subscribe(
             "test-client".to_string(),

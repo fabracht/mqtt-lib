@@ -75,7 +75,7 @@ impl BridgeConnection {
         info!("Starting bridge '{}'", self.config.name);
 
         // Connect to remote broker
-        self.connect().await?;
+        Box::pin(self.connect()).await?;
 
         // Set up subscriptions for incoming topics
         self.setup_subscriptions().await?;
@@ -382,7 +382,7 @@ impl BridgeConnection {
     /// Runs a single connection until disconnected
     async fn run_connection(&self) -> Result<()> {
         // Connect and setup subscriptions
-        self.connect().await?;
+        Box::pin(self.connect()).await?;
         self.setup_subscriptions().await?;
 
         // Wait for client disconnection
