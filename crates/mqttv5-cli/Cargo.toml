@@ -15,7 +15,7 @@ name = "mqttv5"
 path = "src/main.rs"
 
 [dependencies]
-mqtt5 = { path = "../..", features = ["udp"] }
+mqtt5 = { version = "0.5.0", path = "../.." }
 clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 dialoguer = "0.12"
