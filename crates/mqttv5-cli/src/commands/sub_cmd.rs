@@ -100,6 +100,10 @@ pub struct SubCommand {
     /// Skip certificate verification for TLS connections (insecure, for testing only)
     #[arg(long)]
     pub insecure: bool,
+
+    /// Enable automatic reconnection when broker disconnects
+    #[arg(long)]
+    pub auto_reconnect: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -164,6 +168,10 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     let mut options = ConnectOptions::new(client_id.clone())
         .with_clean_start(!cmd.no_clean_start)
         .with_keep_alive(Duration::from_secs(cmd.keep_alive.into()));
+
+    if cmd.auto_reconnect {
+        options = options.with_automatic_reconnect(true);
+    }
 
     // Add session expiry if specified
     if let Some(expiry) = cmd.session_expiry {
@@ -243,16 +251,15 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         info!("Resumed existing session");
     }
 
-    // Subscribe with message counter
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use tokio::sync::Notify;
+
     let target_count = cmd.count;
     let verbose = cmd.verbose;
 
     info!("Subscribing to '{}' (QoS {})...", topic, qos as u8);
     println!("✓ Subscribed to '{topic}' - waiting for messages (Ctrl+C to exit)");
-
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::sync::Arc;
-    use tokio::sync::Notify;
 
     let message_count = Arc::new(AtomicU32::new(0));
     let message_count_clone = message_count.clone();
@@ -265,7 +272,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     };
 
     let (packet_id, granted_qos) = client
-        .subscribe_with_options(&topic, subscribe_options, move |message| {
+        .subscribe_with_options(&topic, subscribe_options.clone(), move |message| {
             let count = message_count_clone.fetch_add(1, Ordering::Relaxed) + 1;
 
             if verbose {
@@ -278,7 +285,6 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
                 println!("{}", String::from_utf8_lossy(&message.payload));
             }
 
-            // Check if we've reached the target count
             if target_count > 0 && count >= target_count {
                 println!("✓ Received {target_count} messages, exiting");
                 done_notify_clone.notify_one();
@@ -292,25 +298,30 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     );
 
     // Wait for either Ctrl+C or target count reached
-    if target_count > 0 || cmd.non_interactive {
-        // If we have a target count or are in non-interactive mode,
-        // wait for either the count to be reached or Ctrl+C
+    if cmd.auto_reconnect {
         tokio::select! {
-            _ = done_notify.notified() => {
-                // Target count reached
-            }
+            _ = done_notify.notified() => {}
             _ = signal::ctrl_c() => {
                 println!("\n✓ Received Ctrl+C, disconnecting...");
             }
         }
     } else {
-        // Interactive mode with no target count - just wait for Ctrl+C
-        match signal::ctrl_c().await {
-            Ok(()) => {
-                println!("\n✓ Received Ctrl+C, disconnecting...");
-            }
-            Err(err) => {
-                anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+        let mut check_interval = tokio::time::interval(Duration::from_millis(500));
+        loop {
+            tokio::select! {
+                _ = done_notify.notified() => {
+                    break;
+                }
+                _ = signal::ctrl_c() => {
+                    println!("\n✓ Received Ctrl+C, disconnecting...");
+                    break;
+                }
+                _ = check_interval.tick() => {
+                    if !client.is_connected().await {
+                        println!("\n✗ Disconnected from broker");
+                        return Err(anyhow::anyhow!("Connection lost"));
+                    }
+                }
             }
         }
     }

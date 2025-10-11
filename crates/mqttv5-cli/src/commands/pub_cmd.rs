@@ -1,12 +1,13 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use dialoguer::{Input, Select};
-use mqtt5::{ConnectOptions, MqttClient, PublishOptions, QoS, WillMessage};
+use mqtt5::{ConnectionEvent, ConnectOptions, MqttClient, PublishOptions, QoS, WillMessage};
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::time::Duration;
-use tracing::{debug, info};
+use tokio::signal;
+use tracing::{debug, info, warn};
 
 #[derive(Args)]
 pub struct PubCommand {
@@ -113,6 +114,10 @@ pub struct PubCommand {
     /// Keep connection alive after publishing (for testing will messages)
     #[arg(long, hide = true)]
     pub keep_alive_after_publish: bool,
+
+    /// Enable automatic reconnection when broker disconnects
+    #[arg(long)]
+    pub auto_reconnect: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -202,6 +207,10 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     let mut options = ConnectOptions::new(client_id.clone())
         .with_clean_start(!cmd.no_clean_start)
         .with_keep_alive(Duration::from_secs(cmd.keep_alive.into()));
+
+    if cmd.auto_reconnect {
+        options = options.with_automatic_reconnect(true);
+    }
 
     // Add session expiry if specified
     if let Some(expiry) = cmd.session_expiry {
@@ -317,8 +326,37 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
     // Keep connection alive if requested (for testing will messages)
     if cmd.keep_alive_after_publish {
         info!("Keeping connection alive (--keep-alive-after-publish)");
-        loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+
+        if cmd.auto_reconnect {
+            client
+                .on_connection_event(move |event| match event {
+                    ConnectionEvent::Connected { session_present } => {
+                        if session_present {
+                            info!("✓ Reconnected (session present)");
+                        } else {
+                            info!("✓ Reconnected (new session)");
+                        }
+                    }
+                    ConnectionEvent::Disconnected { .. } => {
+                        warn!("⚠ Disconnected from broker, attempting reconnection...");
+                    }
+                    ConnectionEvent::Reconnecting { attempt } => {
+                        info!("Reconnecting (attempt {})...", attempt);
+                    }
+                    ConnectionEvent::ReconnectFailed { error } => {
+                        warn!("⚠ Reconnection failed: {}", error);
+                    }
+                })
+                .await?;
+        }
+
+        match signal::ctrl_c().await {
+            Ok(()) => {
+                println!("\n✓ Received Ctrl+C, disconnecting...");
+            }
+            Err(err) => {
+                anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+            }
         }
     }
 
