@@ -1,7 +1,6 @@
-use crate::error::{MqttError, Result};
 use std::fmt::Write;
 use std::net::SocketAddr;
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::net::TcpListener;
 use tracing::{info, warn};
 
 #[derive(Debug)]
@@ -52,19 +51,6 @@ pub async fn bind_tcp_addresses(
     BindResult {
         successful,
         failures,
-    }
-}
-
-pub async fn bind_udp_address(addr: SocketAddr, transport_name: &str) -> Result<UdpSocket> {
-    match UdpSocket::bind(addr).await {
-        Ok(socket) => {
-            info!("MQTT broker {} listening on {}", transport_name, addr);
-            Ok(socket)
-        }
-        Err(e) => {
-            let error_msg = format_single_binding_error(addr, &e);
-            Err(MqttError::Io(error_msg))
-        }
     }
 }
 

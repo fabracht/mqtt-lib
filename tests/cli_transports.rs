@@ -1,6 +1,6 @@
 //! CLI transport tests
 //!
-//! Tests different transport types: TCP, TLS, UDP, DTLS
+//! Tests different transport types: TCP, TLS
 
 use std::process::Command;
 

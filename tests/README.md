@@ -58,15 +58,6 @@ This directory contains comprehensive integration tests for the MQTT v5.0 client
 - **Topic Aliases** (`topic_aliases.rs`): Bandwidth optimization
 - **Packet Size Limits** (`packet_size_limits.rs`): Size constraints
 
-### 8. UDP Transport Tests
-- **UDP Transport** (`udp_transport_test.rs`): Basic UDP functionality
-- **UDP Broker Integration** (`udp_broker_integration.rs`): UDP broker communication
-- **UDP Reliability** (`udp_reliability_test.rs`): Reliability layer testing
-- **UDP CLI** (`cli_udp_comprehensive.rs`, `cli_udp_reliability.rs`): CLI UDP support
-- **UDP QoS2** (`udp_qos2_sequence_test.rs`): QoS2 over UDP
-- **DTLS Transport** (`dtls_transport_test.rs`): Secure UDP with DTLS
-- **DTLS Certificates** (`dtls_certificate_test.rs`): DTLS certificate handling
-
 ## Running the Tests
 
 ### Prerequisites

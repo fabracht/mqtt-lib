@@ -24,7 +24,6 @@ exclude = [
 
 [features]
 default = []
-udp = []
 turmoil-testing = ["turmoil"]
 
 [dev-dependencies]

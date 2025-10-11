@@ -28,14 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tokio-tungstenite` updated from 0.27 to 0.28
   - `dialoguer` updated from 0.11 to 0.12
 
-### Removed
-- **UDP/DTLS Transport** - Removed incomplete UDP and DTLS implementation
-  - Removed UDP transport with fragmentation and reliability layers
-  - Removed DTLS secure transport implementation
-  - Removed mqtt-udp:// and mqtts-dtls:// URL scheme support
-  - Removed all UDP/DTLS CLI options and test infrastructure
-  - Simplified codebase to focus on proven transports: TCP, TLS, WebSocket
-  - Removed webrtc-dtls and webrtc-util dependencies
 
 ### Fixed
 - **MaximumQoS Property Handling (Issue #14)** - Fixed MQTT v5.0 spec compliance
