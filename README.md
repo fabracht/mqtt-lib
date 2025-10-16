@@ -20,7 +20,7 @@
 
 ```toml
 [dependencies]
-mqtt5 = "0.4.1"
+mqtt5 = "0.5.0"
 ```
 
 ### CLI Tool
@@ -163,7 +163,6 @@ mqttv5 pub
 - Resource monitoring - $SYS topics, connection metrics
 - Hot configuration reload - Update settings without restart
 - Storage backends - File-based or in-memory persistence
-- ACL (Access Control Lists) - Fine-grained topic permissions
 
 ## Client Capabilities
 
@@ -419,7 +418,6 @@ This project follows Rust async patterns:
 
 - TLS 1.2+ support with certificate validation
 - Username/password authentication with bcrypt hashing
-- Access Control Lists (ACL) for fine-grained permissions
 - Rate limiting
 - Resource monitoring
 - Client certificate authentication for mutual TLS
