@@ -383,10 +383,6 @@ cargo run --example broker_all_transports   # Broker with all transports (TCP/TL
 cargo run --example broker_bridge_demo      # Broker bridging demo
 cargo run --example broker_with_monitoring  # Broker with $SYS topics
 cargo run --example shared_subscription_demo # Shared subscription load balancing
-
-# Benchmarks (use raw cargo for specific targets)
-cargo bench --bench broker_performance      # Broker performance tests
-cargo bench --bench mqtt_benchmarks         # Core MQTT benchmarks
 ```
 
 ### Testing
@@ -400,10 +396,6 @@ cargo make test-fast
 
 # Run all tests including integration tests
 cargo make test
-
-# Run specific test suites (use raw cargo for specific targets)
-cargo test --test broker_performance_tests
-cargo test --test connection_pool_performance
 ```
 
 ## Architecture
