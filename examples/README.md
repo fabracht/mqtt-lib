@@ -20,25 +20,10 @@ Start with these examples to understand the fundamentals:
    ```
    Demonstrates pub/sub with an embedded broker (or external if MQTT_BROKER env is set).
 
-3. **complete_system_demo.rs** - Full platform demonstration
-   ```bash
-   cargo run --example complete_system_demo
-   ```
-   Shows broker and multiple clients working together with various MQTT features.
-
 ## Client Examples
 
-### Basic Client Operations
-
 - **simple_client.rs** - Basic publish/subscribe operations
-- **certificate_loading_demo.rs** - TLS certificate authentication
 - **shared_subscription_demo.rs** - Load balancing with shared subscriptions
-
-### Advanced Client Features
-
-- **iot_device_simulator.rs** - Simulates IoT devices with telemetry
-- **smart_home_hub.rs** - Home automation scenario
-- **industrial_sensor_network.rs** - Industrial IoT use case
 
 ## Broker Examples
 
@@ -53,8 +38,6 @@ Start with these examples to understand the fundamentals:
 
 - **broker_with_monitoring.rs** - Metrics and monitoring
 - **broker_bridge_demo.rs** - Broker-to-broker bridging
-- **resource_monitoring.rs** - Resource usage tracking
-- **observability_dashboard.rs** - Complete monitoring solution
 
 ## Running Examples
 
@@ -88,11 +71,9 @@ Some examples support configuration via environment variables:
    cargo run --example simple_broker
    ```
 
-2. Run clients in other terminals:
+2. Run a client in another terminal:
    ```bash
    cargo run --example simple_client
-   # or
-   cargo run --example iot_device_simulator
    ```
 
 ### Using External Tools
@@ -125,33 +106,10 @@ mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 - Retained messages
 - JSON payload handling
 
-#### iot_device_simulator.rs
-- Simulates multiple IoT devices
-- Periodic telemetry publishing
-- Last Will and Testament
-- Connection resilience
-
-#### smart_home_hub.rs
-- Home automation scenarios
-- Device control and monitoring
-- Rule-based automation
-- State management
-
-#### industrial_sensor_network.rs
-- High-frequency sensor data
-- Alarm and threshold monitoring
-- Data aggregation
-- Historical data tracking
-
 #### shared_subscription_demo.rs
 - Load balancing across workers
 - Shared subscription groups
 - Work distribution patterns
-
-#### certificate_loading_demo.rs
-- TLS client certificates
-- Mutual TLS authentication
-- Certificate management
 
 ### Broker Examples
 
@@ -187,18 +145,6 @@ mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 - Message routing
 - Bridge configuration
 
-#### resource_monitoring.rs
-- Memory usage tracking
-- Connection limits
-- Bandwidth monitoring
-- Resource quotas
-
-#### observability_dashboard.rs
-- Prometheus metrics
-- Grafana integration
-- Real-time dashboards
-- Alert configuration
-
 ## Common Patterns
 
 ### Error Handling
@@ -231,9 +177,8 @@ println!("Shutting down...");
 ## Next Steps
 
 1. Start with `simple_broker` and `simple_client`
-2. Explore `complete_system_demo` for a full overview
-3. Try specific examples based on your use case
-4. Modify examples for your own applications
+2. Try specific examples based on your use case
+3. Modify examples for your own applications
 
 ## Contributing
 
