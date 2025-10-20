@@ -18,10 +18,15 @@ jobs:
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
+      - name: Generate test certificates
+        run: |
+          chmod +x scripts/generate_test_certs.sh
+          ./scripts/generate_test_certs.sh
+
       - name: Update dependencies
         run: cargo update
-      
+
       - name: Check if updates work
         run: |
           cargo check --all-features
