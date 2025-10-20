@@ -193,7 +193,7 @@ mqttv5 pub
 ### Multi-Transport Broker
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
+use mqtt5::broker::{BrokerConfig, TlsConfig, WebSocketConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -229,7 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Broker with Authentication
 
 ```rust
-use mqtt_v5::broker::{BrokerConfig, AuthConfig, AuthMethod};
+use mqtt5::broker::{BrokerConfig, AuthConfig, AuthMethod};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -253,8 +253,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Broker Bridging
 
 ```rust
-use mqtt_v5::broker::bridge::{BridgeConfig, BridgeDirection};
-use mqtt_v5::QoS;
+use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
+use mqtt5::QoS;
 
 // Connect two brokers together
 let bridge_config = BridgeConfig::new("edge-to-cloud", "cloud-broker:1883")
@@ -274,7 +274,7 @@ let bridge_config = BridgeConfig::new("edge-to-cloud", "cloud-broker:1883")
 ### Unit Testing with Mock Client
 
 ```rust
-use mqtt_v5::{MockMqttClient, MqttClientTrait, PublishResult, QoS};
+use mqtt5::{MockMqttClient, MqttClientTrait, PublishResult, QoS};
 
 #[tokio::test]
 async fn test_my_iot_function() {
@@ -306,7 +306,7 @@ async fn my_iot_function<T: MqttClientTrait>(client: &T) -> Result<(), Box<dyn s
 The client library includes AWS IoT compatibility features:
 
 ```rust
-use mqtt_v5::{MqttClient, ConnectOptions};
+use mqtt5::{MqttClient, ConnectOptions};
 use std::time::Duration;
 
 let client = MqttClient::new("aws-iot-device-12345");
@@ -320,7 +320,7 @@ let (packet_id, qos) = client.subscribe("$aws/things/device-123/shadow/update/ac
 }).await?;
 
 // AWS IoT topic validation prevents publishing to reserved topics
-use mqtt_v5::validation::namespace::NamespaceValidator;
+use mqtt5::validation::namespace::NamespaceValidator;
 
 let validator = NamespaceValidator::aws_iot().with_device_id("device-123");
 
@@ -430,4 +430,4 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ## Documentation
 
 - [Architecture Overview](ARCHITECTURE.md) - System design and principles
-- [API Documentation](https://docs.rs/mqtt-v5) - API reference
+- [API Documentation](https://docs.rs/mqtt5) - API reference
