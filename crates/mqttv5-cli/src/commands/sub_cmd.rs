@@ -353,19 +353,16 @@ fn validate_topic_filter(topic: &str) -> Result<()> {
             // # must be last segment and alone
             if i != segments.len() - 1 {
                 anyhow::bail!(
-                    "Invalid topic filter '{}' - '#' wildcard must be the last segment",
-                    topic
+                    "Invalid topic filter '{topic}' - '#' wildcard must be the last segment"
                 );
             }
         } else if segment.contains('#') {
             anyhow::bail!(
-                "Invalid topic filter '{}' - '#' wildcard must be alone in its segment",
-                topic
+                "Invalid topic filter '{topic}' - '#' wildcard must be alone in its segment"
             );
         } else if segment.contains('+') && segment != &"+" {
             anyhow::bail!(
-                "Invalid topic filter '{}' - '+' wildcard must be alone in its segment",
-                topic
+                "Invalid topic filter '{topic}' - '+' wildcard must be alone in its segment"
             );
         }
     }

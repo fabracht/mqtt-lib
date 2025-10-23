@@ -355,7 +355,7 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
                 println!("\n✓ Received Ctrl+C, disconnecting...");
             }
             Err(err) => {
-                anyhow::bail!("Unable to listen for shutdown signal: {}", err);
+                anyhow::bail!("Unable to listen for shutdown signal: {err}");
             }
         }
     }

@@ -85,12 +85,13 @@ async fn test_bridge_message_routing() {
             "test/topic".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
     // Create and route a message
     let packet = PublishPacket::new("test/topic".to_string(), b"test message", QoS::AtMostOnce);
-    router.route_message(&packet).await;
+    router.route_message(&packet, None).await;
 
     // Verify message was routed locally
     let received = timeout(Duration::from_millis(500), rx.recv())

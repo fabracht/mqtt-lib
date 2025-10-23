@@ -188,7 +188,7 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
                     info!("Broker stopped normally");
                 }
                 Err(e) => {
-                    anyhow::bail!("Broker error: {}", e);
+                    anyhow::bail!("Broker error: {e}");
                 }
             }
         }

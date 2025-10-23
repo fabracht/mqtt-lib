@@ -52,6 +52,7 @@ fn test_multi_client_message_routing() {
                 "sensors/+/temperature".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -73,6 +74,7 @@ fn test_multi_client_message_routing() {
                 "sensors/+/humidity".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -94,6 +96,7 @@ fn test_multi_client_message_routing() {
                 "sensors/+/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -115,6 +118,7 @@ fn test_multi_client_message_routing() {
                 "sensors/room1/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -131,7 +135,7 @@ fn test_multi_client_message_routing() {
         for (topic, payload) in &messages {
             let publish =
                 PublishPacket::new((*topic).to_string(), payload.as_bytes(), QoS::AtMostOnce);
-            router.route_message(&publish).await;
+            router.route_message(&publish, None).await;
         }
 
         // Give messages time to be routed
@@ -208,6 +212,7 @@ fn test_client_subscription_changes() {
                 "alerts/error".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -217,7 +222,7 @@ fn test_client_subscription_changes() {
             b"Critical error occurred",
             QoS::AtMostOnce,
         );
-        router.route_message(&error_msg).await;
+        router.route_message(&error_msg, None).await;
 
         // Send warning alert (should not be received)
         let warning_msg = PublishPacket::new(
@@ -225,7 +230,7 @@ fn test_client_subscription_changes() {
             b"Warning message",
             QoS::AtMostOnce,
         );
-        router.route_message(&warning_msg).await;
+        router.route_message(&warning_msg, None).await;
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -243,12 +248,13 @@ fn test_client_subscription_changes() {
                 "alerts/warning".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
         // Send both types of alerts again
-        router.route_message(&error_msg).await;
-        router.route_message(&warning_msg).await;
+        router.route_message(&error_msg, None).await;
+        router.route_message(&warning_msg, None).await;
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -294,6 +300,7 @@ fn test_message_ordering_with_multiple_clients() {
                 "sequence/test".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -303,6 +310,7 @@ fn test_message_ordering_with_multiple_clients() {
                 "sequence/test".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -313,7 +321,7 @@ fn test_message_ordering_with_multiple_clients() {
                 format!("Message {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
-            router.route_message(&msg).await;
+            router.route_message(&msg, None).await;
 
             // Small delay to ensure ordering
             tokio::time::sleep(Duration::from_millis(10)).await;

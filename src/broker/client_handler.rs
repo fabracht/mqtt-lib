@@ -557,6 +557,7 @@ impl ClientHandler {
                     filter.filter.clone(),
                     QoS::from(granted_qos),
                     None,
+                    filter.options.no_local,
                 )
                 .await;
 
@@ -686,11 +687,11 @@ impl ClientHandler {
         match publish.qos {
             QoS::AtMostOnce => {
                 // Route immediately
-                self.router.route_message(&publish).await;
+                self.router.route_message(&publish, Some(client_id)).await;
             }
             QoS::AtLeastOnce => {
                 // Route and acknowledge
-                self.router.route_message(&publish).await;
+                self.router.route_message(&publish, Some(client_id)).await;
                 let mut puback = PubAckPacket::new(publish.packet_id.unwrap());
                 puback.reason_code = ReasonCode::Success;
                 self.transport.write_packet(Packet::PubAck(puback)).await?;
@@ -726,7 +727,8 @@ impl ClientHandler {
     async fn handle_pubrel(&mut self, pubrel: PubRelPacket) -> Result<()> {
         // Complete QoS 2 flow
         if let Some(publish) = self.inflight_publishes.remove(&pubrel.packet_id) {
-            self.router.route_message(&publish).await;
+            let client_id = self.client_id.as_ref().unwrap();
+            self.router.route_message(&publish, Some(client_id)).await;
         }
 
         let mut pubcomp = PubCompPacket::new(pubrel.packet_id);
@@ -806,7 +808,7 @@ impl ClientHandler {
         // Restore subscriptions
         for (topic_filter, qos) in &session.subscriptions {
             self.router
-                .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None)
+                .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None, false)
                 .await;
         }
 
@@ -854,18 +856,18 @@ impl ClientHandler {
                                 "Task completed: publishing delayed will message for {}",
                                 client_id_clone
                             );
-                            router.route_message(&publish_clone).await;
+                            router.route_message(&publish_clone, None).await;
                         });
                         debug!("Spawned delayed will task for {}", client_id);
                     } else {
                         debug!("Publishing will immediately (delay = 0)");
                         // Publish immediately
-                        self.router.route_message(&publish).await;
+                        self.router.route_message(&publish, None).await;
                     }
                 } else {
                     debug!("Publishing will immediately (no delay specified)");
                     // No delay specified, publish immediately
-                    self.router.route_message(&publish).await;
+                    self.router.route_message(&publish, None).await;
                 }
             }
         }

@@ -184,7 +184,7 @@ fn write_password_file(path: &PathBuf, users: &HashMap<String, String>) -> Resul
 
     for username in usernames {
         if let Some(hash) = users.get(username) {
-            content.push_str(&format!("{}:{}\n", username, hash));
+            content.push_str(&format!("{username}:{hash}\n"));
         }
     }
 

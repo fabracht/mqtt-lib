@@ -53,6 +53,7 @@ fn test_shared_subscriptions_in_turmoil() {
                 "$share/workers/tasks/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -62,6 +63,7 @@ fn test_shared_subscriptions_in_turmoil() {
                 "$share/workers/tasks/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -71,6 +73,7 @@ fn test_shared_subscriptions_in_turmoil() {
                 "$share/workers/tasks/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -81,7 +84,7 @@ fn test_shared_subscriptions_in_turmoil() {
                 format!("Task {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
-            router.route_message(&publish).await;
+            router.route_message(&publish, None).await;
         }
 
         // Count messages received by each worker
