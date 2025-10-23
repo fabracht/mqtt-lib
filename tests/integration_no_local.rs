@@ -27,15 +27,14 @@ async fn test_no_local_true_filters_own_messages() {
         )
         .await;
 
-    let packet = PublishPacket::new(
-        "test/topic".to_string(),
-        b"test message",
-        QoS::AtMostOnce,
-    );
+    let packet = PublishPacket::new("test/topic".to_string(), b"test message", QoS::AtMostOnce);
     router.route_message(&packet, Some("test_client")).await;
 
     let result = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_err(), "Client should not receive its own message when no_local=true");
+    assert!(
+        result.is_err(),
+        "Client should not receive its own message when no_local=true"
+    );
 }
 
 #[tokio::test]
@@ -59,15 +58,14 @@ async fn test_no_local_false_allows_own_messages() {
         )
         .await;
 
-    let packet = PublishPacket::new(
-        "test/topic".to_string(),
-        b"test message",
-        QoS::AtMostOnce,
-    );
+    let packet = PublishPacket::new("test/topic".to_string(), b"test message", QoS::AtMostOnce);
     router.route_message(&packet, Some("test_client")).await;
 
     let result = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_ok(), "Client should receive its own message when no_local=false");
+    assert!(
+        result.is_ok(),
+        "Client should receive its own message when no_local=false"
+    );
 
     let received = result.unwrap().unwrap();
     assert_eq!(received.topic_name, "test/topic");
@@ -111,18 +109,20 @@ async fn test_no_local_other_clients_receive_messages() {
         )
         .await;
 
-    let packet = PublishPacket::new(
-        "test/topic".to_string(),
-        b"test message",
-        QoS::AtMostOnce,
-    );
+    let packet = PublishPacket::new("test/topic".to_string(), b"test message", QoS::AtMostOnce);
     router.route_message(&packet, Some("publisher")).await;
 
     let pub_result = timeout(Duration::from_millis(100), rx1.recv()).await;
-    assert!(pub_result.is_err(), "Publisher should not receive its own message with no_local=true");
+    assert!(
+        pub_result.is_err(),
+        "Publisher should not receive its own message with no_local=true"
+    );
 
     let sub_result = timeout(Duration::from_millis(100), rx2.recv()).await;
-    assert!(sub_result.is_ok(), "Subscriber should receive message from publisher");
+    assert!(
+        sub_result.is_ok(),
+        "Subscriber should receive message from publisher"
+    );
 
     let received = sub_result.unwrap().unwrap();
     assert_eq!(received.topic_name, "test/topic");
@@ -150,22 +150,17 @@ async fn test_no_local_with_wildcards() {
         )
         .await;
 
-    let packet1 = PublishPacket::new(
-        "test/topic1".to_string(),
-        b"message 1",
-        QoS::AtMostOnce,
-    );
+    let packet1 = PublishPacket::new("test/topic1".to_string(), b"message 1", QoS::AtMostOnce);
     router.route_message(&packet1, Some("test_client")).await;
 
-    let packet2 = PublishPacket::new(
-        "test/topic2".to_string(),
-        b"message 2",
-        QoS::AtMostOnce,
-    );
+    let packet2 = PublishPacket::new("test/topic2".to_string(), b"message 2", QoS::AtMostOnce);
     router.route_message(&packet2, Some("test_client")).await;
 
     let result = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_err(), "Client should not receive any messages matching wildcard from itself when no_local=true");
+    assert!(
+        result.is_err(),
+        "Client should not receive any messages matching wildcard from itself when no_local=true"
+    );
 }
 
 #[tokio::test]
@@ -221,15 +216,14 @@ async fn test_no_local_server_generated_messages() {
         )
         .await;
 
-    let packet = PublishPacket::new(
-        "test/topic".to_string(),
-        b"server message",
-        QoS::AtMostOnce,
-    );
+    let packet = PublishPacket::new("test/topic".to_string(), b"server message", QoS::AtMostOnce);
     router.route_message(&packet, None).await;
 
     let result = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_ok(), "Client should receive server-generated messages even with no_local=true");
+    assert!(
+        result.is_ok(),
+        "Client should receive server-generated messages even with no_local=true"
+    );
 
     let received = result.unwrap().unwrap();
     assert_eq!(received.topic_name, "test/topic");
@@ -267,29 +261,27 @@ async fn test_no_local_multiple_subscriptions_same_client() {
         )
         .await;
 
-    let packet1 = PublishPacket::new(
-        "test/topic1".to_string(),
-        b"message 1",
-        QoS::AtMostOnce,
-    );
+    let packet1 = PublishPacket::new("test/topic1".to_string(), b"message 1", QoS::AtMostOnce);
     router.route_message(&packet1, Some("test_client")).await;
 
-    let packet2 = PublishPacket::new(
-        "test/topic2".to_string(),
-        b"message 2",
-        QoS::AtMostOnce,
-    );
+    let packet2 = PublishPacket::new("test/topic2".to_string(), b"message 2", QoS::AtMostOnce);
     router.route_message(&packet2, Some("test_client")).await;
 
     let result1 = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result1.is_ok(), "Client should receive message from topic2 with no_local=false");
+    assert!(
+        result1.is_ok(),
+        "Client should receive message from topic2 with no_local=false"
+    );
 
     let received = result1.unwrap().unwrap();
     assert_eq!(received.topic_name, "test/topic2");
     assert_eq!(received.payload, b"message 2");
 
     let result2 = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result2.is_err(), "Client should not receive second message from topic1 with no_local=true");
+    assert!(
+        result2.is_err(),
+        "Client should not receive second message from topic1 with no_local=true"
+    );
 }
 
 #[tokio::test]
@@ -313,13 +305,12 @@ async fn test_no_local_with_qos_levels() {
         )
         .await;
 
-    let packet = PublishPacket::new(
-        "test/topic".to_string(),
-        b"qos1 message",
-        QoS::AtLeastOnce,
-    );
+    let packet = PublishPacket::new("test/topic".to_string(), b"qos1 message", QoS::AtLeastOnce);
     router.route_message(&packet, Some("test_client")).await;
 
     let result = timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_err(), "Client should not receive its own QoS 1 message when no_local=true");
+    assert!(
+        result.is_err(),
+        "Client should not receive its own QoS 1 message when no_local=true"
+    );
 }

@@ -197,7 +197,13 @@ fn test_multiple_subscribers_same_topic() {
         let topic = "broadcast/announcement";
         for client in ["subscriber1", "subscriber2", "subscriber3"] {
             router
-                .subscribe(client.to_string(), topic.to_string(), QoS::AtMostOnce, None, false)
+                .subscribe(
+                    client.to_string(),
+                    topic.to_string(),
+                    QoS::AtMostOnce,
+                    None,
+                    false,
+                )
                 .await;
         }
 

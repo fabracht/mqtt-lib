@@ -341,8 +341,14 @@ impl MessageRouter {
 
         // Process regular (non-shared) subscriptions
         for sub in regular_subs {
-            self.deliver_to_subscriber(sub, publish, &clients, self.storage.as_ref(), publishing_client_id)
-                .await;
+            self.deliver_to_subscriber(
+                sub,
+                publish,
+                &clients,
+                self.storage.as_ref(),
+                publishing_client_id,
+            )
+            .await;
         }
 
         // Forward to bridges if configured

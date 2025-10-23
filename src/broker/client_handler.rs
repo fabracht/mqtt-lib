@@ -808,7 +808,13 @@ impl ClientHandler {
         // Restore subscriptions
         for (topic_filter, qos) in &session.subscriptions {
             self.router
-                .subscribe(connect.client_id.clone(), topic_filter.clone(), *qos, None, false)
+                .subscribe(
+                    connect.client_id.clone(),
+                    topic_filter.clone(),
+                    *qos,
+                    None,
+                    false,
+                )
                 .await;
         }
 
