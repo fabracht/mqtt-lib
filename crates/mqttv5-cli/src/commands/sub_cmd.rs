@@ -104,6 +104,10 @@ pub struct SubCommand {
     /// Enable automatic reconnection when broker disconnects
     #[arg(long)]
     pub auto_reconnect: bool,
+
+    /// No Local - if true, Application Messages published by this client will not be received back
+    #[arg(long)]
+    pub no_local: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -268,6 +272,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
     let subscribe_options = mqtt5::SubscribeOptions {
         qos,
+        no_local: cmd.no_local,
         ..Default::default()
     };
 
