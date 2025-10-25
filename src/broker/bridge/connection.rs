@@ -220,7 +220,7 @@ impl BridgeConnection {
 
                             // Forward to local broker
                             tokio::spawn(async move {
-                                router.route_message(&packet).await;
+                                router.route_message(&packet, None).await;
                             });
                         })
                         .await?;

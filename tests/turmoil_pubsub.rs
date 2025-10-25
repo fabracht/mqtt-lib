@@ -39,13 +39,14 @@ fn test_basic_publish_subscribe() {
                 "test/topic".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
         // Publish a message
         let publish =
             PublishPacket::new("test/topic".to_string(), b"Hello, World!", QoS::AtMostOnce);
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
 
         // Give time for message routing
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -95,6 +96,7 @@ fn test_wildcard_subscriptions() {
                 "sensors/+/temperature".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -105,6 +107,7 @@ fn test_wildcard_subscriptions() {
                 "sensors/#".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -121,7 +124,7 @@ fn test_wildcard_subscriptions() {
         for (topic, payload) in &topics_and_payloads {
             let publish =
                 PublishPacket::new((*topic).to_string(), payload.as_bytes(), QoS::AtMostOnce);
-            router.route_message(&publish).await;
+            router.route_message(&publish, None).await;
         }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -194,7 +197,13 @@ fn test_multiple_subscribers_same_topic() {
         let topic = "broadcast/announcement";
         for client in ["subscriber1", "subscriber2", "subscriber3"] {
             router
-                .subscribe(client.to_string(), topic.to_string(), QoS::AtMostOnce, None)
+                .subscribe(
+                    client.to_string(),
+                    topic.to_string(),
+                    QoS::AtMostOnce,
+                    None,
+                    false,
+                )
                 .await;
         }
 
@@ -205,7 +214,7 @@ fn test_multiple_subscribers_same_topic() {
                 format!("Message {i}").as_bytes(),
                 QoS::AtMostOnce,
             );
-            router.route_message(&publish).await;
+            router.route_message(&publish, None).await;
         }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -265,6 +274,7 @@ fn test_qos_levels() {
                 "data/qos0".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -274,17 +284,18 @@ fn test_qos_levels() {
                 "data/qos1".to_string(),
                 QoS::AtLeastOnce,
                 None,
+                false,
             )
             .await;
 
         // Publish with different QoS levels
         let qos0_msg =
             PublishPacket::new("data/qos0".to_string(), b"QoS 0 message", QoS::AtMostOnce);
-        router.route_message(&qos0_msg).await;
+        router.route_message(&qos0_msg, None).await;
 
         let qos1_msg =
             PublishPacket::new("data/qos1".to_string(), b"QoS 1 message", QoS::AtLeastOnce);
-        router.route_message(&qos1_msg).await;
+        router.route_message(&qos1_msg, None).await;
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -331,6 +342,7 @@ fn test_unsubscribe_functionality() {
                 "test/unsubscribe".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -340,7 +352,7 @@ fn test_unsubscribe_functionality() {
             b"Before unsubscribe",
             QoS::AtMostOnce,
         );
-        router.route_message(&msg1).await;
+        router.route_message(&msg1, None).await;
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -359,7 +371,7 @@ fn test_unsubscribe_functionality() {
             b"After unsubscribe",
             QoS::AtMostOnce,
         );
-        router.route_message(&msg2).await;
+        router.route_message(&msg2, None).await;
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 

@@ -7,41 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-01-25
+
 ### Added
-- **Enhanced Developer Experience** - Improved cargo-make workflow
-  - Added comprehensive `cargo make help` command with organized menu
-  - Categorized commands: Build, Test, Code Quality, CI/CD, Documentation, Security
-  - Clear descriptions and emoji icons for better discoverability
-- **Comprehensive CLI Testing Suite** - Full test coverage for CLI functionality
-  - End-to-end tests verifying actual MQTT message delivery
-  - Feature tests covering all MQTT v5.0 CLI parameters
-  - Transport tests for TCP, TLS, and WebSocket support
-  - Performance and throughput testing with real broker integration
-- **Enhanced CLI MQTT v5.0 Support** - Complete feature parity with library
-  - Session management options (--no-clean-start, --session-expiry)
-  - Will message support for both pub and sub commands
-  - Enhanced authentication options (--username, --password)
-  - Custom keep-alive intervals and connection options
+- no local subscription option support
+- `--no-local` flag to subscribe command
+
+## [0.5.0] - 2025-01-24
+
+### Added
+- improved cargo-make workflow with help command
+- comprehensive CLI testing suite
+- session management options
+- will message support for pub and sub commands
 
 ### Changed
-- **Dependency Updates** - Updated to latest stable versions
-  - `tokio-tungstenite` updated from 0.27 to 0.28
-  - `dialoguer` updated from 0.11 to 0.12
-
+- updated tokio-tungstenite to 0.28
+- updated dialoguer to 0.12
 
 ### Fixed
-- **MaximumQoS Property Handling (Issue #14)** - Fixed MQTT v5.0 spec compliance
-  - Broker now correctly omits MaximumQoS property when QoS 2 is supported (per MQTT v5.0 spec 3.2.2.3.4)
-  - MaximumQoS property value MUST be 0 or 1, never 2
-  - Client now reads and enforces server's MaximumQoS limit
-  - Fixes compatibility with other MQTT v5.0 clients
-- **Will Message Testing** - Fixed CLI will message tests that were timing out
-  - Added hidden --keep-alive-after-publish flag for proper will message testing
-  - Will messages now properly trigger when CLI process is terminated
-  - Test infrastructure validates actual will message delivery
-- **Repository Cleanup** - Improved .gitignore configuration
-  - Removed CLI_TESTING_GUIDE.md from version control
-  - File remains available locally but is now properly ignored
+- MaximumQoS property handling per MQTT v5.0 spec
+- will message testing timeouts
+- repository cleanup and gitignore configuration
 
 ## [0.4.1] - 2025-08-05
 

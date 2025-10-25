@@ -37,6 +37,7 @@ async fn test_shared_subscription_distribution() {
             "$share/workers/tasks/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -46,6 +47,7 @@ async fn test_shared_subscription_distribution() {
             "$share/workers/tasks/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -55,6 +57,7 @@ async fn test_shared_subscription_distribution() {
             "$share/workers/tasks/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -65,7 +68,7 @@ async fn test_shared_subscription_distribution() {
             format!("Task {i}").as_bytes(),
             QoS::AtMostOnce,
         );
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
     }
 
     // Count messages received by each worker
@@ -126,6 +129,7 @@ async fn test_mixed_shared_and_regular_subscriptions() {
             "$share/team/alerts/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -135,6 +139,7 @@ async fn test_mixed_shared_and_regular_subscriptions() {
             "$share/team/alerts/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -145,6 +150,7 @@ async fn test_mixed_shared_and_regular_subscriptions() {
             "alerts/+".to_string(),
             QoS::AtMostOnce,
             None,
+            false,
         )
         .await;
 
@@ -155,7 +161,7 @@ async fn test_mixed_shared_and_regular_subscriptions() {
             format!("Alert {i}").as_bytes(),
             QoS::AtMostOnce,
         );
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
     }
 
     // Count messages

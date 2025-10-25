@@ -244,7 +244,7 @@ impl SysTopicsProvider {
         let packet = PublishPacket::new(topic, value.as_bytes(), QoS::AtMostOnce).with_retain(true);
 
         debug!("Publishing $SYS topic: {} = {}", topic, value);
-        self.router.route_message(&packet).await;
+        self.router.route_message(&packet, None).await;
     }
 }
 

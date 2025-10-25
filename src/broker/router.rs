@@ -24,6 +24,8 @@ pub struct Subscription {
     pub subscription_id: Option<u32>,
     /// Shared subscription group name (if this is a shared subscription)
     pub share_group: Option<String>,
+    /// No Local option - if true, messages published by this client are not delivered back to it
+    pub no_local: bool,
 }
 
 /// Message router for the broker
@@ -155,6 +157,7 @@ impl MessageRouter {
         topic_filter: String,
         qos: QoS,
         subscription_id: Option<u32>,
+        no_local: bool,
     ) {
         let (actual_filter, share_group) = Self::parse_shared_subscription(&topic_filter);
 
@@ -170,6 +173,7 @@ impl MessageRouter {
             qos,
             subscription_id,
             share_group: share_group.clone(),
+            no_local,
         };
 
         if let Some(pos) = existing_pos {
@@ -234,7 +238,7 @@ impl MessageRouter {
     }
 
     /// Routes a publish message to all matching subscribers
-    pub async fn route_message(&self, publish: &PublishPacket) {
+    pub async fn route_message(&self, publish: &PublishPacket, publishing_client_id: Option<&str>) {
         trace!("Routing message to topic: {}", publish.topic_name);
 
         // Handle retained messages
@@ -310,6 +314,7 @@ impl MessageRouter {
                         publish,
                         &clients,
                         self.storage.as_ref(),
+                        publishing_client_id,
                     )
                     .await;
                 }
@@ -336,8 +341,14 @@ impl MessageRouter {
 
         // Process regular (non-shared) subscriptions
         for sub in regular_subs {
-            self.deliver_to_subscriber(sub, publish, &clients, self.storage.as_ref())
-                .await;
+            self.deliver_to_subscriber(
+                sub,
+                publish,
+                &clients,
+                self.storage.as_ref(),
+                publishing_client_id,
+            )
+            .await;
         }
 
         // Forward to bridges if configured
@@ -355,7 +366,20 @@ impl MessageRouter {
         publish: &PublishPacket,
         clients: &HashMap<String, ClientInfo>,
         storage: Option<&Arc<DynamicStorage>>,
+        publishing_client_id: Option<&str>,
     ) {
+        if sub.no_local {
+            if let Some(publisher_id) = publishing_client_id {
+                if publisher_id == sub.client_id {
+                    trace!(
+                        "Skipping delivery to {} due to No Local flag",
+                        sub.client_id
+                    );
+                    return;
+                }
+            }
+        }
+
         if let Some(client_info) = clients.get(&sub.client_id) {
             // Calculate effective QoS (minimum of publish and subscription QoS)
             let effective_qos = match (publish.qos, sub.qos) {
@@ -497,6 +521,7 @@ mod tests {
                 "test/+".to_string(),
                 QoS::AtLeastOnce,
                 None,
+                false,
             )
             .await;
 
@@ -530,6 +555,7 @@ mod tests {
                 "test/+".to_string(),
                 QoS::AtLeastOnce,
                 None,
+                false,
             )
             .await;
         router
@@ -538,13 +564,14 @@ mod tests {
                 "test/data".to_string(),
                 QoS::ExactlyOnce,
                 None,
+                false,
             )
             .await;
 
         // Publish message
         let publish = PublishPacket::new("test/data", b"hello", QoS::ExactlyOnce);
 
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
 
         // Client 1 should receive with QoS 1 (downgraded)
         let msg1 = rx1.try_recv().unwrap();
@@ -564,7 +591,7 @@ mod tests {
         // Store retained message
         let mut publish = PublishPacket::new("test/status", b"online", QoS::AtMostOnce);
         publish.retain = true;
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
 
         assert_eq!(router.retained_count().await, 1);
 
@@ -576,7 +603,7 @@ mod tests {
         // Delete retained message
         let mut delete = PublishPacket::new("test/status", b"", QoS::AtMostOnce);
         delete.retain = true;
-        router.route_message(&delete).await;
+        router.route_message(&delete, None).await;
 
         assert_eq!(router.retained_count().await, 0);
     }
@@ -624,6 +651,7 @@ mod tests {
                 "$share/workers/test/data".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
         router
@@ -632,6 +660,7 @@ mod tests {
                 "$share/workers/test/data".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
         router
@@ -640,6 +669,7 @@ mod tests {
                 "$share/workers/test/data".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -647,7 +677,7 @@ mod tests {
         for i in 0..6 {
             let publish =
                 PublishPacket::new("test/data", format!("msg{}", i).as_bytes(), QoS::AtMostOnce);
-            router.route_message(&publish).await;
+            router.route_message(&publish, None).await;
         }
 
         // Each client should receive exactly 2 messages
@@ -698,6 +728,7 @@ mod tests {
                 "$share/group/test/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
         router
@@ -706,6 +737,7 @@ mod tests {
                 "$share/group/test/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
@@ -716,12 +748,13 @@ mod tests {
                 "test/+".to_string(),
                 QoS::AtMostOnce,
                 None,
+                false,
             )
             .await;
 
         // Publish message
         let publish = PublishPacket::new("test/data", b"hello", QoS::AtMostOnce);
-        router.route_message(&publish).await;
+        router.route_message(&publish, None).await;
 
         // Regular subscriber should receive the message
         let regular_msg = rx3.try_recv().unwrap();

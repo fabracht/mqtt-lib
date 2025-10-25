@@ -104,6 +104,10 @@ pub struct SubCommand {
     /// Enable automatic reconnection when broker disconnects
     #[arg(long)]
     pub auto_reconnect: bool,
+
+    /// No Local - if true, Application Messages published by this client will not be received back
+    #[arg(long)]
+    pub no_local: bool,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -268,6 +272,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
     let subscribe_options = mqtt5::SubscribeOptions {
         qos,
+        no_local: cmd.no_local,
         ..Default::default()
     };
 
@@ -353,19 +358,16 @@ fn validate_topic_filter(topic: &str) -> Result<()> {
             // # must be last segment and alone
             if i != segments.len() - 1 {
                 anyhow::bail!(
-                    "Invalid topic filter '{}' - '#' wildcard must be the last segment",
-                    topic
+                    "Invalid topic filter '{topic}' - '#' wildcard must be the last segment"
                 );
             }
         } else if segment.contains('#') {
             anyhow::bail!(
-                "Invalid topic filter '{}' - '#' wildcard must be alone in its segment",
-                topic
+                "Invalid topic filter '{topic}' - '#' wildcard must be alone in its segment"
             );
         } else if segment.contains('+') && segment != &"+" {
             anyhow::bail!(
-                "Invalid topic filter '{}' - '+' wildcard must be alone in its segment",
-                topic
+                "Invalid topic filter '{topic}' - '+' wildcard must be alone in its segment"
             );
         }
     }
