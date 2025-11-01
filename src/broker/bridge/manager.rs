@@ -94,7 +94,10 @@ impl BridgeManager {
 
     /// Handles outgoing messages (called by MessageRouter)
     pub async fn handle_outgoing(&self, packet: &PublishPacket) -> Result<()> {
-        // Check loop prevention first
+        if packet.topic_name.starts_with("$SYS/") {
+            return Ok(());
+        }
+
         if !self.loop_prevention.check_message(packet).await {
             debug!("Message loop detected, not forwarding to bridges");
             return Ok(());

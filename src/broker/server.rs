@@ -2,6 +2,7 @@
 
 use crate::broker::auth::{AllowAllAuthProvider, AuthProvider};
 use crate::broker::binding::{bind_tcp_addresses, format_binding_error};
+use crate::broker::bridge::BridgeManager;
 use crate::broker::client_handler::ClientHandler;
 use crate::broker::config::{BrokerConfig, StorageBackend as StorageBackendType};
 use crate::broker::resource_monitor::{ResourceLimits, ResourceMonitor};
@@ -25,6 +26,7 @@ pub struct MqttBroker {
     storage: Option<Arc<DynamicStorage>>,
     stats: Arc<BrokerStats>,
     resource_monitor: Arc<ResourceMonitor>,
+    bridge_manager: Option<Arc<BridgeManager>>,
     listeners: Vec<TcpListener>,
     tls_listeners: Vec<TcpListener>,
     tls_acceptor: Option<TlsAcceptor>,
@@ -122,6 +124,24 @@ impl MqttBroker {
         )));
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
 
+        let bridge_manager = if !config.bridges.is_empty() {
+            info!("Initializing {} bridge(s)", config.bridges.len());
+
+            let manager = Arc::new(BridgeManager::new(Arc::clone(&router)));
+            router.set_bridge_manager(Arc::clone(&manager)).await;
+
+            for bridge_config in &config.bridges {
+                info!("Adding bridge '{}'", bridge_config.name);
+                if let Err(e) = manager.add_bridge(bridge_config.clone()).await {
+                    error!("Failed to add bridge '{}': {}", bridge_config.name, e);
+                }
+            }
+
+            Some(manager)
+        } else {
+            None
+        };
+
         Ok(Self {
             config: Arc::new(config),
             router,
@@ -129,6 +149,7 @@ impl MqttBroker {
             storage,
             stats,
             resource_monitor,
+            bridge_manager,
             listeners,
             tls_listeners,
             tls_acceptor,
@@ -713,6 +734,13 @@ impl MqttBroker {
             shutdown_tx.send(()).map_err(|_| {
                 MqttError::InvalidState("No receivers for shutdown signal".to_string())
             })?;
+        }
+
+        if let Some(ref bridge_manager) = self.bridge_manager {
+            info!("Stopping all bridges");
+            if let Err(e) = bridge_manager.stop_all().await {
+                error!("Error stopping bridges: {}", e);
+            }
         }
 
         // Give clients time to disconnect gracefully

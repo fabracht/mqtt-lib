@@ -9,7 +9,7 @@ use crate::validation::topic_matches_filter;
 use crate::QoS;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace};
 
@@ -41,7 +41,7 @@ pub struct MessageRouter {
     /// Round-robin counters for shared subscription groups
     share_group_counters: Arc<RwLock<HashMap<String, Arc<AtomicUsize>>>>,
     /// Bridge manager for broker-to-broker connections
-    bridge_manager: Option<Arc<BridgeManager>>,
+    bridge_manager: Arc<RwLock<Option<Weak<BridgeManager>>>>,
 }
 
 /// Information about a connected client
@@ -63,7 +63,7 @@ impl MessageRouter {
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: None,
             share_group_counters: Arc::new(RwLock::new(HashMap::new())),
-            bridge_manager: None,
+            bridge_manager: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -76,13 +76,13 @@ impl MessageRouter {
             clients: Arc::new(RwLock::new(HashMap::new())),
             storage: Some(storage),
             share_group_counters: Arc::new(RwLock::new(HashMap::new())),
-            bridge_manager: None,
+            bridge_manager: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Sets the bridge manager for this router
-    pub fn set_bridge_manager(&mut self, bridge_manager: Arc<BridgeManager>) {
-        self.bridge_manager = Some(bridge_manager);
+    pub async fn set_bridge_manager(&self, bridge_manager: Arc<BridgeManager>) {
+        *self.bridge_manager.write().await = Some(Arc::downgrade(&bridge_manager));
     }
 
     /// Initializes the router by loading retained messages from storage
@@ -352,9 +352,12 @@ impl MessageRouter {
         }
 
         // Forward to bridges if configured
-        if let Some(ref bridge_manager) = self.bridge_manager {
-            if let Err(e) = bridge_manager.handle_outgoing(publish).await {
-                error!("Failed to forward message to bridges: {}", e);
+        let bridge_manager_weak = self.bridge_manager.read().await.clone();
+        if let Some(weak) = bridge_manager_weak {
+            if let Some(bridge_manager) = weak.upgrade() {
+                if let Err(e) = bridge_manager.handle_outgoing(publish).await {
+                    error!("Failed to forward message to bridges: {}", e);
+                }
             }
         }
     }

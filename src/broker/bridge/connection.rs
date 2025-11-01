@@ -124,6 +124,13 @@ impl BridgeConnection {
             options.password = Some(password.clone().into_bytes());
         }
 
+        if self.config.try_private {
+            options
+                .properties
+                .user_properties
+                .push(("bridge".to_string(), self.config.name.clone()));
+        }
+
         // Build connection string with TLS if needed
         let connection_string = if self.config.use_tls {
             format!("mqtts://{}", self.config.remote_address)
@@ -345,6 +352,7 @@ impl BridgeConnection {
     pub async fn run(&self) -> Result<()> {
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         let mut attempt = 0u32;
+        let mut current_delay = self.config.initial_reconnect_delay;
 
         while self.running.load(Ordering::Relaxed) {
             tokio::select! {
@@ -352,14 +360,17 @@ impl BridgeConnection {
                     info!("Bridge '{}' received shutdown signal", self.config.name);
                     break;
                 }
-                _ = self.run_connection() => {
+                result = self.run_connection() => {
                     if !self.running.load(Ordering::Relaxed) {
                         break;
                     }
 
+                    if let Ok(()) = result {
+                        current_delay = self.config.initial_reconnect_delay;
+                    }
+
                     attempt += 1;
 
-                    // Check max attempts
                     if let Some(max) = self.config.max_reconnect_attempts {
                         if attempt >= max {
                             error!("Bridge '{}' exceeded max reconnection attempts", self.config.name);
@@ -368,10 +379,14 @@ impl BridgeConnection {
                     }
 
                     warn!("Bridge '{}' disconnected, reconnecting in {:?} (attempt {})",
-                        self.config.name, self.config.reconnect_delay, attempt);
+                        self.config.name, current_delay, attempt);
 
-                    // Wait before reconnecting
-                    tokio::time::sleep(self.config.reconnect_delay).await;
+                    tokio::time::sleep(current_delay).await;
+
+                    let next_delay = Duration::from_secs_f64(
+                        current_delay.as_secs_f64() * self.config.backoff_multiplier
+                    );
+                    current_delay = next_delay.min(self.config.max_reconnect_delay);
                 }
             }
         }
@@ -381,16 +396,14 @@ impl BridgeConnection {
 
     /// Runs a single connection until disconnected
     async fn run_connection(&self) -> Result<()> {
-        // Connect and setup subscriptions
-        Box::pin(self.connect()).await?;
-        self.setup_subscriptions().await?;
+        if !self.client.is_connected().await {
+            Box::pin(self.connect()).await?;
+            self.setup_subscriptions().await?;
+        }
 
-        // Wait for client disconnection
-        // This is a simplified version - in production we'd monitor the client connection
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-            // Check if still connected (simplified check)
             if !self.client.is_connected().await {
                 warn!(
                     "Bridge '{}' disconnected from remote broker",

@@ -46,9 +46,21 @@ pub struct BridgeConfig {
     #[serde(default)]
     pub protocol_version: MqttVersion,
 
-    /// Delay between reconnection attempts
+    /// Delay between reconnection attempts (deprecated: use initial_reconnect_delay)
     #[serde(with = "humantime_serde", default = "default_reconnect_delay")]
     pub reconnect_delay: Duration,
+
+    /// Initial delay for first reconnection attempt
+    #[serde(with = "humantime_serde", default = "default_reconnect_delay")]
+    pub initial_reconnect_delay: Duration,
+
+    /// Maximum delay between reconnection attempts
+    #[serde(with = "humantime_serde", default = "default_max_reconnect_delay")]
+    pub max_reconnect_delay: Duration,
+
+    /// Multiplier for exponential backoff
+    #[serde(default = "default_backoff_multiplier")]
+    pub backoff_multiplier: f64,
 
     /// Maximum reconnection attempts (None = infinite)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -135,6 +147,14 @@ fn default_reconnect_delay() -> Duration {
     Duration::from_secs(5)
 }
 
+fn default_max_reconnect_delay() -> Duration {
+    Duration::from_secs(300)
+}
+
+fn default_backoff_multiplier() -> f64 {
+    2.0
+}
+
 fn default_qos() -> QoS {
     QoS::AtMostOnce
 }
@@ -156,6 +176,9 @@ impl BridgeConfig {
             keepalive: 60,
             protocol_version: MqttVersion::V50,
             reconnect_delay: Duration::from_secs(5),
+            initial_reconnect_delay: Duration::from_secs(5),
+            max_reconnect_delay: Duration::from_secs(300),
+            backoff_multiplier: 2.0,
             max_reconnect_attempts: None,
             backup_brokers: Vec::new(),
             topics: Vec::new(),
@@ -246,5 +269,63 @@ mod tests {
         // Should pass with topics
         config = config.add_topic("test/#", BridgeDirection::Both, QoS::AtMostOnce);
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_try_private_serialization() {
+        let mut config = BridgeConfig::new("test-bridge", "remote.broker:1883").add_topic(
+            "test/#",
+            BridgeDirection::Both,
+            QoS::AtMostOnce,
+        );
+        config.try_private = true;
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"try_private\":true"));
+
+        let deserialized: BridgeConfig = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.try_private);
+        assert_eq!(deserialized.name, "test-bridge");
+    }
+
+    #[test]
+    fn test_try_private_default_value() {
+        let config = BridgeConfig::new("test-bridge", "remote.broker:1883").add_topic(
+            "test/#",
+            BridgeDirection::Both,
+            QoS::AtMostOnce,
+        );
+
+        assert!(config.try_private);
+
+        let json = r#"{
+            "name": "test-bridge",
+            "client_id": "bridge-test-bridge",
+            "remote_address": "remote.broker:1883",
+            "topics": [{
+                "pattern": "test/#",
+                "direction": "both",
+                "qos": "AtMostOnce"
+            }]
+        }"#;
+
+        let deserialized: BridgeConfig = serde_json::from_str(json).unwrap();
+        assert!(deserialized.try_private);
+    }
+
+    #[test]
+    fn test_try_private_false_serialization() {
+        let mut config = BridgeConfig::new("test-bridge", "remote.broker:1883").add_topic(
+            "test/#",
+            BridgeDirection::Both,
+            QoS::AtMostOnce,
+        );
+        config.try_private = false;
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"try_private\":false"));
+
+        let deserialized: BridgeConfig = serde_json::from_str(&json).unwrap();
+        assert!(!deserialized.try_private);
     }
 }

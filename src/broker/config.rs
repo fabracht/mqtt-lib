@@ -3,6 +3,7 @@
 //! Configuration options for the MQTT v5.0 broker, following the same
 //! direct async patterns as the client.
 
+use crate::broker::bridge::BridgeConfig;
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -63,6 +64,10 @@ pub struct BrokerConfig {
 
     /// Storage configuration
     pub storage_config: StorageConfig,
+
+    /// Bridge configurations
+    #[serde(default)]
+    pub bridges: Vec<BridgeConfig>,
 }
 
 impl Default for BrokerConfig {
@@ -88,6 +93,7 @@ impl Default for BrokerConfig {
             websocket_config: None,
             websocket_tls_config: None,
             storage_config: StorageConfig::default(),
+            bridges: vec![],
         }
     }
 }
