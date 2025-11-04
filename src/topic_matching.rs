@@ -38,6 +38,11 @@ pub fn matches(topic: &str, filter: &str) -> bool {
         return true;
     }
 
+    // MQTT spec: topics starting with $ do not match wildcards at root level
+    if topic.starts_with('$') && (filter.starts_with('#') || filter.starts_with('+')) {
+        return false;
+    }
+
     // Fast path for # at root
     if filter == "#" {
         return true;
@@ -223,17 +228,60 @@ mod tests {
         assert!(matches("/", "/+")); // + matches empty string
         assert!(!matches("//", "/+")); // /+ has 2 levels, // has 3 levels
 
-        // System topics starting with $
+        // System topics starting with $ - MQTT spec compliant behavior
         assert!(matches("$SYS/broker/uptime", "$SYS/broker/uptime"));
         assert!(matches("$SYS/broker/uptime", "$SYS/+/uptime"));
         assert!(matches("$SYS/broker/uptime", "$SYS/#"));
-        assert!(matches("$SYS/broker/uptime", "#"));
+        assert!(!matches("$SYS/broker/uptime", "#"));
+        assert!(!matches("$SYS/broker/uptime", "+/broker/uptime"));
+        assert!(!matches("$SYS/broker/uptime", "+/#"));
 
         // Long topics
         let long_topic = "a/".repeat(100) + "end";
         let long_filter = "a/".repeat(100) + "end";
         assert!(matches(&long_topic, &long_filter));
         assert!(matches(&long_topic, "#"));
+
+        // $ prefix topics with long paths
+        let long_sys_topic = "$".to_string() + &"a/".repeat(100) + "end";
+        assert!(!matches(&long_sys_topic, "#"));
+    }
+
+    #[test]
+    fn test_dollar_prefix_wildcard_exclusion() {
+        // MQTT spec: Topics starting with $ should NOT match root-level wildcards
+        // This prevents system topics from being accidentally received
+
+        // $ topics should NOT match # at root
+        assert!(!matches("$SYS/broker/uptime", "#"));
+        assert!(!matches("$data/sensor/temp", "#"));
+        assert!(!matches("$", "#"));
+
+        // $ topics should NOT match + at root
+        assert!(!matches("$SYS/broker/uptime", "+/broker/uptime"));
+        assert!(!matches("$data/sensor/temp", "+/sensor/temp"));
+        assert!(!matches("$SYS", "+"));
+
+        // $ topics should NOT match combinations starting with wildcards
+        assert!(!matches("$SYS/broker/uptime", "+/#"));
+        assert!(!matches("$SYS/broker/uptime", "+/+/uptime"));
+
+        // $ topics SHOULD match when explicitly subscribed with $
+        assert!(matches("$SYS/broker/uptime", "$SYS/broker/uptime"));
+        assert!(matches("$SYS/broker/uptime", "$SYS/+/uptime"));
+        assert!(matches("$SYS/broker/uptime", "$SYS/#"));
+        assert!(matches("$data/sensor/temp", "$data/#"));
+        assert!(matches("$SYS/broker/uptime", "$SYS/broker/+"));
+
+        // Non-$ topics should still match # and +
+        assert!(matches("SYS/broker/uptime", "#"));
+        assert!(matches("data/sensor/temp", "+/sensor/temp"));
+        assert!(matches("normal/topic", "#"));
+
+        // Edge case: topic with $ not at start should match wildcards
+        assert!(matches("prefix/$SYS/data", "#"));
+        assert!(matches("prefix/$SYS/data", "+/$SYS/data"));
+        assert!(matches("prefix/$SYS/data", "prefix/#"));
     }
 
     #[test]

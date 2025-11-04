@@ -157,8 +157,14 @@ pub fn validate_client_id(client_id: &str) -> Result<()> {
 /// - '+' matches exactly one topic level
 /// - '#' matches any number of levels including parent level
 /// - Topic and filter level separators must match exactly
+/// - Topics starting with '$' do NOT match root-level wildcards (MQTT spec)
 #[must_use]
 pub fn topic_matches_filter(topic: &str, filter: &str) -> bool {
+    // MQTT spec: topics starting with $ do not match wildcards at root level
+    if topic.starts_with('$') && (filter.starts_with('#') || filter.starts_with('+')) {
+        return false;
+    }
+
     if filter == "#" {
         return true;
     }
@@ -488,6 +494,13 @@ mod tests {
         assert!(topic_matches_filter("sport", "sport/#"));
         assert!(topic_matches_filter("anything", "#"));
         assert!(topic_matches_filter("sport/tennis", "#"));
+
+        // $ prefix topics - MQTT spec compliant behavior
+        assert!(!topic_matches_filter("$SYS/broker/uptime", "#"));
+        assert!(!topic_matches_filter("$SYS/broker/uptime", "+/broker/uptime"));
+        assert!(!topic_matches_filter("$data/temp", "+/temp"));
+        assert!(topic_matches_filter("$SYS/broker/uptime", "$SYS/#"));
+        assert!(topic_matches_filter("$SYS/broker/uptime", "$SYS/+/uptime"));
 
         // Non-matches
         assert!(!topic_matches_filter("sport/tennis", "sport/football"));

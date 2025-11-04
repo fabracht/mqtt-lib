@@ -30,6 +30,26 @@ pub struct BridgeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_server_name: Option<String>,
 
+    /// Path to CA certificate file for TLS verification (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ca_file: Option<String>,
+
+    /// Path to client certificate file for mTLS (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_cert_file: Option<String>,
+
+    /// Path to client private key file for mTLS (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_key_file: Option<String>,
+
+    /// Disable TLS certificate verification (for testing only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insecure: Option<bool>,
+
+    /// ALPN protocols (e.g., `["x-amzn-mqtt-ca"]` for AWS IoT)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alpn_protocols: Option<Vec<String>>,
+
     /// Indicate this is a bridge connection (mosquitto compatibility)
     #[serde(default = "default_try_private")]
     pub try_private: bool,
@@ -171,6 +191,11 @@ impl BridgeConfig {
             password: None,
             use_tls: false,
             tls_server_name: None,
+            ca_file: None,
+            client_cert_file: None,
+            client_key_file: None,
+            insecure: None,
+            alpn_protocols: None,
             try_private: true,
             clean_start: false,
             keepalive: 60,
