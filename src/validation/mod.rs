@@ -497,7 +497,10 @@ mod tests {
 
         // $ prefix topics - MQTT spec compliant behavior
         assert!(!topic_matches_filter("$SYS/broker/uptime", "#"));
-        assert!(!topic_matches_filter("$SYS/broker/uptime", "+/broker/uptime"));
+        assert!(!topic_matches_filter(
+            "$SYS/broker/uptime",
+            "+/broker/uptime"
+        ));
         assert!(!topic_matches_filter("$data/temp", "+/temp"));
         assert!(topic_matches_filter("$SYS/broker/uptime", "$SYS/#"));
         assert!(topic_matches_filter("$SYS/broker/uptime", "$SYS/+/uptime"));
