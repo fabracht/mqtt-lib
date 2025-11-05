@@ -130,7 +130,7 @@ pub enum BridgeDirection {
 }
 
 /// MQTT protocol version
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum MqttVersion {
     /// MQTT 3.1
@@ -141,13 +141,8 @@ pub enum MqttVersion {
     V311,
     /// MQTT 5.0
     #[serde(rename = "mqttv50")]
+    #[default]
     V50,
-}
-
-impl Default for MqttVersion {
-    fn default() -> Self {
-        Self::V50
-    }
 }
 
 // Default value functions for serde
