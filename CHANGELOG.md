@@ -5,27 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2025-11-05
+
+### Added
+
+- bridge TLS/mTLS support with CA certificates and client certificates
+- bridge exponential backoff reconnection (5s → 10s → 20s → 300s max)
+- bridge `try_private` option for Mosquitto compatibility
+- comprehensive CLI usage guide (CLI_USAGE.md) with full configuration reference
+
+### Fixed
+
+- $SYS topic wildcard matching to prevent bridge message loops
+- $SYS topic loop warnings in broker logs
 
 ## [0.6.0] - 2025-01-25
 
 ### Added
+
 - no local subscription option support
 - `--no-local` flag to subscribe command
 
 ## [0.5.0] - 2025-01-24
 
 ### Added
+
 - improved cargo-make workflow with help command
 - comprehensive CLI testing suite
 - session management options
 - will message support for pub and sub commands
 
 ### Changed
+
 - updated tokio-tungstenite to 0.28
 - updated dialoguer to 0.12
 
 ### Fixed
+
 - MaximumQoS property handling per MQTT v5.0 spec
 - will message testing timeouts
 - repository cleanup and gitignore configuration
@@ -33,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.1] - 2025-08-05
 
 ### Fixed
+
 - **Reduced CLI verbosity** - Changed default log level from WARN to ERROR
 - **Fixed logging levels** - Normal operations no longer logged as errors/warnings
   - Task lifecycle messages (starting/exiting) changed from error/warn to debug
@@ -43,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2025-08-04
 
 ### Added
+
 - **Unified mqttv5 CLI Tool** - Complete MQTT CLI implementation
   - Single binary with pub, sub, and broker subcommands
   - Superior user experience with smart prompting for missing arguments
@@ -66,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Different retry strategies for different error types
 
 ### Changed
+
 - **Platform Transformation**: Project evolved from client library to complete MQTT v5.0 platform
 - **Unified CLI**: All documentation and examples now use mqttv5 CLI
 - **Comprehensive Documentation Overhaul**:
@@ -78,11 +97,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Architecture**: Maintained NO EVENT LOOPS principle throughout broker implementation
 
 ### Removed
+
 - Unimplemented AuthMethod::External references from documentation
 
 ## [0.2.0] - 2025-07-30
 
 ### Added
+
 - **Complete MQTT v5.0 protocol implementation** with full compliance
 - **BeBytes 2.6.0 integration** for high-performance zero-copy serialization
 - **Comprehensive async/await API** with no event loops (pure Rust async patterns)
@@ -115,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Extensive documentation and examples
 
 ### Technical Highlights
+
 - **Zero-copy message handling** using BeBytes derive macros
 - **Direct async methods** instead of event loops or actor patterns
 - **Comprehensive error handling** with proper error types
@@ -123,12 +145,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Production tested** with extensive integration test suite
 
 ### Performance
+
 - High-throughput message processing with BeBytes serialization
 - Efficient memory usage with zero-copy patterns
 - Concurrent connection handling
 - Optimized packet parsing and generation
 
 ### Dependencies
+
 - `bebytes ^2.6.0` - Core serialization framework
 - `tokio ^1.46` - Async runtime
 - `rustls ^0.23` - TLS implementation
@@ -137,7 +161,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tracing ^0.1` - Structured logging
 
 ### Examples
+
 Eight focused examples demonstrating library capabilities:
+
 1. **simple_client** - Basic client API usage with callbacks and publishing
 2. **simple_broker** - Minimal broker setup and configuration
 3. **broker_with_tls** - Secure TLS/SSL transport configuration
@@ -150,9 +176,10 @@ Eight focused examples demonstrating library capabilities:
 ## [0.3.0] - 2025-08-01
 
 ### Added
+
 - **Certificate loading from bytes**: Load TLS certificates from memory (PEM/DER formats)
   - `load_client_cert_pem_bytes()` - Load client certificates from PEM byte arrays
-  - `load_client_key_pem_bytes()` - Load private keys from PEM byte arrays  
+  - `load_client_key_pem_bytes()` - Load private keys from PEM byte arrays
   - `load_ca_cert_pem_bytes()` - Load CA certificates from PEM byte arrays
   - `load_client_cert_der_bytes()` - Load client certificates from DER byte arrays
   - `load_client_key_der_bytes()` - Load private keys from DER byte arrays
@@ -178,18 +205,21 @@ Eight focused examples demonstrating library capabilities:
   - Security policy documentation
 
 ### Fixed
+
 - Topic validation now correctly follows MQTT v5.0 specification
 - AWS IoT namespace uses correct "things" (plural) path
 - Subscription management handles duplicate topics correctly (replacement behavior)
 - All clippy warnings resolved (65+ uninlined format strings)
 
 ### Enhanced
+
 - TLS configuration now supports loading certificates from memory for cloud deployments
 - WebSocket configuration supports all TLS features (client auth, custom CA, etc.)
 - Comprehensive examples showing certificate loading patterns for different deployment scenarios
 - CI pipeline optimized and all tests passing
 
 ### Use Cases Enabled
+
 - **Cloud deployments**: Load certificates from Kubernetes secrets, environment variables
 - **Browser applications**: MQTT over WebSocket for web-based IoT dashboards
 - **Firewall-restricted environments**: WebSocket transport bypasses TCP restrictions
