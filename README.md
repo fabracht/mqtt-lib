@@ -343,7 +343,7 @@ AWS IoT features:
 
 ### Prerequisites
 
-- Rust 1.82 or later
+- Rust 1.83 or later
 - cargo-make (`cargo install cargo-make`)
 
 ### Quick Setup

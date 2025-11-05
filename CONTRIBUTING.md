@@ -13,7 +13,7 @@
 
 2. **Install Prerequisites**
 
-   - Rust 1.82+ (check with `rustc --version`)
+   - Rust 1.83+ (check with `rustc --version`)
    - cargo-make: `cargo install cargo-make`
 
 3. **Run Tests**

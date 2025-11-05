@@ -2,7 +2,7 @@
 name = "mqttv5-cli"
 version = "0.7.0"
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.83"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
 description = "Superior CLI tool for MQTT v5.0 - unified client and broker commands with ergonomic input design"
 license = "MIT OR Apache-2.0"
