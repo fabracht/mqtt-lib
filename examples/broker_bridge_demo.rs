@@ -7,7 +7,6 @@ use mqtt5::broker::bridge::{BridgeConfig, BridgeDirection};
 use mqtt5::broker::{BrokerConfig, MqttBroker};
 use mqtt5::client::MqttClient;
 use mqtt5::QoS;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::info;
@@ -18,43 +17,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,mqtt5=debug")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")),
         )
         .init();
 
     info!("Starting broker bridge demonstration");
 
-    // Start broker 1 (Edge broker)
-    let edge_config = BrokerConfig::default()
-        .with_bind_address("127.0.0.1:1883".parse::<std::net::SocketAddr>()?)
-        .with_max_clients(100);
-    let edge_broker = Arc::new(MqttBroker::with_config(edge_config).await?);
-
-    // Start broker 2 (Cloud broker)
+    // Start broker 2 (Cloud broker) first, since the edge will connect to it
     let cloud_config = BrokerConfig::default()
         .with_bind_address("127.0.0.1:1884".parse::<std::net::SocketAddr>()?)
         .with_max_clients(1000);
-    let cloud_broker = Arc::new(MqttBroker::with_config(cloud_config).await?);
+    let mut cloud_broker = MqttBroker::with_config(cloud_config).await?;
 
-    info!("Both brokers started successfully");
+    info!("Cloud broker bound on 127.0.0.1:1884");
 
-    // Give brokers time to start
-    sleep(Duration::from_millis(100)).await;
+    let cloud_handle = tokio::spawn(async move {
+        let _ = cloud_broker.run().await;
+    });
+
+    // Give cloud broker time to start accepting connections
+    sleep(Duration::from_millis(200)).await;
 
     // Configure bridge from edge to cloud
-    let _bridge_config = BridgeConfig::new("edge-to-cloud", "127.0.0.1:1884")
-        // Forward sensor data from edge to cloud
+    let bridge_config = BridgeConfig::new("edge-to-cloud", "127.0.0.1:1884")
         .add_topic("sensors/+/data", BridgeDirection::Out, QoS::AtLeastOnce)
-        // Receive commands from cloud to edge
         .add_topic("commands/+/device", BridgeDirection::In, QoS::AtLeastOnce)
-        // Share status updates bidirectionally
         .add_topic("status/+", BridgeDirection::Both, QoS::AtMostOnce);
 
-    // Add bridge to edge broker
-    info!("Setting up bridge from edge to cloud broker");
-    // Note: In a real implementation, we'd add a method to MqttBroker to add bridges
-    // For now, this is a demonstration of the configuration
+    // Start broker 1 (Edge broker) with bridge configuration
+    let mut edge_config = BrokerConfig::default()
+        .with_bind_address("127.0.0.1:1883".parse::<std::net::SocketAddr>()?)
+        .with_max_clients(100);
+    edge_config.bridges = vec![bridge_config];
+
+    let mut edge_broker = MqttBroker::with_config(edge_config).await?;
+
+    info!("Edge broker bound on 127.0.0.1:1883");
+    info!("Bridge configured:");
+    info!("  - sensors/+/data: Edge → Cloud (QoS 1)");
+    info!("  - commands/+/device: Cloud → Edge (QoS 1)");
+    info!("  - status/+: Bidirectional (QoS 0)");
+
+    let edge_handle = tokio::spawn(async move {
+        let _ = edge_broker.run().await;
+    });
+
+    // Give edge broker and bridge time to start
+    sleep(Duration::from_millis(300)).await;
 
     // Create clients to demonstrate message flow
     let edge_client = MqttClient::new("edge-device");
@@ -70,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cloud_client
         .subscribe("sensors/+/data", |msg| {
             info!(
-                "[CLOUD] Received sensor data on {}: {:?}",
+                "✓ [CLOUD] Received sensor data via bridge on {}: {:?}",
                 msg.topic,
                 String::from_utf8_lossy(&msg.payload)
             );
@@ -81,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     edge_client
         .subscribe("commands/+/device", |msg| {
             info!(
-                "[EDGE] Received command on {}: {:?}",
+                "✓ [EDGE] Received command via bridge on {}: {:?}",
                 msg.topic,
                 String::from_utf8_lossy(&msg.payload)
             );
@@ -120,14 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     edge_client.disconnect().await?;
     cloud_client.disconnect().await?;
 
-    // Shutdown brokers
-    edge_broker.shutdown().await?;
-    cloud_broker.shutdown().await?;
+    // Shutdown brokers by aborting their tasks
+    edge_handle.abort();
+    cloud_handle.abort();
 
     info!("Broker bridge demonstration completed");
     Ok(())
 }
-
-// Note: This example demonstrates the bridge configuration.
-// The actual bridge connection would need to be integrated into
-// the MqttBroker implementation to work fully.

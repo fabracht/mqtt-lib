@@ -41,7 +41,7 @@ echo "  cargo doc --open              Generate and open docs in browser"
 echo ""
 echo "🔒 SECURITY & MAINTENANCE"
 echo "  cargo make audit              Check for security vulnerabilities"
-echo "  cargo make msrv-check         Check MSRV compatibility (1.82)"
+echo "  cargo make msrv-check         Check MSRV compatibility (1.83)"
 echo ""
 echo "🧪 PERFORMANCE TESTING"
 echo "  cargo test --test connection_pool_performance"
@@ -125,6 +125,6 @@ command = "cargo"
 args = ["audit"]
 
 [tasks.msrv-check]
-toolchain = "1.82"
+toolchain = "1.83"
 command = "cargo"
 args = ["check", "--all-features"]

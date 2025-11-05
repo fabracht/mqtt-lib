@@ -7,9 +7,11 @@ use crate::broker::bridge::{BridgeConfig, BridgeDirection, BridgeError, BridgeSt
 use crate::broker::router::MessageRouter;
 use crate::client::MqttClient;
 use crate::packet::publish::PublishPacket;
+use crate::transport::tls::TlsConfig;
 use crate::types::ConnectOptions;
 use crate::validation::topic_matches_filter;
 use crate::QoS;
+use std::net::ToSocketAddrs;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -106,13 +108,62 @@ impl BridgeConnection {
         Ok(())
     }
 
-    /// Connects to the remote broker with failover support
-    async fn connect(&self) -> Result<()> {
-        let mut stats = self.stats.write().await;
-        stats.connection_attempts += 1;
-        drop(stats);
+    /// Builds TLS configuration for a broker address
+    fn build_tls_config(&self, address: &str) -> Result<TlsConfig> {
+        let addr = address
+            .to_socket_addrs()
+            .map_err(|e| BridgeError::ConfigurationError(format!("Invalid address: {}", e)))?
+            .next()
+            .ok_or_else(|| {
+                BridgeError::ConfigurationError("Could not resolve address".to_string())
+            })?;
 
-        // Build connection options
+        let hostname = if let Some(ref server_name) = self.config.tls_server_name {
+            server_name.clone()
+        } else {
+            address
+                .split(':')
+                .next()
+                .ok_or_else(|| {
+                    BridgeError::ConfigurationError("Invalid address format".to_string())
+                })?
+                .to_string()
+        };
+
+        let mut tls_config = TlsConfig::new(addr, hostname);
+
+        if let Some(ref ca_file) = self.config.ca_file {
+            tls_config.load_ca_cert_pem(ca_file).map_err(|e| {
+                BridgeError::ConfigurationError(format!("Failed to load CA cert: {}", e))
+            })?;
+        }
+
+        if let Some(ref cert_file) = self.config.client_cert_file {
+            tls_config.load_client_cert_pem(cert_file).map_err(|e| {
+                BridgeError::ConfigurationError(format!("Failed to load client cert: {}", e))
+            })?;
+        }
+
+        if let Some(ref key_file) = self.config.client_key_file {
+            tls_config.load_client_key_pem(key_file).map_err(|e| {
+                BridgeError::ConfigurationError(format!("Failed to load client key: {}", e))
+            })?;
+        }
+
+        if let Some(insecure) = self.config.insecure {
+            tls_config = tls_config.with_verify_server_cert(!insecure);
+        }
+
+        if let Some(ref alpn_protocols) = self.config.alpn_protocols {
+            let protocols: Vec<&str> = alpn_protocols.iter().map(String::as_str).collect();
+            tls_config = tls_config.with_alpn_protocols(&protocols);
+        }
+
+        Ok(tls_config)
+    }
+
+    /// Builds connection options from config
+    fn build_connect_options(&self) -> ConnectOptions {
         let mut options = ConnectOptions::new(&self.config.client_id);
         options.clean_start = self.config.clean_start;
         options.keep_alive = Duration::from_secs(self.config.keepalive as u64);
@@ -124,14 +175,68 @@ impl BridgeConnection {
             options.password = Some(password.clone().into_bytes());
         }
 
-        // Build connection string with TLS if needed
-        let connection_string = if self.config.use_tls {
-            format!("mqtts://{}", self.config.remote_address)
-        } else {
-            format!("mqtt://{}", self.config.remote_address)
-        };
+        if self.config.try_private {
+            options
+                .properties
+                .user_properties
+                .push(("bridge".to_string(), self.config.name.clone()));
+        }
 
-        // Try primary broker first
+        options
+    }
+
+    /// Attempts to connect using TLS to primary and backup brokers
+    async fn connect_tls(&self, options: &ConnectOptions) -> Result<()> {
+        let tls_config = self.build_tls_config(&self.config.remote_address)?;
+        match self
+            .client
+            .connect_with_tls_and_options(tls_config, options.clone())
+            .await
+        {
+            Ok(_) => {
+                info!(
+                    "Bridge '{}' connected to primary broker: {} (TLS)",
+                    self.config.name, self.config.remote_address
+                );
+                self.update_connected_stats().await;
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("Failed to connect to primary broker: {}", e);
+                self.update_error_stats(e.to_string()).await;
+            }
+        }
+
+        for backup in &self.config.backup_brokers {
+            let tls_config = self.build_tls_config(backup)?;
+            match self
+                .client
+                .connect_with_tls_and_options(tls_config, options.clone())
+                .await
+            {
+                Ok(_) => {
+                    info!(
+                        "Bridge '{}' connected to backup broker: {} (TLS)",
+                        self.config.name, backup
+                    );
+                    self.update_connected_stats().await;
+                    return Ok(());
+                }
+                Err(e) => {
+                    warn!("Failed to connect to backup broker {}: {}", backup, e);
+                    self.update_error_stats(e.to_string()).await;
+                }
+            }
+        }
+
+        Err(BridgeError::ConnectionFailed(
+            "Failed to connect to any broker".to_string(),
+        ))
+    }
+
+    /// Attempts to connect without TLS to primary and backup brokers
+    async fn connect_plain(&self, options: &ConnectOptions) -> Result<()> {
+        let connection_string = format!("mqtt://{}", self.config.remote_address);
         match self
             .client
             .connect_with_options(&connection_string, options.clone())
@@ -151,13 +256,8 @@ impl BridgeConnection {
             }
         }
 
-        // Try backup brokers
         for backup in &self.config.backup_brokers {
-            let backup_connection_string = if self.config.use_tls {
-                format!("mqtts://{}", backup)
-            } else {
-                format!("mqtt://{}", backup)
-            };
+            let backup_connection_string = format!("mqtt://{}", backup);
             match self
                 .client
                 .connect_with_options(&backup_connection_string, options.clone())
@@ -181,6 +281,21 @@ impl BridgeConnection {
         Err(BridgeError::ConnectionFailed(
             "Failed to connect to any broker".to_string(),
         ))
+    }
+
+    /// Connects to the remote broker with failover support
+    async fn connect(&self) -> Result<()> {
+        let mut stats = self.stats.write().await;
+        stats.connection_attempts += 1;
+        drop(stats);
+
+        let options = self.build_connect_options();
+
+        if self.config.use_tls {
+            self.connect_tls(&options).await
+        } else {
+            self.connect_plain(&options).await
+        }
     }
 
     /// Sets up subscriptions for incoming topics
@@ -345,6 +460,7 @@ impl BridgeConnection {
     pub async fn run(&self) -> Result<()> {
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         let mut attempt = 0u32;
+        let mut current_delay = self.config.initial_reconnect_delay;
 
         while self.running.load(Ordering::Relaxed) {
             tokio::select! {
@@ -352,14 +468,17 @@ impl BridgeConnection {
                     info!("Bridge '{}' received shutdown signal", self.config.name);
                     break;
                 }
-                _ = self.run_connection() => {
+                result = self.run_connection() => {
                     if !self.running.load(Ordering::Relaxed) {
                         break;
                     }
 
+                    if let Ok(()) = result {
+                        current_delay = self.config.initial_reconnect_delay;
+                    }
+
                     attempt += 1;
 
-                    // Check max attempts
                     if let Some(max) = self.config.max_reconnect_attempts {
                         if attempt >= max {
                             error!("Bridge '{}' exceeded max reconnection attempts", self.config.name);
@@ -368,10 +487,14 @@ impl BridgeConnection {
                     }
 
                     warn!("Bridge '{}' disconnected, reconnecting in {:?} (attempt {})",
-                        self.config.name, self.config.reconnect_delay, attempt);
+                        self.config.name, current_delay, attempt);
 
-                    // Wait before reconnecting
-                    tokio::time::sleep(self.config.reconnect_delay).await;
+                    tokio::time::sleep(current_delay).await;
+
+                    let next_delay = Duration::from_secs_f64(
+                        current_delay.as_secs_f64() * self.config.backoff_multiplier
+                    );
+                    current_delay = next_delay.min(self.config.max_reconnect_delay);
                 }
             }
         }
@@ -381,16 +504,14 @@ impl BridgeConnection {
 
     /// Runs a single connection until disconnected
     async fn run_connection(&self) -> Result<()> {
-        // Connect and setup subscriptions
-        Box::pin(self.connect()).await?;
-        self.setup_subscriptions().await?;
+        if !self.client.is_connected().await {
+            Box::pin(self.connect()).await?;
+            self.setup_subscriptions().await?;
+        }
 
-        // Wait for client disconnection
-        // This is a simplified version - in production we'd monitor the client connection
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-            // Check if still connected (simplified check)
             if !self.client.is_connected().await {
                 warn!(
                     "Bridge '{}' disconnected from remote broker",

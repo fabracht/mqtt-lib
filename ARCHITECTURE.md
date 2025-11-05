@@ -98,7 +98,8 @@ The MQTT broker follows the same architectural principles as the client - direct
 
 4. **Message Router**: Subscription matching and delivery
 
-   - Message routing to subscribers
+   - MQTT spec-compliant topic matching with wildcard support
+   - System topic protection (`$` topics excluded from root wildcards)
    - Shared subscription support
    - Thread-safe concurrent access
 
@@ -155,13 +156,18 @@ The MQTT broker follows the same architectural principles as the client - direct
 
    - Manages broker-to-broker connections
    - Each bridge is a client to remote broker
-   - Direct message forwarding based on rules
+   - Direct message forwarding based on topic mappings
+   - Full TLS/mTLS support with CA and client certificates
+   - AWS IoT integration via ALPN protocols
+   - Exponential backoff reconnection (5s → 10s → 20s → 300s max)
+   - Backup broker failover support
 
 5. **$SYS Topics Provider**:
 
-   - Publishes broker statistics
+   - Publishes broker statistics to `$SYS/#` topics
    - Simple periodic task
    - Direct publish to router
+   - Requires explicit `$SYS/#` subscription (not matched by `#`)
 
 6. **Session Takeover**:
    - Handles new client connections with existing client IDs
@@ -189,6 +195,12 @@ Both client and broker share:
 3. **Architectural Principles**:
    - Direct async/await throughout
    - Shared error handling patterns
+
+4. **Topic Matching**:
+   - MQTT v5.0 spec-compliant wildcard matching
+   - `+` matches one level, `#` matches remaining levels
+   - Topics starting with `$` excluded from root wildcards (`#`, `+`)
+   - Requires explicit `$SYS/#` subscription for system topics
 
 ## Testing Architecture
 
