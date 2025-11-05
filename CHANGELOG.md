@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bridge `try_private` option for Mosquitto compatibility
 - comprehensive CLI usage guide (CLI_USAGE.md) with full configuration reference
 
+### Changed
+
+- minimum supported Rust version (MSRV) updated to 1.83
+
 ### Fixed
 
 - $SYS topic wildcard matching to prevent bridge message loops
