@@ -231,7 +231,9 @@ impl CallbackManager {
         {
             let wildcards = self.wildcard_callbacks.read().await;
             for entry in wildcards.iter() {
-                if crate::topic_matching::matches(&message.topic_name, &entry.topic_filter) {
+                let match_filter = Self::strip_shared_prefix(&entry.topic_filter)
+                    .unwrap_or(&entry.topic_filter);
+                if crate::topic_matching::matches(&message.topic_name, match_filter) {
                     callbacks_to_call.push(entry.callback.clone());
                 }
             }
@@ -476,5 +478,50 @@ mod tests {
 
         manager.clear().await;
         assert_eq!(manager.callback_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_shared_subscription_callback() {
+        let manager = CallbackManager::new();
+        let counter = Arc::new(AtomicU32::new(0));
+        let counter_clone = Arc::clone(&counter);
+
+        let callback: PublishCallback = Arc::new(move |_msg| {
+            counter_clone.fetch_add(1, Ordering::Relaxed);
+        });
+
+        manager
+            .register("$share/workers/tasks/#".to_string(), callback)
+            .await
+            .unwrap();
+
+        let message = PublishPacket {
+            topic_name: "tasks/job1".to_string(),
+            packet_id: None,
+            payload: vec![1, 2, 3],
+            qos: QoS::AtMostOnce,
+            retain: false,
+            dup: false,
+            properties: Properties::default(),
+        };
+
+        manager.dispatch(&message).await.unwrap();
+        assert_eq!(counter.load(Ordering::Relaxed), 1);
+
+        let message2 = PublishPacket {
+            topic_name: "tasks/job2".to_string(),
+            ..message.clone()
+        };
+
+        manager.dispatch(&message2).await.unwrap();
+        assert_eq!(counter.load(Ordering::Relaxed), 2);
+
+        let message3 = PublishPacket {
+            topic_name: "other/topic".to_string(),
+            ..message.clone()
+        };
+
+        manager.dispatch(&message3).await.unwrap();
+        assert_eq!(counter.load(Ordering::Relaxed), 2);
     }
 }
