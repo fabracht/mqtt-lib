@@ -184,6 +184,7 @@ Subscribe to MQTT topics.
 | `--verbose, -v`           | Include topic names in output                       | `false`        |
 | `--count, -n <N>`         | Exit after receiving N messages                     | `0` (infinite) |
 | `--no-local`              | Don't receive own published messages                | `false`        |
+| `--subscription-identifier <ID>` | Subscription identifier (1-268435455)         | None           |
 | `--username, -u <USER>`   | Authentication username                             | None           |
 | `--password, -P <PASS>`   | Authentication password                             | None           |
 | `--client-id, -c <ID>`    | Client ID                                           | Auto-generated |
@@ -232,6 +233,12 @@ No-local subscription:
 
 ```bash
 mqttv5 sub -t test/topic --no-local
+```
+
+Subscription with identifier:
+
+```bash
+mqttv5 sub -t sensors/+/temperature --subscription-identifier 42 -v
 ```
 
 Persistent session:

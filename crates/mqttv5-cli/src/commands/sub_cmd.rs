@@ -108,6 +108,10 @@ pub struct SubCommand {
     /// No Local - if true, Application Messages published by this client will not be received back
     #[arg(long)]
     pub no_local: bool,
+
+    /// Subscription identifier (1-268435455) to identify which subscription matched a message
+    #[arg(long)]
+    pub subscription_identifier: Option<u32>,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -270,9 +274,19 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
     let done_notify = Arc::new(Notify::new());
     let done_notify_clone = done_notify.clone();
 
+    if let Some(sub_id) = cmd.subscription_identifier {
+        if sub_id == 0 || sub_id > 268_435_455 {
+            anyhow::bail!(
+                "Subscription identifier must be between 1 and 268435455, got: {}",
+                sub_id
+            );
+        }
+    }
+
     let subscribe_options = mqtt5::SubscribeOptions {
         qos,
         no_local: cmd.no_local,
+        subscription_identifier: cmd.subscription_identifier,
         ..Default::default()
     };
 

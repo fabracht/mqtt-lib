@@ -231,8 +231,8 @@ impl CallbackManager {
         {
             let wildcards = self.wildcard_callbacks.read().await;
             for entry in wildcards.iter() {
-                let match_filter = Self::strip_shared_prefix(&entry.topic_filter)
-                    .unwrap_or(&entry.topic_filter);
+                let match_filter =
+                    Self::strip_shared_prefix(&entry.topic_filter).unwrap_or(&entry.topic_filter);
                 if crate::topic_matching::matches(&message.topic_name, match_filter) {
                     callbacks_to_call.push(entry.callback.clone());
                 }
