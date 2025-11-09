@@ -638,17 +638,23 @@ impl ClientHandler {
             .await?;
 
         if !authorized {
+            warn!(
+                "Client {} (user: {:?}) not authorized to publish to topic: {}",
+                client_id, self.user_id, publish.topic_name
+            );
             if publish.qos != QoS::AtMostOnce {
                 // Send negative acknowledgment
                 match publish.qos {
                     QoS::AtLeastOnce => {
                         let mut puback = PubAckPacket::new(publish.packet_id.unwrap());
                         puback.reason_code = ReasonCode::NotAuthorized;
+                        debug!("Sending PUBACK with NotAuthorized");
                         self.transport.write_packet(Packet::PubAck(puback)).await?;
                     }
                     QoS::ExactlyOnce => {
                         let mut pubrec = PubRecPacket::new(publish.packet_id.unwrap());
                         pubrec.reason_code = ReasonCode::NotAuthorized;
+                        debug!("Sending PUBREC with NotAuthorized");
                         self.transport.write_packet(Packet::PubRec(pubrec)).await?;
                     }
                     QoS::AtMostOnce => {}

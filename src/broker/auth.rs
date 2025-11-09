@@ -394,6 +394,18 @@ impl ComprehensiveAuthProvider {
         }
     }
 
+    /// Creates a comprehensive auth provider with existing providers
+    #[must_use]
+    pub fn with_providers(
+        password_provider: PasswordAuthProvider,
+        acl_manager: AclManager,
+    ) -> Self {
+        Self {
+            password_provider,
+            acl_manager,
+        }
+    }
+
     /// Creates a comprehensive auth provider with password file and ACL file
     ///
     /// # Errors
@@ -475,13 +487,19 @@ impl AuthProvider for ComprehensiveAuthProvider {
 
     fn authorize_publish<'a>(
         &'a self,
-        _client_id: &str,
+        client_id: &str,
         user_id: Option<&'a str>,
         topic: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<bool>> + Send + 'a>> {
+        let client_id = client_id.to_string();
         Box::pin(async move {
-            // Use ACL manager for authorization
-            Ok(self.acl_manager.check_publish(user_id, topic).await)
+            debug!(
+                "Checking publish authorization for client={}, user={:?}, topic={}",
+                client_id, user_id, topic
+            );
+            let allowed = self.acl_manager.check_publish(user_id, topic).await;
+            debug!("Authorization result: {}", allowed);
+            Ok(allowed)
         })
     }
 

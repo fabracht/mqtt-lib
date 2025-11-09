@@ -41,29 +41,51 @@ pub struct MqttBroker {
 async fn create_auth_provider(
     config: &crate::broker::config::AuthConfig,
 ) -> Result<Arc<dyn AuthProvider>> {
-    use crate::broker::auth::PasswordAuthProvider;
+    use crate::broker::acl::AclManager;
+    use crate::broker::auth::{ComprehensiveAuthProvider, PasswordAuthProvider};
 
-    match &config.password_file {
-        Some(password_file) if !config.allow_anonymous => {
-            let provider = PasswordAuthProvider::from_file(password_file)
+    match (&config.password_file, &config.acl_file) {
+        (Some(password_file), Some(acl_file)) => {
+            let password_provider = PasswordAuthProvider::from_file(password_file)
                 .await?
-                .with_anonymous(false);
-            info!("Password authentication enabled (anonymous disabled)");
+                .with_anonymous(config.allow_anonymous);
+            let acl_manager = AclManager::from_file(acl_file).await?;
+            let provider =
+                ComprehensiveAuthProvider::with_providers(password_provider, acl_manager);
+            info!(
+                "Comprehensive authentication enabled (password + ACL, anonymous: {})",
+                config.allow_anonymous
+            );
             Ok(Arc::new(provider))
         }
-        Some(password_file) => {
+        (Some(password_file), None) => {
             let provider = PasswordAuthProvider::from_file(password_file)
                 .await?
-                .with_anonymous(true);
-            info!("Password authentication enabled (anonymous allowed)");
+                .with_anonymous(config.allow_anonymous);
+            info!(
+                "Password authentication enabled (anonymous: {})",
+                config.allow_anonymous
+            );
             Ok(Arc::new(provider))
         }
-        None if config.allow_anonymous => {
+        (None, Some(acl_file)) => {
+            let password_provider =
+                PasswordAuthProvider::new().with_anonymous(config.allow_anonymous);
+            let acl_manager = AclManager::from_file(acl_file).await?;
+            let provider =
+                ComprehensiveAuthProvider::with_providers(password_provider, acl_manager);
+            info!(
+                "ACL authorization enabled (anonymous: {})",
+                config.allow_anonymous
+            );
+            Ok(Arc::new(provider))
+        }
+        (None, None) if config.allow_anonymous => {
             info!("Anonymous authentication enabled");
             Ok(Arc::new(AllowAllAuthProvider))
         }
-        None => Err(MqttError::Configuration(
-            "Authentication required but no password file specified".to_string(),
+        (None, None) => Err(MqttError::Configuration(
+            "Authentication required but no password or ACL file specified".to_string(),
         )),
     }
 }

@@ -31,6 +31,8 @@ enum Commands {
     Sub(commands::sub_cmd::SubCommand),
     /// Start MQTT broker
     Broker(commands::broker_cmd::BrokerCommand),
+    /// Manage ACL file for broker authorization
+    Acl(commands::acl_cmd::AclCommand),
     /// Manage password file for broker authentication
     Passwd(commands::passwd_cmd::PasswdCommand),
 }
@@ -68,6 +70,7 @@ async fn main() -> Result<()> {
         Commands::Pub(cmd) => commands::pub_cmd::execute(cmd).await,
         Commands::Sub(cmd) => commands::sub_cmd::execute(cmd).await,
         Commands::Broker(cmd) => commands::broker_cmd::execute(cmd).await,
+        Commands::Acl(cmd) => commands::acl_cmd::execute(cmd).await,
         Commands::Passwd(cmd) => commands::passwd_cmd::execute(cmd),
     }
 }
