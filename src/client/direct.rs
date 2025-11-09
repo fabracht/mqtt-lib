@@ -86,9 +86,9 @@ pub struct DirectClientInner {
     /// Pending UNSUBACK responses (`packet_id` -> oneshot sender)
     pub pending_unsubacks: Arc<Mutex<HashMap<u16, oneshot::Sender<UnsubAckPacket>>>>,
     /// Pending PUBACK responses (`packet_id` -> oneshot sender)
-    pub pending_pubacks: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
+    pub pending_pubacks: Arc<Mutex<HashMap<u16, oneshot::Sender<ReasonCode>>>>,
     /// Pending PUBCOMP responses (`packet_id` -> oneshot sender) - for `QoS` 2
-    pub pending_pubcomps: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
+    pub pending_pubcomps: Arc<Mutex<HashMap<u16, oneshot::Sender<ReasonCode>>>>,
     /// Reconnection state
     pub reconnect_attempt: u32,
     /// Last connection address (for reconnection)
@@ -339,7 +339,7 @@ impl DirectClientInner {
         &self,
         qos: QoS,
         packet_id: Option<u16>,
-    ) -> Option<oneshot::Receiver<()>> {
+    ) -> Option<oneshot::Receiver<ReasonCode>> {
         match qos {
             QoS::AtMostOnce => None,
             QoS::AtLeastOnce => {
@@ -366,13 +366,18 @@ impl DirectClientInner {
     /// Returns an error if the operation fails
     async fn wait_for_acknowledgment(
         &self,
-        rx: oneshot::Receiver<()>,
+        rx: oneshot::Receiver<ReasonCode>,
         qos: QoS,
         packet_id: Option<u16>,
     ) -> Result<()> {
         let timeout = Duration::from_secs(10);
         match tokio::time::timeout(timeout, rx).await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(reason_code)) => {
+                if reason_code.is_error() {
+                    return Err(MqttError::PublishFailed(reason_code));
+                }
+                Ok(())
+            }
             Ok(Err(_)) => Err(MqttError::ProtocolError(
                 "Acknowledgment channel closed".to_string(),
             )),
@@ -907,8 +912,8 @@ struct PacketReaderContext {
     callback_manager: Arc<CallbackManager>,
     suback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<SubAckPacket>>>>,
     unsuback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<UnsubAckPacket>>>>,
-    puback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
-    pubcomp_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<()>>>>,
+    puback_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<ReasonCode>>>>,
+    pubcomp_channels: Arc<Mutex<HashMap<u16, oneshot::Sender<ReasonCode>>>>,
     writer: Arc<tokio::sync::RwLock<UnifiedWriter>>,
     connected: Arc<AtomicBool>,
 }
@@ -946,23 +951,26 @@ async fn packet_reader_task_with_responses(mut reader: UnifiedReader, ctx: Packe
                     Packet::PubAck(puback) => {
                         if let Some(tx) = ctx.puback_channels.lock().await.remove(&puback.packet_id)
                         {
-                            let _ = tx.send(());
+                            let _ = tx.send(puback.reason_code);
                             continue;
                         }
                     }
-                    Packet::PubRec(_pubrec) => {
-                        // For QoS 2, we don't complete the publish on PUBREC
-                        // Just handle it normally to send PUBREL
-                        // The publish will complete when we receive PUBCOMP
+                    Packet::PubRec(pubrec) => {
+                        if pubrec.reason_code.is_error() {
+                            if let Some(tx) =
+                                ctx.pubcomp_channels.lock().await.remove(&pubrec.packet_id)
+                            {
+                                let _ = tx.send(pubrec.reason_code);
+                            }
+                            continue;
+                        }
                     }
                     Packet::PubComp(pubcomp) => {
-                        // Now we complete the QoS 2 publish
                         if let Some(tx) =
                             ctx.pubcomp_channels.lock().await.remove(&pubcomp.packet_id)
                         {
-                            let _ = tx.send(());
+                            let _ = tx.send(pubcomp.reason_code);
                         }
-                        // Still need to handle the packet normally for session cleanup
                     }
                     _ => {}
                 }
