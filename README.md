@@ -116,7 +116,7 @@ mqttv5 pub
 
 ### CLI Features
 
-- Unified interface - Single binary for pub, sub, and broker commands
+- Unified interface - Single binary with broker, pub, sub, passwd, and acl commands
 - Smart prompting - Guides users when arguments are missing
 - Input validation - Catches errors with helpful suggestions
 - Descriptive flags - `--topic` instead of `-t`, with short aliases available
@@ -173,6 +173,7 @@ mqttv5 pub
 - Cloud SDK compatible - Subscribe returns `(packet_id, qos)` tuple
 - Automatic reconnection with exponential backoff
 - Client-side message queuing for offline scenarios
+- Reason code validation - Properly handles broker publish rejections (ACL, quota limits)
 
 ### Transport & Connectivity
 
@@ -413,6 +414,7 @@ This project follows Rust async patterns:
 - Rate limiting
 - Resource monitoring
 - Client certificate authentication for mutual TLS
+- Access Control Lists (ACL) with `mqttv5 acl` CLI management (add, remove, list, check)
 
 ## License
 
