@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-11-09
+
+### Added
+
+- subscription identifier CLI support (`--subscription-identifier` flag)
+- ACL CLI command (`mqttv5 acl`) for managing ACL files
+- authorization debug logging for troubleshooting ACL issues
+- `ComprehensiveAuthProvider::with_providers()` constructor for custom auth providers
+
+### Fixed
+
+- **MQTT v5.0 compliance**: client now validates PUBACK/PUBREC/PUBCOMP reason codes
+  - returns `MqttError::PublishFailed(reason_code)` when broker rejects publish
+  - properly handles ACL authorization failures (NotAuthorized 0x87)
+  - fixes issue where client reported success despite broker rejecting publish
+- shared subscription callback matching by stripping share prefix during dispatch
+
 ## [0.7.0] - 2025-11-05
 
 ### Added

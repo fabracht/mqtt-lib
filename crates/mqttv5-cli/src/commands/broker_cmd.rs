@@ -27,6 +27,10 @@ pub struct BrokerCommand {
     #[arg(long)]
     pub auth_password_file: Option<PathBuf>,
 
+    /// ACL file path (format: user <username> topic <pattern> permission <type> per line)
+    #[arg(long)]
+    pub acl_file: Option<PathBuf>,
+
     /// TLS certificate file path (PEM format)
     #[arg(long)]
     pub tls_cert: Option<PathBuf>,
@@ -237,26 +241,48 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
     }
 
     // Configure authentication
-    if let Some(password_file) = &cmd.auth_password_file {
-        // Check if password file exists
-        if !password_file.exists() {
-            anyhow::bail!(
-                "Authentication password file not found: {}",
-                password_file.display()
-            );
+    if cmd.auth_password_file.is_some() || cmd.acl_file.is_some() {
+        if let Some(password_file) = &cmd.auth_password_file {
+            if !password_file.exists() {
+                anyhow::bail!(
+                    "Authentication password file not found: {}",
+                    password_file.display()
+                );
+            }
+        }
+
+        if let Some(acl_file) = &cmd.acl_file {
+            if !acl_file.exists() {
+                anyhow::bail!("ACL file not found: {}", acl_file.display());
+            }
         }
 
         let auth_config = AuthConfig {
             allow_anonymous: cmd.allow_anonymous,
-            password_file: Some(password_file.clone()),
-            auth_method: AuthMethod::Password,
+            password_file: cmd.auth_password_file.clone(),
+            acl_file: cmd.acl_file.clone(),
+            auth_method: if cmd.auth_password_file.is_some() {
+                AuthMethod::Password
+            } else {
+                AuthMethod::None
+            },
             auth_data: None,
         };
         config = config.with_auth(auth_config);
-        info!(
-            "Authentication enabled with password file: {:?}",
-            password_file
-        );
+
+        if cmd.auth_password_file.is_some() && cmd.acl_file.is_some() {
+            info!(
+                "Authentication enabled with password file: {:?} and ACL file: {:?}",
+                cmd.auth_password_file, cmd.acl_file
+            );
+        } else if let Some(password_file) = &cmd.auth_password_file {
+            info!(
+                "Authentication enabled with password file: {:?}",
+                password_file
+            );
+        } else if let Some(acl_file) = &cmd.acl_file {
+            info!("Authorization enabled with ACL file: {:?}", acl_file);
+        }
     }
 
     // Configure TLS

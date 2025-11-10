@@ -72,6 +72,29 @@ We use direct async/await patterns because:
 
 3. **No Indirection**: Operations go directly from API call to network I/O
 
+### Client Error Handling
+
+The client validates all acknowledgment reason codes from the broker to ensure MQTT v5.0 compliance:
+
+1. **PUBACK Validation** (QoS 1): Client checks PUBACK reason code after publishing
+   - Success codes (0x00-0x7F): Operation completes successfully
+   - Error codes (0x80+): Returns `MqttError::PublishFailed(reason_code)`
+
+2. **PUBREC Validation** (QoS 2): Client checks PUBREC reason code
+   - Error codes abort the publish flow immediately
+   - Success codes proceed to PUBREL/PUBCOMP handshake
+
+3. **PUBCOMP Validation** (QoS 2): Client checks final acknowledgment
+   - Ensures complete QoS 2 flow validation
+   - Reports final broker decision on publish
+
+4. **Authorization Integration**:
+   - Properly handles `ReasonCode::NotAuthorized` (0x87) from ACL failures
+   - Returns descriptive errors when broker rejects due to permissions, quotas, or other constraints
+   - Prevents false success reporting when broker rejects publish
+
+This ensures the client API accurately reflects broker acceptance or rejection of messages, fixing the previous behavior where the client reported success even when the broker rejected the publish.
+
 ## Broker Architecture
 
 The MQTT broker follows the same architectural principles as the client - direct async/await patterns.
@@ -137,14 +160,19 @@ The MQTT broker follows the same architectural principles as the client - direct
      - `PasswordAuthProvider` - File-based username/password with bcrypt
      - `CertificateAuthProvider` - Client certificate validation
      - `ComprehensiveAuthProvider` - Combines multiple auth methods
+   - Custom provider composition via `with_providers()` constructor
    - Bcrypt password hashing for secure storage
    - CLI `passwd` command for password management
+   - Debug logging for authorization decisions (troubleshooting support)
 
 2. **ACL Manager**:
 
    - Direct authorization checks for publish/subscribe
-   - Rule-based access control
+   - Rule-based access control with wildcard matching
    - Integrated with packet handlers
+   - Debug logging for authorization decisions
+   - Warn logging for authorization failures
+   - CLI management via `mqttv5 acl` command (add, remove, list, check)
 
 3. **Resource Monitor**:
 

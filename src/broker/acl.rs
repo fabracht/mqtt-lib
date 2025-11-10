@@ -232,6 +232,11 @@ impl AclManager {
         Ok(())
     }
 
+    /// Reloads the ACL file (alias for load_acl_file)
+    pub async fn reload(&self) -> Result<()> {
+        self.load_acl_file().await
+    }
+
     /// Adds an ACL rule
     pub async fn add_rule(&self, rule: AclRule) {
         self.rules.write().await.push(rule);

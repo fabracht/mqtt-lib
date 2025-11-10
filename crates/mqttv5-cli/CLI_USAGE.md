@@ -31,6 +31,7 @@ Start an MQTT v5.0 broker.
 | `--max-clients <N>`           | Maximum concurrent clients                                      | `10000`                     |
 | `--allow-anonymous`           | Allow anonymous connections                                     | `true`                      |
 | `--auth-password-file <FILE>` | Password file for authentication                                | None                        |
+| `--acl-file <FILE>`           | ACL file for authorization                                      | None                        |
 | `--tls-cert <FILE>`           | TLS certificate file (PEM format)                               | None                        |
 | `--tls-key <FILE>`            | TLS private key file (PEM format)                               | None                        |
 | `--tls-ca-cert <FILE>`        | TLS CA certificate for client verification                      | None                        |
@@ -70,6 +71,15 @@ Broker with authentication:
 ```bash
 mqttv5 broker \
   --auth-password-file passwords.txt \
+  --allow-anonymous=false
+```
+
+Broker with authentication and authorization (ACL):
+
+```bash
+mqttv5 broker \
+  --auth-password-file passwords.txt \
+  --acl-file acl.txt \
   --allow-anonymous=false
 ```
 
@@ -184,6 +194,7 @@ Subscribe to MQTT topics.
 | `--verbose, -v`           | Include topic names in output                       | `false`        |
 | `--count, -n <N>`         | Exit after receiving N messages                     | `0` (infinite) |
 | `--no-local`              | Don't receive own published messages                | `false`        |
+| `--subscription-identifier <ID>` | Subscription identifier (1-268435455)         | None           |
 | `--username, -u <USER>`   | Authentication username                             | None           |
 | `--password, -P <PASS>`   | Authentication password                             | None           |
 | `--client-id, -c <ID>`    | Client ID                                           | Auto-generated |
@@ -232,6 +243,12 @@ No-local subscription:
 
 ```bash
 mqttv5 sub -t test/topic --no-local
+```
+
+Subscription with identifier:
+
+```bash
+mqttv5 sub -t sensors/+/temperature --subscription-identifier 42 -v
 ```
 
 Persistent session:
@@ -296,6 +313,88 @@ Generate hash to stdout:
 mqttv5 passwd -n testuser
 ```
 
+### mqttv5 acl
+
+Manage ACL (Access Control List) file for broker authorization.
+
+#### ACL Usage
+
+```
+mqttv5 acl <COMMAND>
+```
+
+#### ACL Commands
+
+| Command                                       | Description                                  |
+| --------------------------------------------- | -------------------------------------------- |
+| `add <user> <topic> <permission> --file FILE` | Add ACL rule                                 |
+| `remove <user> [topic] --file FILE`           | Remove ACL rule(s) for user                  |
+| `list [user] --file FILE`                     | List ACL rules (all or for specific user)    |
+| `check <user> <topic> <action> --file FILE`   | Check if user can perform action on topic    |
+
+#### Permissions
+
+- `read` - Allow subscribe operations
+- `write` - Allow publish operations
+- `readwrite` - Allow both subscribe and publish
+- `deny` - Explicitly deny access
+
+#### ACL Examples
+
+Add rule allowing Alice to subscribe to sensors:
+
+```bash
+mqttv5 acl add alice "sensors/#" read --file acl.txt
+```
+
+Add rule allowing Bob to publish to actuators:
+
+```bash
+mqttv5 acl add bob "actuators/#" write --file acl.txt
+```
+
+Add rule for all users to access public topics:
+
+```bash
+mqttv5 acl add "*" "public/#" readwrite --file acl.txt
+```
+
+Deny access to admin topics:
+
+```bash
+mqttv5 acl add "*" "admin/#" deny --file acl.txt
+```
+
+List all ACL rules:
+
+```bash
+mqttv5 acl list --file acl.txt
+```
+
+List rules for specific user:
+
+```bash
+mqttv5 acl list alice --file acl.txt
+```
+
+Check if user can perform action:
+
+```bash
+mqttv5 acl check alice "sensors/temperature" read --file acl.txt
+```
+
+Remove specific rule:
+
+```bash
+mqttv5 acl remove alice "sensors/#" --file acl.txt
+```
+
+Remove all rules for user:
+
+```bash
+mqttv5 acl remove alice --file acl.txt
+```
+
 ## Configuration File Reference
 
 The broker accepts a JSON configuration file with `--config` flag.
@@ -348,6 +447,7 @@ The broker accepts a JSON configuration file with `--config` flag.
 {
   "allow_anonymous": boolean,
   "password_file": "string" | null,
+  "acl_file": "string" | null,
   "auth_method": "None" | "Password" | "ScramSha256",
   "auth_data": string | null
 }
@@ -357,6 +457,7 @@ The broker accepts a JSON configuration file with `--config` flag.
 | ----------------- | -------------- | --------------------------- | -------- |
 | `allow_anonymous` | `boolean`      | Allow anonymous connections | `true`   |
 | `password_file`   | `string\|null` | Path to password file       | `null`   |
+| `acl_file`        | `string\|null` | Path to ACL file            | `null`   |
 | `auth_method`     | `string`       | Authentication method       | `"None"` |
 | `auth_data`       | `string\|null` | Additional auth data        | `null`   |
 
@@ -647,6 +748,36 @@ username:$2b$12$hash...
 - Username followed by colon
 - Bcrypt hash of password
 - Use `mqttv5 passwd` command to manage
+
+### ACL File Format
+
+ACL files define topic-level access control with one rule per line:
+
+```
+user <username> topic <pattern> permission <type>
+```
+
+**Format:**
+- `<username>` - Username or `*` for wildcard (all users)
+- `<pattern>` - Topic pattern with MQTT wildcards (`+` for single level, `#` for multi-level)
+- `<type>` - Permission: `read`, `write`, `readwrite`, or `deny`
+
+**Example ACL file:**
+
+```
+user alice topic sensors/# permission read
+user bob topic actuators/# permission write
+user admin topic admin/# permission readwrite
+user * topic public/# permission readwrite
+user * topic admin/# permission deny
+```
+
+**Rule Priority:**
+- More specific rules override general rules
+- User-specific rules take precedence over wildcard rules
+- Deny rules have highest priority
+
+Use `mqttv5 acl` command to manage ACL files.
 
 ### TLS Certificates
 
