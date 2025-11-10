@@ -233,7 +233,7 @@ pub struct AuthConfig {
     /// Path to password file (username:password format)
     pub password_file: Option<PathBuf>,
 
-    /// Path to ACL file (user <username> topic <pattern> permission <type> format)
+    /// Path to ACL file (user `<username>` topic `<pattern>` permission `<type>` format)
     pub acl_file: Option<PathBuf>,
 
     /// Authentication method
