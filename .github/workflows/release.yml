@@ -9,92 +9,105 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Create GitHub release
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
   # Publish to crates.io
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: create-release
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Verify version
         run: |
-          # Extract version from tag
           VERSION=${GITHUB_REF#refs/tags/v}
-          # Check it matches Cargo.toml
           CARGO_VERSION=$(grep "^version" Cargo.toml | head -1 | cut -d'"' -f2)
           if [ "$VERSION" != "$CARGO_VERSION" ]; then
             echo "Tag version ($VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
             exit 1
           fi
-      
-      - name: Publish to crates.io
-        run: cargo publish
+
+      - name: Publish mqtt5 library to crates.io
+        run: cargo publish --package mqtt5
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  # Build and upload binaries (if applicable)
+      - name: Wait for crates.io to update
+        run: sleep 30
+
+      - name: Publish mqttv5-cli to crates.io
+        run: cargo publish --package mqttv5-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Build CLI binaries
   build-binaries:
-    name: Build Binaries
-    needs: create-release
+    name: Build CLI Binaries
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: mqtt-v5-linux-amd64
+            artifact_name: mqttv5
+            asset_name: mqttv5-linux-amd64
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: mqtt-v5-macos-amd64
+            artifact_name: mqttv5
+            asset_name: mqttv5-macos-amd64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: mqtt-v5-macos-arm64
+            artifact_name: mqttv5
+            asset_name: mqttv5-macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: mqtt-v5-windows-amd64.exe
+            artifact_name: mqttv5.exe
+            asset_name: mqttv5-windows-amd64.exe
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-      
-      # Only upload if there are binary targets (not just a library)
-      - name: Upload Release Asset
-        if: false # Enable this if you have binary targets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build CLI
+        run: cargo build --release --package mqttv5-cli --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/your-binary-name
-          asset_name: ${{ matrix.artifact_name }}
-          asset_content_type: application/octet-stream
+          name: ${{ matrix.asset_name }}
+          path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  # Create GitHub release
+  create-release:
+    name: Create GitHub Release
+    needs: [publish, build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          # Extract the changelog section for this version
+          sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' > release_notes.md
+          # If empty, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release ${VERSION}" > release_notes.md
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          bodyFile: release_notes.md
+          artifacts: "artifacts/**/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
