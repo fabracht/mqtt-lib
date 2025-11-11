@@ -186,6 +186,7 @@ pub mod packet_id;
 pub mod protocol;
 pub mod session;
 pub mod tasks; // Direct async tasks
+pub mod telemetry;
 pub mod test_utils;
 #[cfg(any(test, feature = "turmoil-testing"))]
 pub mod testing;

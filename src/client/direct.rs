@@ -30,6 +30,9 @@ use crate::transport::{PacketIo, PacketReader, PacketWriter, TransportType};
 use crate::types::{ConnectOptions, ConnectResult, PublishOptions, PublishResult};
 use crate::QoS;
 
+#[cfg(feature = "opentelemetry")]
+use crate::telemetry::propagation;
+
 /// Unified reader type that can handle TCP, TLS, and WebSocket
 pub enum UnifiedReader {
     Tcp(OwnedReadHalf),
@@ -461,6 +464,13 @@ impl DirectClientInner {
         let options = PublishOptions {
             qos: effective_qos,
             ..options
+        };
+
+        #[cfg(feature = "opentelemetry")]
+        let options = {
+            let mut opts = options;
+            propagation::inject_trace_context(&mut opts.properties.user_properties);
+            opts
         };
 
         if !self.is_connected() {

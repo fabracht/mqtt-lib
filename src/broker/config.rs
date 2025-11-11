@@ -5,6 +5,8 @@
 
 use crate::broker::bridge::BridgeConfig;
 use crate::error::Result;
+#[cfg(feature = "opentelemetry")]
+use crate::telemetry::TelemetryConfig;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -68,6 +70,11 @@ pub struct BrokerConfig {
     /// Bridge configurations
     #[serde(default)]
     pub bridges: Vec<BridgeConfig>,
+
+    /// OpenTelemetry configuration
+    #[cfg(feature = "opentelemetry")]
+    #[serde(skip)]
+    pub opentelemetry_config: Option<TelemetryConfig>,
 }
 
 impl Default for BrokerConfig {
@@ -94,6 +101,8 @@ impl Default for BrokerConfig {
             websocket_tls_config: None,
             storage_config: StorageConfig::default(),
             bridges: vec![],
+            #[cfg(feature = "opentelemetry")]
+            opentelemetry_config: None,
         }
     }
 }
@@ -193,6 +202,14 @@ impl BrokerConfig {
     #[must_use]
     pub fn with_storage(mut self, storage: StorageConfig) -> Self {
         self.storage_config = storage;
+        self
+    }
+
+    /// Sets the OpenTelemetry configuration
+    #[must_use]
+    #[cfg(feature = "opentelemetry")]
+    pub fn with_opentelemetry(mut self, config: TelemetryConfig) -> Self {
+        self.opentelemetry_config = Some(config);
         self
     }
 
