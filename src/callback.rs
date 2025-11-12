@@ -246,6 +246,14 @@ impl CallbackManager {
                 use crate::telemetry::propagation;
                 let user_props = propagation::extract_user_properties(&message.properties);
                 propagation::with_remote_context(&user_props, || {
+                    let span = tracing::info_span!(
+                        "message_received",
+                        topic = %message.topic_name,
+                        qos = ?message.qos,
+                        payload_size = message.payload.len(),
+                        retain = message.retain,
+                    );
+                    let _enter = span.enter();
                     callback(message.clone());
                 });
             }
