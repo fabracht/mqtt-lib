@@ -118,6 +118,21 @@ pub struct PubCommand {
     /// Enable automatic reconnection when broker disconnects
     #[arg(long)]
     pub auto_reconnect: bool,
+
+    /// OpenTelemetry OTLP endpoint (e.g., http://localhost:4317)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long)]
+    pub otel_endpoint: Option<String>,
+
+    /// OpenTelemetry service name (default: mqttv5-pub)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "mqttv5-pub")]
+    pub otel_service_name: String,
+
+    /// OpenTelemetry sampling ratio (0.0-1.0, default: 1.0)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "1.0")]
+    pub otel_sampling: f64,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -129,7 +144,17 @@ fn parse_qos(s: &str) -> Result<QoS, String> {
     }
 }
 
-pub async fn execute(mut cmd: PubCommand) -> Result<()> {
+pub async fn execute(mut cmd: PubCommand, verbose: bool, debug: bool) -> Result<()> {
+    #[cfg(feature = "opentelemetry")]
+    let has_otel = cmd.otel_endpoint.is_some();
+
+    #[cfg(not(feature = "opentelemetry"))]
+    let has_otel = false;
+
+    if !has_otel {
+        crate::init_basic_tracing(verbose, debug);
+    }
+
     // Smart prompting for missing required arguments
     if cmd.topic.is_none() && !cmd.non_interactive {
         let topic = Input::<String>::new()
@@ -202,6 +227,19 @@ pub async fn execute(mut cmd: PubCommand) -> Result<()> {
         .client_id
         .unwrap_or_else(|| format!("mqttv5-pub-{}", rand::rng().random::<u32>()));
     let client = MqttClient::new(&client_id);
+
+    #[cfg(feature = "opentelemetry")]
+    if let Some(endpoint) = &cmd.otel_endpoint {
+        use mqtt5::telemetry::TelemetryConfig;
+        let telemetry_config = TelemetryConfig::new(&cmd.otel_service_name)
+            .with_endpoint(endpoint)
+            .with_sampling_ratio(cmd.otel_sampling);
+        mqtt5::telemetry::init_tracing_subscriber(&telemetry_config)?;
+        info!(
+            "OpenTelemetry enabled: endpoint={}, service={}, sampling={}",
+            endpoint, cmd.otel_service_name, cmd.otel_sampling
+        );
+    }
 
     // Build connection options
     let mut options = ConnectOptions::new(client_id.clone())
