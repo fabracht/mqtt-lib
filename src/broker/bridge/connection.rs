@@ -375,7 +375,8 @@ impl BridgeConnection {
                         };
 
                         // Forward with configured QoS (may be different from original)
-                        let msg_props: crate::types::MessageProperties = packet.properties.clone().into();
+                        let msg_props: crate::types::MessageProperties =
+                            packet.properties.clone().into();
                         let options = crate::types::PublishOptions {
                             qos: mapping.qos,
                             retain: packet.retain,
