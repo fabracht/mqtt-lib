@@ -204,6 +204,33 @@ The MQTT broker follows the same architectural principles as the client - direct
    - Graceful disconnection of previous client when takeover occurs
    - Maintains MQTT v5.0 session takeover semantics
 
+7. **Telemetry & Observability** (Optional):
+
+   - OpenTelemetry integration behind `opentelemetry` feature flag
+   - W3C trace context propagation via MQTT user properties
+   - Automatic span creation at key points:
+     - Publisher: trace context injected into user properties
+     - Broker: spans created for message routing and delivery
+     - Subscriber: trace context extracted, spans created for message handling
+   - Bridge trace context forwarding maintains distributed traces
+   - Integration with OpenTelemetry collectors (OTLP protocol)
+   - Zero overhead when feature is not enabled
+
+   **Trace Context Flow:**
+   ```
+   Publisher -> inject traceparent/tracestate into user properties
+            -> PUBLISH packet with trace context
+            -> Broker extracts context, creates routing span
+            -> Bridge forwards properties to remote broker
+            -> Subscriber extracts context, creates processing span
+   ```
+
+   **Configuration:**
+   - `TelemetryConfig` - Configure service name, endpoint, sampling
+   - `BrokerConfig::with_opentelemetry(config)` - Enable tracing for broker
+   - Environment variables for OpenTelemetry configuration (OTEL_*)
+   - Automatic context propagation via `with_remote_context()` helper
+
 ## Platform Integration
 
 Both client and broker share:
@@ -223,6 +250,7 @@ Both client and broker share:
 3. **Architectural Principles**:
    - Direct async/await throughout
    - Shared error handling patterns
+   - Optional observability via OpenTelemetry
 
 4. **Topic Matching**:
    - MQTT v5.0 spec-compliant wildcard matching
