@@ -24,7 +24,7 @@
 //! 3. Open Jaeger UI at http://localhost:16686 to view traces
 
 use mqtt5::broker::{BrokerConfig, MqttBroker};
-use mqtt5::telemetry::{init_tracing_subscriber, TelemetryConfig};
+use mqtt5::telemetry::TelemetryConfig;
 use mqtt5::MqttClient;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -37,15 +37,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_sampling_ratio(1.0)
         .with_timeout(Duration::from_secs(10));
 
-    init_tracing_subscriber(&telemetry_config)?;
-    info!("OpenTelemetry initialized");
-
     let config = BrokerConfig::default()
         .with_bind_address(([127, 0, 0, 1], 1883))
         .with_opentelemetry(telemetry_config);
 
     let mut broker = MqttBroker::with_config(config).await?;
-    info!("MQTT broker started on 127.0.0.1:1883");
+    info!("MQTT broker started on 127.0.0.1:1883 with OpenTelemetry enabled");
 
     let broker_handle = tokio::spawn(async move {
         if let Err(e) = broker.run().await {

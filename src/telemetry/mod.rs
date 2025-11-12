@@ -79,7 +79,10 @@ pub fn init_tracer(config: &TelemetryConfig) -> Result<SdkTracerProvider> {
 
     let resource = Resource::builder()
         .with_service_name(config.service_name.clone())
-        .with_attributes([KeyValue::new("service.version", config.service_version.clone())])
+        .with_attributes([KeyValue::new(
+            "service.version",
+            config.service_version.clone(),
+        )])
         .build();
 
     let exporter = opentelemetry_otlp::SpanExporter::builder()

@@ -636,6 +636,21 @@ impl From<crate::protocol::v5::properties::Properties> for MessageProperties {
     }
 }
 
+impl From<MessageProperties> for PublishProperties {
+    fn from(msg_props: MessageProperties) -> Self {
+        Self {
+            payload_format_indicator: msg_props.payload_format_indicator,
+            message_expiry_interval: msg_props.message_expiry_interval,
+            topic_alias: None,
+            response_topic: msg_props.response_topic,
+            correlation_data: msg_props.correlation_data,
+            user_properties: msg_props.user_properties,
+            subscription_identifiers: msg_props.subscription_identifiers,
+            content_type: msg_props.content_type,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionStats {
     pub messages_sent: u64,

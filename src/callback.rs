@@ -241,7 +241,19 @@ impl CallbackManager {
 
         // Call all matching callbacks
         for callback in callbacks_to_call {
-            callback(message.clone());
+            #[cfg(feature = "opentelemetry")]
+            {
+                use crate::telemetry::propagation;
+                let user_props = propagation::extract_user_properties(&message.properties);
+                propagation::with_remote_context(&user_props, || {
+                    callback(message.clone());
+                });
+            }
+
+            #[cfg(not(feature = "opentelemetry"))]
+            {
+                callback(message.clone());
+            }
         }
 
         Ok(())

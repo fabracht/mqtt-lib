@@ -4,10 +4,31 @@ use opentelemetry::{
     Context,
 };
 
+#[cfg(feature = "opentelemetry")]
+use crate::protocol::v5::properties::{Properties, PropertyId, PropertyValue};
+
 const TRACEPARENT_HEADER: &str = "traceparent";
 const TRACESTATE_HEADER: &str = "tracestate";
 
 pub type UserProperty = (String, String);
+
+#[cfg(feature = "opentelemetry")]
+pub fn extract_user_properties(properties: &Properties) -> Vec<UserProperty> {
+    if let Some(values) = properties.get_all(PropertyId::UserProperty) {
+        values
+            .iter()
+            .filter_map(|v| {
+                if let PropertyValue::Utf8StringPair(k, v) = v {
+                    Some((k.clone(), v.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
 
 #[cfg(feature = "opentelemetry")]
 pub fn inject_trace_context(user_properties: &mut Vec<UserProperty>) {
@@ -57,7 +78,9 @@ pub fn extract_trace_context(user_properties: &[UserProperty]) -> Option<SpanCon
     let trace_state = user_properties
         .iter()
         .find(|(key, _)| key.eq_ignore_ascii_case(TRACESTATE_HEADER))
-        .and_then(|(_, value)| TraceState::from_key_value(vec![(value.clone(), String::new())]).ok())
+        .and_then(|(_, value)| {
+            TraceState::from_key_value(vec![(value.clone(), String::new())]).ok()
+        })
         .unwrap_or_default();
 
     Some(SpanContext::new(
@@ -103,10 +126,7 @@ mod tests {
 
     #[test]
     fn test_extract_invalid_traceparent() {
-        let user_properties = vec![(
-            TRACEPARENT_HEADER.to_string(),
-            "invalid-format".to_string(),
-        )];
+        let user_properties = vec![(TRACEPARENT_HEADER.to_string(), "invalid-format".to_string())];
 
         let result = extract_trace_context(&user_properties);
         assert!(result.is_none());
