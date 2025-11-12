@@ -197,7 +197,10 @@ pub async fn execute(mut cmd: BrokerCommand, verbose: bool, debug: bool) -> Resu
     println!("  👥 Max clients: {}", cmd.max_clients);
     #[cfg(feature = "opentelemetry")]
     if let Some(ref otel_config) = config.opentelemetry_config {
-        println!("  📊 OpenTelemetry: {} (service: {})", otel_config.otlp_endpoint, otel_config.service_name);
+        println!(
+            "  📊 OpenTelemetry: {} (service: {})",
+            otel_config.otlp_endpoint, otel_config.service_name
+        );
     }
     println!("  📝 Press Ctrl+C to stop");
 

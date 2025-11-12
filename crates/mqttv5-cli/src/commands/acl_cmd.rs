@@ -168,7 +168,9 @@ async fn handle_remove(username: &str, topic: Option<&str>, file_path: &PathBuf)
     write_acl_file(file_path, &rules).await?;
 
     if let Some(topic_filter) = topic {
-        println!("Removed {removed_count} rule(s) for user '{username}' with topic '{topic_filter}'");
+        println!(
+            "Removed {removed_count} rule(s) for user '{username}' with topic '{topic_filter}'"
+        );
     } else {
         println!("Removed {removed_count} rule(s) for user '{username}'");
     }

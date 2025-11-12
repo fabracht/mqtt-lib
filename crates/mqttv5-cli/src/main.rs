@@ -42,7 +42,11 @@ async fn main() -> Result<()> {
     // Initialize rustls crypto provider for TLS support
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let Cli { command, verbose, debug } = Cli::parse();
+    let Cli {
+        command,
+        verbose,
+        debug,
+    } = Cli::parse();
 
     match command {
         Commands::Pub(cmd) => commands::pub_cmd::execute(cmd, verbose, debug).await,
