@@ -1,6 +1,5 @@
 use crate::packet::publish::PublishPacket;
-#[allow(unused_imports)]
-use crate::{Properties, QoS};
+use crate::QoS;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -101,6 +100,7 @@ impl Default for RetainedMessageStore {
 mod tests {
     use super::*;
     use crate::test_utils::TestMessageBuilder;
+    use crate::Properties;
 
     #[tokio::test]
     async fn test_store_and_retrieve() {

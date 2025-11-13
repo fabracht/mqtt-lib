@@ -6,8 +6,6 @@ use crate::session::queue::{MessageQueue, QueuedMessage};
 use crate::session::retained::{RetainedMessage, RetainedMessageStore};
 use crate::session::subscription::{Subscription, SubscriptionManager};
 use crate::types::WillMessage;
-#[allow(unused_imports)]
-use crate::Properties;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -585,7 +583,7 @@ mod tests {
     use super::*;
     use crate::packet::subscribe::SubscriptionOptions;
     use crate::types::{WillMessage, WillProperties};
-    use crate::QoS;
+    use crate::{Properties, QoS};
 
     #[tokio::test]
     async fn test_session_creation() {
