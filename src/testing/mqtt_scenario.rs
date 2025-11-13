@@ -204,33 +204,6 @@ impl MqttScenario {
     }
 }
 
-/// Result of running a scenario
-#[derive(Debug)]
-pub struct ScenarioResult {
-    pub name: String,
-    pub duration: Duration,
-    pub messages_sent: usize,
-    pub messages_received: usize,
-    pub errors: Vec<String>,
-}
-
-/// Scenario runner
-pub struct ScenarioRunner;
-
-impl ScenarioRunner {
-    /// Runs a scenario
-    pub fn run(_scenario: MqttScenario) -> ScenarioResult {
-        // This is a placeholder implementation
-        // The actual implementation would use Turmoil to run the scenario
-        todo!("Implement scenario runner with Turmoil integration")
-    }
-
-    /// Runs a scenario with multiple seeds for deterministic testing
-    pub fn run_with_seeds(_scenario: MqttScenario, _seeds: Vec<u64>) -> Vec<ScenarioResult> {
-        todo!("Implement multi-seed scenario runner")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

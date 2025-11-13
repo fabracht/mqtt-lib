@@ -42,35 +42,47 @@ async fn main() -> Result<()> {
     // Initialize rustls crypto provider for TLS support
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let cli = Cli::parse();
+    let Cli {
+        command,
+        verbose,
+        debug,
+    } = Cli::parse();
 
+    match command {
+        Commands::Pub(cmd) => commands::pub_cmd::execute(cmd, verbose, debug).await,
+        Commands::Sub(cmd) => commands::sub_cmd::execute(cmd, verbose, debug).await,
+        Commands::Broker(cmd) => commands::broker_cmd::execute(cmd, verbose, debug).await,
+        Commands::Acl(cmd) => {
+            init_basic_tracing(verbose, debug);
+            commands::acl_cmd::execute(cmd).await
+        }
+        Commands::Passwd(cmd) => {
+            init_basic_tracing(verbose, debug);
+            commands::passwd_cmd::execute(cmd)
+        }
+    }
+}
+
+pub fn init_basic_tracing(verbose: bool, debug: bool) {
     if std::env::var("RUST_LOG").is_ok() {
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .with_target(false)
             .without_time()
-            .init();
+            .try_init();
     } else {
-        let log_level = if cli.debug {
+        let log_level = if debug {
             tracing::Level::DEBUG
-        } else if cli.verbose {
+        } else if verbose {
             tracing::Level::INFO
         } else {
             tracing::Level::ERROR
         };
 
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_max_level(log_level)
             .with_target(false)
             .without_time()
-            .init();
-    }
-
-    match cli.command {
-        Commands::Pub(cmd) => commands::pub_cmd::execute(cmd).await,
-        Commands::Sub(cmd) => commands::sub_cmd::execute(cmd).await,
-        Commands::Broker(cmd) => commands::broker_cmd::execute(cmd).await,
-        Commands::Acl(cmd) => commands::acl_cmd::execute(cmd).await,
-        Commands::Passwd(cmd) => commands::passwd_cmd::execute(cmd),
+            .try_init();
     }
 }

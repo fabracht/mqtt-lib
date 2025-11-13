@@ -10,7 +10,6 @@ use crate::packet::publish::PublishPacket;
 use crate::transport::tls::TlsConfig;
 use crate::types::ConnectOptions;
 use crate::validation::topic_matches_filter;
-use crate::QoS;
 use std::net::ToSocketAddrs;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -330,8 +329,11 @@ impl BridgeConnection {
                             };
 
                             // Create packet for local routing
-                            let packet =
+                            let mut packet =
                                 PublishPacket::new(local_topic, msg.payload.clone(), msg.qos);
+                            let pub_props: crate::types::PublishProperties = msg.properties.into();
+                            packet.properties = pub_props.into();
+                            packet.retain = msg.retain;
 
                             // Forward to local broker
                             tokio::spawn(async move {
@@ -373,23 +375,18 @@ impl BridgeConnection {
                         };
 
                         // Forward with configured QoS (may be different from original)
-                        let result = match mapping.qos {
-                            QoS::AtMostOnce => {
-                                self.client
-                                    .publish(&remote_topic, packet.payload.clone())
-                                    .await
-                            }
-                            QoS::AtLeastOnce => {
-                                self.client
-                                    .publish_qos1(&remote_topic, packet.payload.clone())
-                                    .await
-                            }
-                            QoS::ExactlyOnce => {
-                                self.client
-                                    .publish_qos2(&remote_topic, packet.payload.clone())
-                                    .await
-                            }
+                        let msg_props: crate::types::MessageProperties =
+                            packet.properties.clone().into();
+                        let options = crate::types::PublishOptions {
+                            qos: mapping.qos,
+                            retain: packet.retain,
+                            properties: msg_props.into(),
                         };
+
+                        let result = self
+                            .client
+                            .publish_with_options(&remote_topic, packet.payload.clone(), options)
+                            .await;
 
                         match result {
                             Ok(_) => {

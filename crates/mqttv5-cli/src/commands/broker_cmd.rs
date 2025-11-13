@@ -94,9 +94,34 @@ pub struct BrokerCommand {
     /// Skip prompts and use defaults
     #[arg(long)]
     pub non_interactive: bool,
+
+    /// OpenTelemetry OTLP endpoint (e.g., http://localhost:4317)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long)]
+    pub otel_endpoint: Option<String>,
+
+    /// OpenTelemetry service name (default: mqttv5-broker)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "mqttv5-broker")]
+    pub otel_service_name: String,
+
+    /// OpenTelemetry sampling ratio (0.0-1.0, default: 1.0)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "1.0")]
+    pub otel_sampling: f64,
 }
 
-pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
+pub async fn execute(mut cmd: BrokerCommand, verbose: bool, debug: bool) -> Result<()> {
+    #[cfg(feature = "opentelemetry")]
+    let has_otel = cmd.otel_endpoint.is_some();
+
+    #[cfg(not(feature = "opentelemetry"))]
+    let has_otel = false;
+
+    if !has_otel {
+        crate::init_basic_tracing(verbose, debug);
+    }
+
     info!("Starting MQTT v5.0 broker...");
 
     // Create broker configuration
@@ -170,6 +195,13 @@ pub async fn execute(mut cmd: BrokerCommand) -> Result<()> {
         );
     }
     println!("  👥 Max clients: {}", cmd.max_clients);
+    #[cfg(feature = "opentelemetry")]
+    if let Some(ref otel_config) = config.opentelemetry_config {
+        println!(
+            "  📊 OpenTelemetry: {} (service: {})",
+            otel_config.otlp_endpoint, otel_config.service_name
+        );
+    }
     println!("  📝 Press Ctrl+C to stop");
 
     // Set up signal handling
@@ -392,6 +424,19 @@ async fn create_interactive_config(cmd: &mut BrokerCommand) -> Result<BrokerConf
         cleanup_interval: std::time::Duration::from_secs(300), // 5 minutes
     };
     config.storage_config = storage_config;
+
+    #[cfg(feature = "opentelemetry")]
+    if let Some(endpoint) = &cmd.otel_endpoint {
+        use mqtt5::telemetry::TelemetryConfig;
+        let telemetry_config = TelemetryConfig::new(&cmd.otel_service_name)
+            .with_endpoint(endpoint)
+            .with_sampling_ratio(cmd.otel_sampling);
+        config = config.with_opentelemetry(telemetry_config);
+        info!(
+            "OpenTelemetry enabled: endpoint={}, service={}, sampling={}",
+            endpoint, cmd.otel_service_name, cmd.otel_sampling
+        );
+    }
 
     Ok(config)
 }

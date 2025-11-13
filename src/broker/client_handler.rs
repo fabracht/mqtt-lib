@@ -28,9 +28,13 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+
 use tokio::sync::mpsc;
 use tokio::time::{interval, timeout};
 use tracing::{debug, info, warn};
+
+#[cfg(feature = "opentelemetry")]
+use crate::telemetry::propagation;
 
 /// Handles a single client connection
 pub struct ClientHandler {
@@ -623,6 +627,33 @@ impl ClientHandler {
             .await
     }
 
+    #[cfg(feature = "opentelemetry")]
+    async fn route_with_trace_context(
+        &self,
+        publish: &PublishPacket,
+        client_id: &str,
+    ) -> Result<()> {
+        let user_props = propagation::extract_user_properties(&publish.properties);
+        if let Some(span_context) = propagation::extract_trace_context(&user_props) {
+            use opentelemetry::trace::TraceContextExt;
+            use tracing::Instrument;
+            use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+            let parent_cx =
+                opentelemetry::Context::current().with_remote_span_context(span_context);
+            let span = tracing::info_span!("broker_publish");
+            let _ = span.set_parent(parent_cx);
+
+            self.router
+                .route_message(publish, Some(client_id))
+                .instrument(span)
+                .await;
+        } else {
+            self.router.route_message(publish, Some(client_id)).await;
+        }
+        Ok(())
+    }
+
     /// Handles PUBLISH packet
     async fn handle_publish(&mut self, publish: PublishPacket) -> Result<()> {
         let client_id = self.client_id.as_ref().unwrap();
@@ -689,21 +720,24 @@ impl ClientHandler {
             return Ok(());
         }
 
-        // Handle based on QoS
         match publish.qos {
             QoS::AtMostOnce => {
-                // Route immediately
+                #[cfg(feature = "opentelemetry")]
+                self.route_with_trace_context(&publish, client_id).await?;
+                #[cfg(not(feature = "opentelemetry"))]
                 self.router.route_message(&publish, Some(client_id)).await;
             }
             QoS::AtLeastOnce => {
-                // Route and acknowledge
+                #[cfg(feature = "opentelemetry")]
+                self.route_with_trace_context(&publish, client_id).await?;
+                #[cfg(not(feature = "opentelemetry"))]
                 self.router.route_message(&publish, Some(client_id)).await;
+
                 let mut puback = PubAckPacket::new(publish.packet_id.unwrap());
                 puback.reason_code = ReasonCode::Success;
                 self.transport.write_packet(Packet::PubAck(puback)).await?;
             }
             QoS::ExactlyOnce => {
-                // Store and send PUBREC
                 let packet_id = publish.packet_id.unwrap();
                 self.inflight_publishes.insert(packet_id, publish);
                 let mut pubrec = PubRecPacket::new(packet_id);
@@ -731,9 +765,12 @@ impl ClientHandler {
 
     /// Handles PUBREL packet
     async fn handle_pubrel(&mut self, pubrel: PubRelPacket) -> Result<()> {
-        // Complete QoS 2 flow
         if let Some(publish) = self.inflight_publishes.remove(&pubrel.packet_id) {
             let client_id = self.client_id.as_ref().unwrap();
+
+            #[cfg(feature = "opentelemetry")]
+            self.route_with_trace_context(&publish, client_id).await?;
+            #[cfg(not(feature = "opentelemetry"))]
             self.router.route_message(&publish, Some(client_id)).await;
         }
 

@@ -1,6 +1,6 @@
 [package]
 name = "mqtt5"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.83"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
@@ -25,6 +25,10 @@ exclude = [
 [features]
 default = []
 turmoil-testing = ["turmoil"]
+opentelemetry = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry", "tracing-subscriber"]
+opentelemetry_sdk = ["dep:opentelemetry_sdk"]
+opentelemetry-otlp = ["dep:opentelemetry-otlp"]
+tracing-opentelemetry = ["dep:tracing-opentelemetry"]
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -65,6 +69,11 @@ path = "examples/broker_all_transports.rs"
 [[example]]
 name = "broker_bridge_demo"
 path = "examples/broker_bridge_demo.rs"
+
+[[example]]
+name = "broker_with_opentelemetry"
+path = "examples/broker_with_opentelemetry.rs"
+required-features = ["opentelemetry"]
 
 [lib]
 name = "mqtt5"
@@ -116,3 +125,7 @@ turmoil = { version = "0.7", optional = true }
 url = "2.5"
 webpki-roots = "1.0"
 log = "0.4"
+opentelemetry_sdk = { version = "0.31", features = ["trace", "rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.31", features = ["trace", "grpc-tonic"], optional = true }
+tracing-opentelemetry = { version = "0.32", optional = true }
+opentelemetry = { version = "0.31", features = ["trace"], optional = true }

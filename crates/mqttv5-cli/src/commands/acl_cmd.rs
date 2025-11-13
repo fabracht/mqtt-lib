@@ -112,20 +112,17 @@ async fn handle_add(
         Vec::new()
     };
 
-    let rule_line = format!(
-        "user {} topic {} permission {}",
-        username, topic, permission
-    );
+    let rule_line = format!("user {username} topic {topic} permission {permission}");
 
     if rules.iter().any(|r| r == &rule_line) {
-        println!("Rule already exists: {}", rule_line);
+        println!("Rule already exists: {rule_line}");
         return Ok(());
     }
 
     rules.push(rule_line.clone());
     write_acl_file(file_path, &rules).await?;
 
-    println!("Added ACL rule: {}", rule_line);
+    println!("Added ACL rule: {rule_line}");
     Ok(())
 }
 
@@ -162,13 +159,9 @@ async fn handle_remove(username: &str, topic: Option<&str>, file_path: &PathBuf)
 
     if removed_count == 0 {
         if let Some(topic_filter) = topic {
-            bail!(
-                "No rules found for user '{}' with topic '{}'",
-                username,
-                topic_filter
-            );
+            bail!("No rules found for user '{username}' with topic '{topic_filter}'");
         } else {
-            bail!("No rules found for user '{}'", username);
+            bail!("No rules found for user '{username}'");
         }
     }
 
@@ -176,11 +169,10 @@ async fn handle_remove(username: &str, topic: Option<&str>, file_path: &PathBuf)
 
     if let Some(topic_filter) = topic {
         println!(
-            "Removed {} rule(s) for user '{}' with topic '{}'",
-            removed_count, username, topic_filter
+            "Removed {removed_count} rule(s) for user '{username}' with topic '{topic_filter}'"
         );
     } else {
-        println!("Removed {} rule(s) for user '{}'", removed_count, username);
+        println!("Removed {removed_count} rule(s) for user '{username}'");
     }
 
     Ok(())
@@ -212,7 +204,7 @@ async fn handle_list(username: Option<&str>, file_path: &PathBuf) -> Result<()> 
 
     if filtered_rules.is_empty() {
         if let Some(user_filter) = username {
-            println!("No ACL rules found for user '{}'", user_filter);
+            println!("No ACL rules found for user '{user_filter}'");
         } else {
             println!("No ACL rules found");
         }
@@ -220,13 +212,13 @@ async fn handle_list(username: Option<&str>, file_path: &PathBuf) -> Result<()> 
     }
 
     if let Some(user_filter) = username {
-        println!("ACL rules for user '{}':", user_filter);
+        println!("ACL rules for user '{user_filter}':");
     } else {
         println!("All ACL rules:");
     }
 
     for rule in &filtered_rules {
-        println!("  {}", rule);
+        println!("  {rule}");
     }
 
     println!("\nTotal: {} rule(s)", filtered_rules.len());
@@ -240,7 +232,7 @@ async fn handle_check(
     file_path: &PathBuf,
 ) -> Result<()> {
     if action != "read" && action != "write" {
-        bail!("Action must be 'read' or 'write', got: {}", action);
+        bail!("Action must be 'read' or 'write', got: {action}");
     }
 
     if !file_path.exists() {
@@ -258,15 +250,9 @@ async fn handle_check(
     };
 
     if allowed {
-        println!(
-            "✓ User '{}' is ALLOWED to {} topic '{}'",
-            username, action, topic
-        );
+        println!("✓ User '{username}' is ALLOWED to {action} topic '{topic}'");
     } else {
-        println!(
-            "✗ User '{}' is DENIED to {} topic '{}'",
-            username, action, topic
-        );
+        println!("✗ User '{username}' is DENIED to {action} topic '{topic}'");
     }
 
     Ok(())

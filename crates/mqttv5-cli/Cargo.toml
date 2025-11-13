@@ -1,6 +1,6 @@
 [package]
 name = "mqttv5-cli"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.83"
 authors = ["fabriciobracht <fabricio@bracht.dev>"]
@@ -14,8 +14,12 @@ categories = ["command-line-utilities", "network-programming"]
 name = "mqttv5"
 path = "src/main.rs"
 
+[features]
+default = []
+opentelemetry = ["mqtt5/opentelemetry"]
+
 [dependencies]
-mqtt5 = { version = "0.8.0", path = "../.." }
+mqtt5 = { version = "0.9.0", path = "../.." }
 clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 dialoguer = "0.12"

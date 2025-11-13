@@ -112,6 +112,21 @@ pub struct SubCommand {
     /// Subscription identifier (1-268435455) to identify which subscription matched a message
     #[arg(long)]
     pub subscription_identifier: Option<u32>,
+
+    /// OpenTelemetry OTLP endpoint (e.g., http://localhost:4317)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long)]
+    pub otel_endpoint: Option<String>,
+
+    /// OpenTelemetry service name (default: mqttv5-sub)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "mqttv5-sub")]
+    pub otel_service_name: String,
+
+    /// OpenTelemetry sampling ratio (0.0-1.0, default: 1.0)
+    #[cfg(feature = "opentelemetry")]
+    #[arg(long, default_value = "1.0")]
+    pub otel_sampling: f64,
 }
 
 fn parse_qos(s: &str) -> Result<QoS, String> {
@@ -123,7 +138,17 @@ fn parse_qos(s: &str) -> Result<QoS, String> {
     }
 }
 
-pub async fn execute(mut cmd: SubCommand) -> Result<()> {
+pub async fn execute(mut cmd: SubCommand, verbose: bool, debug: bool) -> Result<()> {
+    #[cfg(feature = "opentelemetry")]
+    let has_otel = cmd.otel_endpoint.is_some();
+
+    #[cfg(not(feature = "opentelemetry"))]
+    let has_otel = false;
+
+    if !has_otel {
+        crate::init_basic_tracing(verbose, debug);
+    }
+
     // Smart prompting for missing required arguments
     if cmd.topic.is_none() && !cmd.non_interactive {
         let topic = Input::<String>::new()
@@ -171,6 +196,19 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
         .client_id
         .unwrap_or_else(|| format!("mqttv5-sub-{}", rand::rng().random::<u32>()));
     let client = MqttClient::new(&client_id);
+
+    #[cfg(feature = "opentelemetry")]
+    if let Some(endpoint) = &cmd.otel_endpoint {
+        use mqtt5::telemetry::TelemetryConfig;
+        let telemetry_config = TelemetryConfig::new(&cmd.otel_service_name)
+            .with_endpoint(endpoint)
+            .with_sampling_ratio(cmd.otel_sampling);
+        mqtt5::telemetry::init_tracing_subscriber(&telemetry_config)?;
+        info!(
+            "OpenTelemetry enabled: endpoint={}, service={}, sampling={}",
+            endpoint, cmd.otel_service_name, cmd.otel_sampling
+        );
+    }
 
     // Build connection options
     let mut options = ConnectOptions::new(client_id.clone())
@@ -276,10 +314,7 @@ pub async fn execute(mut cmd: SubCommand) -> Result<()> {
 
     if let Some(sub_id) = cmd.subscription_identifier {
         if sub_id == 0 || sub_id > 268_435_455 {
-            anyhow::bail!(
-                "Subscription identifier must be between 1 and 268435455, got: {}",
-                sub_id
-            );
+            anyhow::bail!("Subscription identifier must be between 1 and 268435455, got: {sub_id}");
         }
     }
 

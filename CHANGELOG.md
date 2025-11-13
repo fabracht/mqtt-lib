@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-11-12
+
+### Added
+
+- **OpenTelemetry distributed tracing support** (behind `opentelemetry` feature flag)
+  - W3C trace context propagation via MQTT user properties (`traceparent`, `tracestate`)
+  - automatic span creation for broker publish operations
+  - automatic span creation for subscriber message reception
+  - bridge trace context forwarding to maintain traces across broker boundaries
+  - `TelemetryConfig` for OpenTelemetry initialization configuration
+  - `BrokerConfig::with_opentelemetry()` method to enable tracing
+- new example: `broker_with_opentelemetry.rs` demonstrating distributed tracing setup
+- trace context extraction and injection utilities in `telemetry::propagation` module
+- `From<MessageProperties> for PublishProperties` conversion for property forwarding
+
+### Enhanced
+
+- bridge connections now forward all MQTT v5 user properties including trace context
+- subscriber callbacks receive complete trace context for distributed observability
+- client publish operations automatically inject trace context when telemetry is enabled
+
 ## [0.8.0] - 2025-11-09
 
 ### Added

@@ -121,9 +121,4 @@ impl ClusterSimulation {
             brokers: HashMap::new(),
         }
     }
-
-    /// Runs the cluster simulation
-    pub fn run(self) {
-        todo!("Implement cluster simulation with Turmoil")
-    }
 }

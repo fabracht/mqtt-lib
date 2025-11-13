@@ -38,6 +38,7 @@ Start with these examples to understand the fundamentals:
 
 - **broker_with_monitoring.rs** - Metrics and monitoring
 - **broker_bridge_demo.rs** - Broker-to-broker bridging
+- **broker_with_opentelemetry.rs** - Distributed tracing with OpenTelemetry (requires `--features opentelemetry`)
 
 ## Running Examples
 
@@ -55,6 +56,9 @@ Start with these examples to understand the fundamentals:
 Run any example with:
 ```bash
 cargo run --example <example_name>
+
+# For examples requiring features
+cargo run --example broker_with_opentelemetry --features opentelemetry
 ```
 
 ### Environment Variables
@@ -144,6 +148,12 @@ mosquitto_pub -h localhost -t 'test/topic' -m 'Hello!'
 - Topic mapping
 - Message routing
 - Bridge configuration
+
+#### broker_with_opentelemetry.rs
+- OpenTelemetry distributed tracing
+- W3C trace context propagation
+- OTLP exporter configuration
+- End-to-end trace visibility
 
 ## Common Patterns
 

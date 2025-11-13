@@ -18,6 +18,9 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tracing::{debug, error, info, warn};
 
+#[cfg(feature = "opentelemetry")]
+use crate::telemetry;
+
 /// MQTT v5.0 Broker
 pub struct MqttBroker {
     config: Arc<BrokerConfig>,
@@ -145,6 +148,11 @@ impl MqttBroker {
             config.max_clients,
         )));
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
+
+        #[cfg(feature = "opentelemetry")]
+        if let Some(ref otel_config) = config.opentelemetry_config {
+            telemetry::init_tracing_subscriber(otel_config)?;
+        }
 
         let bridge_manager = if !config.bridges.is_empty() {
             info!("Initializing {} bridge(s)", config.bridges.len());

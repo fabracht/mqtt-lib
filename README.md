@@ -20,7 +20,7 @@
 
 ```toml
 [dependencies]
-mqtt5 = "0.8.0"
+mqtt5 = "0.9.0"
 ```
 
 ### CLI Tool
@@ -129,6 +129,7 @@ mqttv5 pub
 - Multiple transports: TCP, TLS, WebSocket in a single binary
 - Built-in authentication: Username/password, file-based, bcrypt
 - Resource monitoring: Connection limits, rate limiting, memory tracking
+- Distributed tracing: OpenTelemetry integration with trace context propagation
 - Self-contained: No external dependencies
 
 ### Client
@@ -340,6 +341,46 @@ AWS IoT features:
 - Certificate loading: Load client certificates from bytes (PEM/DER formats)
 - SDK compatibility: Subscribe method returns `(packet_id, qos)` tuple
 
+## OpenTelemetry Integration
+
+Enable distributed tracing across your MQTT infrastructure with OpenTelemetry support:
+
+```toml
+[dependencies]
+mqtt5 = { version = "0.9.0", features = ["opentelemetry"] }
+```
+
+### Features
+
+- W3C trace context propagation via MQTT user properties
+- Automatic span creation for publish/subscribe operations
+- Bridge trace context forwarding
+- Complete observability from publisher to subscriber
+
+### Example
+
+```rust
+use mqtt5::broker::{BrokerConfig, MqttBroker};
+use mqtt5::telemetry::TelemetryConfig;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let telemetry_config = TelemetryConfig::new("mqtt-broker")
+        .with_endpoint("http://localhost:4317")
+        .with_sampling_ratio(1.0);
+
+    let config = BrokerConfig::default()
+        .with_bind_address(([127, 0, 0, 1], 1883))
+        .with_opentelemetry(telemetry_config);
+
+    let mut broker = MqttBroker::with_config(config).await?;
+    broker.run().await?;
+    Ok(())
+}
+```
+
+See `examples/broker_with_opentelemetry.rs` for a complete example.
+
 ## Development & Building
 
 ### Prerequisites
@@ -383,6 +424,7 @@ cargo run --example broker_with_websocket   # WebSocket-enabled broker
 cargo run --example broker_all_transports   # Broker with all transports (TCP/TLS/WebSocket)
 cargo run --example broker_bridge_demo      # Broker bridging demo
 cargo run --example broker_with_monitoring  # Broker with $SYS topics
+cargo run --example broker_with_opentelemetry --features opentelemetry  # Distributed tracing
 cargo run --example shared_subscription_demo # Shared subscription load balancing
 ```
 
@@ -432,4 +474,5 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ## Documentation
 
 - [Architecture Overview](ARCHITECTURE.md) - System design and principles
+- [CLI Usage Guide](crates/mqttv5-cli/CLI_USAGE.md) - Complete CLI reference and examples
 - [API Documentation](https://docs.rs/mqtt5) - API reference
