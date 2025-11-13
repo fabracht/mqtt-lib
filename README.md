@@ -474,4 +474,5 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ## Documentation
 
 - [Architecture Overview](ARCHITECTURE.md) - System design and principles
+- [CLI Usage Guide](crates/mqttv5-cli/CLI_USAGE.md) - Complete CLI reference and examples
 - [API Documentation](https://docs.rs/mqtt5) - API reference

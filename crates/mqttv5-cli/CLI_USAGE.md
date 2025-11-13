@@ -48,6 +48,9 @@ Start an MQTT v5.0 broker.
 | `--no-retain`                 | Disable retained messages                                       | `false`                     |
 | `--no-wildcards`              | Disable wildcard subscriptions                                  | `false`                     |
 | `--non-interactive`           | Skip interactive prompts                                        | `false`                     |
+| `--otel-endpoint <URL>`       | OpenTelemetry OTLP endpoint (e.g., http://localhost:4317)       | None                        |
+| `--otel-service-name <NAME>`  | OpenTelemetry service name                                      | `mqttv5-broker`             |
+| `--otel-sampling <0.0-1.0>`   | OpenTelemetry sampling ratio                                    | `1.0`                       |
 
 #### Broker Examples
 
@@ -100,6 +103,15 @@ mqttv5 broker \
   --ws-host 0.0.0.0:8080
 ```
 
+Broker with OpenTelemetry tracing:
+
+```bash
+mqttv5 broker \
+  --otel-endpoint http://localhost:4317 \
+  --otel-service-name my-mqtt-broker \
+  --otel-sampling 1.0
+```
+
 ### mqttv5 pub
 
 Publish an MQTT message.
@@ -134,6 +146,9 @@ Publish an MQTT message.
 | `--insecure`              | Skip TLS certificate verification             | `false`        |
 | `--auto-reconnect`        | Enable automatic reconnection                 | `false`        |
 | `--non-interactive`       | Skip interactive prompts                      | `false`        |
+| `--otel-endpoint <URL>`   | OpenTelemetry OTLP endpoint                   | None           |
+| `--otel-service-name <NAME>` | OpenTelemetry service name                 | `mqttv5-pub`   |
+| `--otel-sampling <0.0-1.0>` | OpenTelemetry sampling ratio                | `1.0`          |
 
 #### Pub Examples
 
@@ -178,6 +193,14 @@ mqttv5 pub -t test/topic -m "Online" \
   --will-retain
 ```
 
+Publish with OpenTelemetry tracing:
+
+```bash
+mqttv5 pub -t test/topic -m "Traced message" \
+  --otel-endpoint http://localhost:4317 \
+  --otel-service-name my-publisher
+```
+
 ### mqttv5 sub
 
 Subscribe to MQTT topics.
@@ -212,6 +235,9 @@ Subscribe to MQTT topics.
 | `--insecure`              | Skip TLS certificate verification                   | `false`        |
 | `--auto-reconnect`        | Enable automatic reconnection                       | `false`        |
 | `--non-interactive`       | Skip interactive prompts                            | `false`        |
+| `--otel-endpoint <URL>`   | OpenTelemetry OTLP endpoint                         | None           |
+| `--otel-service-name <NAME>` | OpenTelemetry service name                       | `mqttv5-sub`   |
+| `--otel-sampling <0.0-1.0>` | OpenTelemetry sampling ratio                      | `1.0`          |
 
 #### Sub Examples
 
@@ -259,6 +285,15 @@ mqttv5 sub -t data/# \
   --no-clean-start \
   --session-expiry 3600 \
   -q 1
+```
+
+Subscribe with OpenTelemetry tracing:
+
+```bash
+mqttv5 sub -t test/# \
+  --otel-endpoint http://localhost:4317 \
+  --otel-service-name my-subscriber \
+  -v
 ```
 
 ### mqttv5 passwd
