@@ -1,3 +1,12 @@
+# **MOVE NOTICE** 
+
+#######################################################################################################
+############## This implementation has moved to https://github.com/LabOverWire/mqtt-lib. ##############
+#######################################################################################################
+
+
+
+
 # Complete MQTT v5.0 Platform
 
 [![Crates.io](https://img.shields.io/crates/v/mqtt5.svg)](https://crates.io/crates/mqtt5)
